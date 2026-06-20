@@ -1,0 +1,51 @@
+services:
+  app:
+    build: .
+    container_name: dmedclinic-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: "https://www.dmedclinic.com.br"
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /app/database/database.sqlite
+      SESSION_DRIVER: database
+      SESSION_DOMAIN: ".dmedclinic.com.br"
+      QUEUE_CONNECTION: database
+      CACHE_STORE: database
+      DMED_INTEGRACAO_SECRET: "${DMED_INTEGRACAO_SECRET}"
+      DMED_STUDIO_URL: "https://app.dmedevo.com.br"
+      AI_PROVIDER: "${AI_PROVIDER:-openai}"
+      AI_API_KEY: "${AI_API_KEY}"
+      AI_MODEL: "${AI_MODEL:-gpt-4o-mini}"
+    volumes:
+      - sqlite_data:/app/database
+      - storage_data:/app/storage
+    networks:
+      - dmed-network
+
+  # Optional: MySQL instead of SQLite
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: dmedclinic-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: "${DB_PASSWORD}"
+  #     MYSQL_DATABASE: dmedclinic
+  #     MYSQL_USER: dmedclinic
+  #     MYSQL_PASSWORD: "${DB_PASSWORD}"
+  #   volumes:
+  #     - mysql_data:/var/lib/mysql
+  #   networks:
+  #     - dmed-network
+
+volumes:
+  sqlite_data:
+  storage_data:
+  # mysql_data:
+
+networks:
+  dmed-network:
+    driver: bridge
