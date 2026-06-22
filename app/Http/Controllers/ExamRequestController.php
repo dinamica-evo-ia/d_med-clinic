@@ -24,9 +24,14 @@ class ExamRequestController extends Controller
             $query->where('status', $status);
         }
 
+        if ($patientId = $request->get('patient_id')) {
+            $query->where('patient_id', $patientId);
+        }
+
         return Inertia::render('ExamRequests/Index', [
             'examRequests' => $query->paginate(15),
-            'filters' => ['search' => $search, 'status' => $status],
+            'filters' => ['search' => $search, 'status' => $status, 'patient_id' => $patientId ?? null],
+            'patientName' => $patientId ? optional(Patient::find($patientId))->name : null,
         ]);
     }
 

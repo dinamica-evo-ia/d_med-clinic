@@ -14,17 +14,15 @@ fi
 # Permissoes (php-fpm = www-data)
 chown -R www-data:www-data /app/storage /app/bootstrap/cache /app/database 2>/dev/null || true
 
-# Run migrations
+# Run migrations (nao deve derrubar o container se ja estiver migrado/seedado)
 echo "Running central migrations..."
-su -s /bin/sh www-data -c "php artisan migrate --force"
+su -s /bin/sh www-data -c "php artisan migrate --force" || echo "WARN: central migrate falhou (seguindo)"
 
 echo "Running tenant migrations..."
-su -s /bin/sh www-data -c "php artisan tenants:migrate --force"
+su -s /bin/sh www-data -c "php artisan tenants:migrate --force" || echo "WARN: tenants migrate falhou (seguindo)"
 
 echo "Optimizing Laravel..."
-su -s /bin/sh www-data -c "php artisan optimize"
-su -s /bin/sh www-data -c "php artisan view:cache"
-su -s /bin/sh www-data -c "php artisan event:cache"
+su -s /bin/sh www-data -c "php artisan optimize:clear" || true
 
 echo "Starting supervisord..."
 exec /usr/bin/supervisord -c /etc/supervisor.d/laravel.conf

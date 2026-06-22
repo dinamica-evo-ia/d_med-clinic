@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
+use App\Models\Prescription;
+use App\Models\ExamRequest;
+use App\Models\Certificate;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -60,13 +63,24 @@ class PatientController extends Controller
     public function show(Patient $patient)
     {
         $patient->load(['appointments' => function ($q) {
-            $q->latest()->limit(10);
+            $q->latest('starts_at')->limit(8);
         }, 'medicalRecords' => function ($q) {
             $q->latest()->limit(5);
         }, 'attachments']);
 
         return Inertia::render('Patients/Show', [
             'patient' => $patient,
+            'recent' => [
+                'prescriptions' => Prescription::with('doctor:id,name')->where('patient_id', $patient->id)->latest()->limit(3)->get(),
+                'exams' => ExamRequest::where('patient_id', $patient->id)->latest()->limit(3)->get(),
+                'certificates' => Certificate::where('patient_id', $patient->id)->latest()->limit(3)->get(),
+            ],
+            'counts' => [
+                'prescriptions' => Prescription::where('patient_id', $patient->id)->count(),
+                'exams' => ExamRequest::where('patient_id', $patient->id)->count(),
+                'certificates' => Certificate::where('patient_id', $patient->id)->count(),
+                'records' => $patient->medicalRecords()->count(),
+            ],
         ]);
     }
 

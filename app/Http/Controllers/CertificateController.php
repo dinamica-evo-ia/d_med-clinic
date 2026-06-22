@@ -19,9 +19,14 @@ class CertificateController extends Controller
             $query->whereHas('patient', fn($q) => $q->where('name', 'like', "%{$search}%"));
         }
 
+        if ($patientId = $request->get('patient_id')) {
+            $query->where('patient_id', $patientId);
+        }
+
         return Inertia::render('Certificates/Index', [
             'certificates' => $query->paginate(15),
-            'filters' => ['search' => $search],
+            'filters' => ['search' => $search, 'patient_id' => $patientId ?? null],
+            'patientName' => $patientId ? optional(Patient::find($patientId))->name : null,
         ]);
     }
 
