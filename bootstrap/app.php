@@ -24,6 +24,14 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\RoleMiddleware::class,
             'ensure.master' => \App\Http\Middleware\EnsureMaster::class,
         ]);
+
+        // CRÍTICO: tenancy.by_user precisa rodar ANTES de SubstituteBindings,
+        // senão o Route Model Binding (Patient $patient) busca no banco central
+        // antes do tenant ser inicializado → 500 "no such table".
+        $middleware->prependToPriorityList(
+            before: \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            prepend: \App\Http\Middleware\InitializeTenancyByUser::class,
+        );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

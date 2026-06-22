@@ -19,7 +19,13 @@ class InitializeTenancyByUser
         $tenant = null;
 
         if ($tenantSlug) {
-            $tenant = Tenant::where('slug', $tenantSlug)->first();
+            // slug é VIRTUAL column (em data JSON do stancl) — busca via JSON.
+            $tenant = Tenant::where('data->slug', $tenantSlug)->first();
+            // Confirma se o user tem acesso a esse tenant (não pode logar com sessão de outra clínica)
+            if ($tenant && ! auth()->user()->tenants()->where('tenant_id', $tenant->id)->wherePivot('is_active', true)->exists()) {
+                $tenant = null;
+                session()->forget('tenant_slug');
+            }
         }
 
         if (!$tenant) {
