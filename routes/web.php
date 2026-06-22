@@ -21,18 +21,22 @@ use Inertia\Inertia;
 
 // Home — redirects based on auth/tenant state
 Route::get('/', function () {
-    if (auth()->check()) {
-        $tenants = auth()->user()->tenants()->wherePivot('is_active', true)->get();
-        if ($tenants->count() === 1) {
-            $tenant = $tenants->first();
-            session(['tenant_slug' => $tenant->slug]);
-            return redirect()->route('dashboard');
-        }
-        return Inertia::render('TenantSelect', [
-            'tenants' => $tenants,
-        ]);
+    if (! auth()->check()) {
+        return redirect()->route('login');
     }
-    return redirect()->route('login');
+    // Master vai direto pro painel do produto (não tem dashboard de clínica)
+    if (auth()->user()->is_master) {
+        return redirect()->route('master.dashboard');
+    }
+    $tenants = auth()->user()->tenants()->wherePivot('is_active', true)->get();
+    if ($tenants->count() === 1) {
+        $tenant = $tenants->first();
+        session(['tenant_slug' => $tenant->slug]);
+        return redirect()->route('dashboard');
+    }
+    return Inertia::render('TenantSelect', [
+        'tenants' => $tenants,
+    ]);
 })->name('home');
 
 // Tenant-specific routes (after authentication + tenancy init)

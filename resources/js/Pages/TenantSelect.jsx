@@ -1,12 +1,30 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 
 export default function TenantSelect({ tenants }) {
+    const { auth } = usePage().props;
+    const isMaster = auth?.isMaster;
+
     if (!tenants || tenants.length === 0) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-                <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full text-center">
-                    <h1 className="text-2xl font-bold text-slate-900 mb-2">D_Med Clinic</h1>
-                    <p className="text-slate-500">Você não possui acesso a nenhuma clínica.</p>
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full text-center space-y-4">
+                    <h1 className="text-2xl font-bold text-slate-900">D_Med <span className="text-blue-600">Clinic</span></h1>
+                    {isMaster ? (
+                        <>
+                            <p className="text-slate-600">Você é <strong>Master</strong> (admin do produto), não está vinculado a nenhuma clínica.</p>
+                            <Link href="/master" className="inline-block px-5 py-2.5 bg-amber-500 text-slate-900 font-semibold rounded-lg hover:bg-amber-400">
+                                Abrir Painel Master →
+                            </Link>
+                            <div>
+                                <button onClick={() => router.post('/logout')} className="text-xs text-slate-400 hover:text-slate-700">Sair</button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-slate-500">Você não possui acesso a nenhuma clínica. Fale com o administrador da sua clínica.</p>
+                            <button onClick={() => router.post('/logout')} className="text-sm text-slate-500 hover:text-slate-800 underline">Sair</button>
+                        </>
+                    )}
                 </div>
             </div>
         );
