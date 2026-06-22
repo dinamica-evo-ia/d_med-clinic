@@ -35,6 +35,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
+                'isMaster' => (bool) ($user?->is_master),
                 // Lazy: avaliado na renderizacao (depois do middleware tenancy.by_user
                 // inicializar o tenant), senao tenant() ainda e null aqui e o role vem null.
                 'role' => function () use ($user) {
@@ -46,6 +47,7 @@ class HandleInertiaRequests extends Middleware
                     return null;
                 },
             ],
+            'impersonating' => (bool) $request->session()->get('master_impersonator_id'),
         ];
     }
 }

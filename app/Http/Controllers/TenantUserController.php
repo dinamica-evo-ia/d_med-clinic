@@ -43,6 +43,29 @@ class TenantUserController extends Controller
             'role' => ['required', Rule::in(['admin', 'doctor', 'receptionist'])],
         ]);
 
+        // Limite por plano (medicos vs staff sao seats separados)
+        $planKey = tenant()->data['plan'] ?? config('plans.default');
+        $plan = config("plans.plans.$planKey");
+        if ($plan) {
+            $isDoctor = $validated['role'] === 'doctor';
+            $limitKey = $isDoctor ? 'doctors' : 'staff';
+            $limit = $plan[$limitKey] ?? null;
+            if ($limit !== null) {
+                $rolesInLimit = $isDoctor ? ['doctor'] : ['admin', 'receptionist'];
+                $current = DB::table('tenant_user')
+                    ->where('tenant_id', $tenantId)
+                    ->whereIn('role', $rolesInLimit)
+                    ->where('is_active', true)
+                    ->count();
+                if ($current >= $limit) {
+                    $label = $isDoctor ? 'médicos' : 'staff (admin/secretária)';
+                    return back()->withErrors([
+                        'role' => "Plano {$plan['name']} permite no máximo {$limit} {$label}. Faça upgrade para adicionar mais.",
+                    ])->withInput();
+                }
+            }
+        }
+
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],

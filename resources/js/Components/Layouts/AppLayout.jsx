@@ -45,12 +45,18 @@ const roleLabel = { admin: 'Administrador', doctor: 'Médico(a)', receptionist: 
 
 export default function AppLayout({ children }) {
   const [open, setOpen] = useState(false);
-  const { auth } = usePage().props;
+  const { auth, impersonating } = usePage().props;
   const url = usePage().url;
   const role = auth?.role;
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {impersonating && (
+        <div className="bg-amber-500 text-slate-900 text-sm font-semibold px-4 py-2 flex items-center justify-between gap-3">
+          <span>⚠ Você está acessando como administrador desta clínica (modo master).</span>
+          <button onClick={() => router.post('/master/impersonate/stop')} className="px-3 py-1 rounded-md bg-slate-900 text-amber-300 text-xs font-bold hover:bg-slate-800">Sair do modo</button>
+        </div>
+      )}
       {/* Mobile drawer */}
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -75,6 +81,11 @@ export default function AppLayout({ children }) {
             </button>
             <div className="lg:hidden font-bold text-slate-900">D_Med <span className="text-blue-600">Clinic</span></div>
             <div className="ml-auto flex items-center gap-3">
+              {auth?.isMaster && !impersonating && (
+                <Link href="/master" className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Painel Master
+                </Link>
+              )}
               <div className="hidden sm:flex flex-col items-end leading-tight">
                 <span className="text-sm font-semibold text-slate-800">{auth?.user?.name}</span>
                 <span className="text-[11px] text-slate-400">{roleLabel[role] || ''}</span>

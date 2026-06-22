@@ -1,0 +1,157 @@
+import { Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
+
+const STATUS_COLORS = {
+  trial: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+  active: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  past_due: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  suspended: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
+  cancelled: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
+};
+
+export default function Index({ tenants, filters, plans, statuses }) {
+  const { flash } = usePage().props;
+  const [search, setSearch] = useState(filters?.search || '');
+  const [status, setStatus] = useState(filters?.status || '');
+  const [editing, setEditing] = useState(null);
+
+  const apply = () => router.get('/master/clinicas', { search: search || undefined, status: status || undefined }, { preserveState: true, replace: true });
+
+  const impersonate = (t) => {
+    if (confirm(`Entrar como administrador da clínica "${t.name}"?`)) {
+      router.post(`/master/impersonate/${t.id}`);
+    }
+  };
+  const cancel = (t) => {
+    if (confirm(`Cancelar a clínica "${t.name}"? (não apaga dados; pode reativar mudando status)`)) {
+      router.delete(`/master/clinicas/${t.id}`, { preserveScroll: true });
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {flash?.success && <div className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-4 py-2 text-sm text-emerald-200">{flash.success}</div>}
+      {flash?.error && <div className="rounded-lg bg-rose-500/15 border border-rose-500/30 px-4 py-2 text-sm text-rose-200">{flash.error}</div>}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Clínicas</h1>
+          <p className="text-sm text-slate-400 mt-1">{tenants.length} cadastrada(s)</p>
+        </div>
+        <Link href="/master/clinicas/create" className="px-4 py-2 bg-amber-500 text-slate-900 text-sm font-semibold rounded-lg hover:bg-amber-400">+ Nova clínica</Link>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && apply()}
+          placeholder="Buscar nome/slug/email…" className="flex-1 min-w-[200px] rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm placeholder-slate-500" />
+        <select value={status} onChange={(e) => { setStatus(e.target.value); setTimeout(apply, 0); }} className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+          <option value="">Todos os status</option>
+          {Object.entries(statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+        <button onClick={apply} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm">Filtrar</button>
+      </div>
+
+      <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-900/60 text-slate-400 text-xs uppercase">
+            <tr>
+              <th className="text-left px-4 py-3">Clínica</th>
+              <th className="text-left px-3 py-3">Plano</th>
+              <th className="text-left px-3 py-3">Uso</th>
+              <th className="text-left px-3 py-3">Status</th>
+              <th className="text-right px-4 py-3">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tenants.length === 0 && (
+              <tr><td colSpan="5" className="text-center py-10 text-slate-500">Nenhuma clínica.</td></tr>
+            )}
+            {tenants.map((t) => {
+              const plan = plans[t.plan] || { name: t.plan, doctors: null, staff: null };
+              const dl = plan.doctors === null ? '∞' : plan.doctors;
+              const sl = plan.staff === null ? '∞' : plan.staff;
+              const overDoctors = plan.doctors !== null && t.doctors > plan.doctors;
+              const overStaff = plan.staff !== null && t.staff > plan.staff;
+              return (
+                <tr key={t.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-slate-100">{t.name}</div>
+                    <div className="text-xs text-slate-500">{t.slug}{t.email ? ` · ${t.email}` : ''}</div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">{plan.name}</span>
+                  </td>
+                  <td className="px-3 py-3 text-xs">
+                    <div className={overDoctors ? 'text-rose-300' : 'text-slate-300'}>{t.doctors}/{dl} médicos</div>
+                    <div className={overStaff ? 'text-rose-300' : 'text-slate-300'}>{t.staff}/{sl} staff</div>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_COLORS[t.status] || 'bg-slate-700/30 text-slate-300 border-slate-600/30'}`}>{statuses[t.status] || t.status}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="inline-flex gap-3 text-xs">
+                      <button onClick={() => setEditing(t)} className="text-slate-300 hover:text-amber-300">Editar</button>
+                      <button onClick={() => impersonate(t)} className="text-sky-300 hover:text-sky-200">Entrar</button>
+                      {t.status !== 'cancelled' && <button onClick={() => cancel(t)} className="text-rose-300 hover:text-rose-200">Cancelar</button>}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {editing && <EditModal tenant={editing} plans={plans} statuses={statuses} onClose={() => setEditing(null)} />}
+    </div>
+  );
+}
+
+function EditModal({ tenant, plans, statuses, onClose }) {
+  const [form, setForm] = useState({
+    name: tenant.name, email: tenant.email || '', document: tenant.document || '',
+    phone: tenant.phone || '', plan: tenant.plan, status: tenant.status,
+  });
+  const [saving, setSaving] = useState(false);
+  const submit = (e) => {
+    e.preventDefault();
+    setSaving(true);
+    router.put(`/master/clinicas/${tenant.id}`, form, {
+      preserveScroll: true,
+      onFinish: () => { setSaving(false); onClose(); },
+    });
+  };
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
+      <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4 text-slate-100">
+        <h2 className="text-lg font-bold">Editar clínica</h2>
+        <F label="Nome"><input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm" /></F>
+        <div className="grid grid-cols-2 gap-3">
+          <F label="E-mail"><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm" /></F>
+          <F label="Telefone"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm" /></F>
+        </div>
+        <F label="CNPJ"><input value={form.document} onChange={(e) => setForm({ ...form, document: e.target.value })} className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm" /></F>
+        <div className="grid grid-cols-2 gap-3">
+          <F label="Plano">
+            <select value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })} className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+              {Object.entries(plans).map(([k, p]) => <option key={k} value={k}>{p.name}</option>)}
+            </select>
+          </F>
+          <F label="Status">
+            <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm">
+              {Object.entries(statuses).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </F>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Cancelar</button>
+          <button disabled={saving} className="px-4 py-2 bg-amber-500 text-slate-900 text-sm font-semibold rounded-lg hover:bg-amber-400 disabled:opacity-50">{saving ? 'Salvando…' : 'Salvar'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function F({ label, children }) {
+  return (<label className="block"><span className="text-xs text-slate-400">{label}</span><div className="mt-1">{children}</div></label>);
+}

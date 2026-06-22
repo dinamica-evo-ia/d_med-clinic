@@ -6,6 +6,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import AppLayout from './Components/Layouts/AppLayout';
+import MasterLayout from './Components/Layouts/MasterLayout';
 
 const appName = import.meta.env.VITE_APP_NAME || 'D_Med Clinic';
 
@@ -18,9 +19,11 @@ createInertiaApp({
             page = pages[`./Pages/${name}.jsx`];
         }
 
-        // Apply layout: Auth pages don't get sidebar, others do
-        if (!name.startsWith('Auth/') && name !== 'TenantSelect') {
-            page.default.layout = page.default.layout || ((page) => <AppLayout>{page}</AppLayout>);
+        // Layout: Auth e TenantSelect ficam sem shell; Master/* usa MasterLayout; resto usa AppLayout
+        if (name.startsWith('Master/')) {
+            page.default.layout = page.default.layout || ((p) => <MasterLayout>{p}</MasterLayout>);
+        } else if (!name.startsWith('Auth/') && name !== 'TenantSelect') {
+            page.default.layout = page.default.layout || ((p) => <AppLayout>{p}</AppLayout>);
         }
 
         return page;

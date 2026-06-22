@@ -154,4 +154,18 @@ Route::middleware(['auth', 'web'])->group(function () {
     })->name('tenant.use');
 });
 
+// Painel master (super-admin do produto)
+Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('master.')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Master\DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/clinicas', [\App\Http\Controllers\Master\ClinicaController::class, 'index'])->name('clinicas.index');
+    Route::get('/clinicas/create', [\App\Http\Controllers\Master\ClinicaController::class, 'create'])->name('clinicas.create');
+    Route::post('/clinicas', [\App\Http\Controllers\Master\ClinicaController::class, 'store'])->name('clinicas.store');
+    Route::put('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'update'])->name('clinicas.update');
+    Route::delete('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'destroy'])->name('clinicas.destroy');
+    Route::post('/impersonate/{clinica}', [\App\Http\Controllers\Master\ImpersonationController::class, 'start'])->name('impersonate.start');
+});
+
+// Sair da impersonacao (qualquer auth user com flag de impersonacao)
+Route::middleware(['auth', 'web'])->post('/master/impersonate/stop', [\App\Http\Controllers\Master\ImpersonationController::class, 'stop'])->name('master.impersonate.stop');
+
 require __DIR__.'/auth.php';
