@@ -137,6 +137,15 @@ Route::middleware(['auth', 'web'])->group(function () {
             'tenants' => $tenants,
         ]);
     })->name('select.tenant');
+
+    Route::get('/select-tenant/{slug}', function (string $slug) {
+        $tenant = auth()->user()->tenants()->wherePivot('is_active', true)->get()->firstWhere('slug', $slug);
+        if ($tenant) {
+            session(['tenant_slug' => $tenant->slug]);
+            return redirect()->route('dashboard');
+        }
+        return redirect()->route('select.tenant');
+    })->name('tenant.use');
 });
 
 require __DIR__.'/auth.php';
