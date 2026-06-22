@@ -1,47 +1,183 @@
-import { Link } from '@inertiajs/react';
-import { useState } from 'react';
-import DataTable from '../../Components/shared/DataTable';
+import { Link, router } from '@inertiajs/react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 
-export default function Index({ appointments, doctors, filters }) {
-    const [selectedDate, setSelectedDate] = useState(filters.date || new Date().toISOString().split('T')[0]);
+const WD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const H0 = 7, H1 = 21, ROW = 56;
+const STATUS = {
+  scheduled: 'Agendado', confirmed: 'Confirmado', in_progress: 'Em andamento',
+  completed: 'Concluído', cancelled: 'Cancelado', no_show: 'Faltou',
+};
 
-    const columns = [
-        { key: 'time', label: 'Horário', render: (row) => new Date(row.starts_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
-        { key: 'patient', label: 'Paciente', render: (row) => (
-            <Link href={`/patients/${row.patient_id}`} className="text-blue-600 hover:text-blue-800 font-medium">{row.patient?.name}</Link>
-        )},
-        { key: 'doctor', label: 'Médico', render: (row) => row.doctor?.name, className: 'text-gray-500' },
-        { key: 'status', label: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-        { key: 'actions', label: 'Ações', render: (row) => (
-            <Link href={`/appointments/${row.id}`} className="text-blue-600 hover:text-blue-800 text-sm">Detalhes</Link>
-        )},
-    ];
+const startOfDay = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+const addDays = (d,n) => { const x = new Date(d); x.setDate(x.getDate()+n); return x; };
+const addMonths = (d,n) => { const x = new Date(d); x.setMonth(x.getMonth()+n); return x; };
+const startOfWeek = (d) => { const x = startOfDay(d); x.setDate(x.getDate()-x.getDay()); return x; };
+const startOfMonth = (d) => { const x = startOfDay(d); x.setDate(1); return x; };
+const endOfMonth = (d) => { const x = startOfMonth(d); x.setMonth(x.getMonth()+1); x.setDate(0); return x; };
+const sameDay = (a,b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const parse = (s) => new Date(String(s).replace(' ','T'));
+const hhmm = (d) => d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+const cap = (s) => s.charAt(0).toUpperCase()+s.slice(1);
+const patientOf = (ev) => (ev.title||'').split(' - ')[0] || 'Consulta';
 
-    return (
-        <div>
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Agenda</h1>
-                <Link href="/appointments/create" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-                    + Nova Consulta
-                </Link>
-            </div>
+export default function Index() {
+  const [view, setView] = useState('week');
+  const [cursor, setCursor] = useState(startOfDay(new Date()));
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const today = startOfDay(new Date());
+  const nowTick = new Date();
 
-            <div className="flex gap-4 mb-4">
-                <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                <Link href={`/appointments?date=${selectedDate}`}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200">
-                    Filtrar
-                </Link>
-            </div>
+  const range = useMemo(() => {
+    if (view === 'month') { const s = startOfWeek(startOfMonth(cursor)); return [s, addDays(s,41)]; }
+    if (view === 'week') { const s = startOfWeek(cursor); return [s, addDays(s,6)]; }
+    return [startOfDay(cursor), startOfDay(cursor)];
+  }, [view, cursor]);
 
-            <DataTable columns={columns} data={appointments} />
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await window.axios.get('/api/appointments/calendar', {
+        params: { start: ymd(range[0])+' 00:00:00', end: ymd(range[1])+' 23:59:59' },
+      });
+      setEvents((data||[]).map(e => ({ ...e, _s: parse(e.start), _e: parse(e.end || e.start) })));
+    } catch { setEvents([]); }
+    setLoading(false);
+  }, [range]);
+  useEffect(() => { load(); }, [load]);
+
+  const go = (n) => setCursor(c => view==='month' ? addMonths(c,n) : addDays(c, view==='week'?7*n:n));
+  const title = view==='month'
+    ? cap(cursor.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}))
+    : view==='week'
+      ? `${range[0].toLocaleDateString('pt-BR',{day:'2-digit',month:'short'})} – ${range[1].toLocaleDateString('pt-BR',{day:'2-digit',month:'short',year:'numeric'})}`
+      : cap(cursor.toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'}));
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-7rem)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2">
+          <button onClick={()=>go(-1)} className="w-9 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">‹</button>
+          <button onClick={()=>setCursor(startOfDay(new Date()))} className="px-3 h-9 rounded-lg border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50">Hoje</button>
+          <button onClick={()=>go(1)} className="w-9 h-9 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50">›</button>
+          <h1 className="ml-2 text-lg font-semibold text-slate-900">{title}</h1>
+          {loading && <span className="text-xs text-slate-400">carregando…</span>}
         </div>
-    );
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-lg bg-slate-100 p-0.5">
+            {[['day','Dia'],['week','Semana'],['month','Mês']].map(([v,l])=>(
+              <button key={v} onClick={()=>setView(v)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${view===v?'bg-white text-blue-600 shadow-sm':'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+            ))}
+          </div>
+          <Link href="/appointments/create" className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Nova Consulta</Link>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        {view==='month' && <MonthView cursor={cursor} range={range} events={events} today={today} onDay={(d)=>{setCursor(d);setView('day');}} />}
+        {view==='week' && <TimeGrid days={Array.from({length:7},(_,i)=>addDays(range[0],i))} events={events} today={today} now={nowTick} />}
+        {view==='day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} single />}
+      </div>
+    </div>
+  );
 }
 
-function StatusBadge({ status }) {
-    const labels = { scheduled: 'Agendado', confirmed: 'Confirmado', in_progress: 'Em andamento', completed: 'Concluído', cancelled: 'Cancelado', no_show: 'Faltou' };
-    const colors = { scheduled: 'bg-blue-100 text-blue-700', confirmed: 'bg-green-100 text-green-700', in_progress: 'bg-yellow-100 text-yellow-700', completed: 'bg-gray-100 text-gray-700', cancelled: 'bg-red-100 text-red-700', no_show: 'bg-purple-100 text-purple-700' };
-    return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[status] || 'bg-gray-100 text-gray-700'}`}>{labels[status] || status}</span>;
+function MonthView({ cursor, range, events, today, onDay }) {
+  const days = Array.from({length:42},(_,i)=>addDays(range[0],i));
+  const open = (ev) => router.visit(`/appointments/${ev.id}`);
+  return (
+    <div className="h-full flex flex-col">
+      <div className="grid grid-cols-7 border-b border-slate-200">
+        {WD.map(d=><div key={d} className="py-2 text-center text-xs font-semibold text-slate-500">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 grid-rows-6 flex-1">
+        {days.map((d,i)=>{
+          const evs = events.filter(e=>sameDay(e._s,d)).sort((a,b)=>a._s-b._s);
+          const out = d.getMonth()!==cursor.getMonth();
+          const isToday = sameDay(d,today);
+          return (
+            <div key={i} className={`border-b border-r border-slate-100 p-1 overflow-hidden ${out?'bg-slate-50/60':''}`}>
+              <button onClick={()=>onDay(d)} className={`flex items-center justify-center w-6 h-6 text-xs rounded-full ${isToday?'bg-blue-600 text-white font-semibold':out?'text-slate-300':'text-slate-600 hover:bg-slate-100'}`}>{d.getDate()}</button>
+              <div className="mt-0.5 space-y-0.5">
+                {evs.slice(0,3).map(ev=>(
+                  <button key={ev.id} onClick={()=>open(ev)} title={ev.title}
+                    className="flex items-center gap-1 w-full text-left px-1 py-0.5 rounded hover:bg-slate-50">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{background:ev.backgroundColor}} />
+                    <span className="text-[11px] text-slate-600 truncate">{hhmm(ev._s)} {patientOf(ev)}</span>
+                  </button>
+                ))}
+                {evs.length>3 && <div className="px-1 text-[10px] text-slate-400">+{evs.length-3} mais</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function layout(evs) {
+  const sorted = [...evs].sort((a,b)=>a._s-b._s);
+  const cols = [];
+  sorted.forEach(ev=>{
+    let placed=false;
+    for (let c=0;c<cols.length;c++){ if (cols[c][cols[c].length-1]._e<=ev._s){ cols[c].push(ev); ev._col=c; placed=true; break; } }
+    if(!placed){ ev._col=cols.length; cols.push([ev]); }
+  });
+  sorted.forEach(ev=>ev._cols=cols.length||1);
+  return sorted;
+}
+
+function TimeGrid({ days, events, today, now, single }) {
+  const hours = []; for(let h=H0;h<=H1;h++) hours.push(h);
+  const totalH = (H1-H0)*ROW;
+  const open = (ev) => router.visit(`/appointments/${ev.id}`);
+  const pos = (d, t) => { const ds=new Date(d); ds.setHours(H0,0,0,0); return ((t-ds)/60000)/((H1-H0)*60)*totalH; };
+  return (
+    <div className="h-full overflow-auto">
+      <div className="flex min-w-full">
+        <div className="w-14 shrink-0">
+          <div className="h-10" />
+          {hours.map(h=><div key={h} style={{height:ROW}} className="relative"><span className="absolute -top-2 right-2 text-[11px] text-slate-400">{String(h).padStart(2,'0')}:00</span></div>)}
+        </div>
+        <div className={`flex-1 grid`} style={{gridTemplateColumns:`repeat(${days.length},minmax(0,1fr))`}}>
+          {days.map((d,di)=>{
+            const evs = layout(events.filter(e=>sameDay(e._s,d)));
+            const isToday = sameDay(d,today);
+            return (
+              <div key={di} className="border-l border-slate-100">
+                <div className={`h-10 sticky top-0 z-10 bg-white border-b border-slate-200 flex flex-col items-center justify-center ${single?'':''}`}>
+                  <span className="text-[11px] text-slate-400">{WD[d.getDay()]}</span>
+                  <span className={`text-sm font-semibold ${isToday?'text-blue-600':'text-slate-700'}`}>{d.getDate()}</span>
+                </div>
+                <div className="relative" style={{height:totalH}}>
+                  {hours.map((h,i)=><div key={h} style={{top:i*ROW}} className="absolute left-0 right-0 border-b border-slate-100" />)}
+                  {isToday && now.getHours()>=H0 && now.getHours()<=H1 && (
+                    <div className="absolute left-0 right-0 z-20" style={{top:pos(d,now)}}>
+                      <div className="h-0.5 bg-red-500"><span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-red-500" /></div>
+                    </div>
+                  )}
+                  {evs.map(ev=>{
+                    const top=Math.max(0,pos(d,ev._s));
+                    const h=Math.max(22,pos(d,ev._e)-pos(d,ev._s));
+                    const w=100/ev._cols;
+                    return (
+                      <button key={ev.id} onClick={()=>open(ev)} title={ev.title}
+                        className="absolute rounded-lg px-2 py-1 text-left text-white overflow-hidden shadow-sm"
+                        style={{top,height:h,left:`calc(${ev._col*w}% + 2px)`,width:`calc(${w}% - 4px)`,background:ev.backgroundColor}}>
+                        <div className="text-[11px] font-semibold leading-tight truncate">{hhmm(ev._s)} {patientOf(ev)}</div>
+                        <div className="text-[10px] opacity-90 truncate">{STATUS[ev.status]||ev.status}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
