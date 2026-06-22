@@ -32,8 +32,15 @@ class InitializeTenancyByUser
 
         if ($tenant) {
             tenancy()->initialize($tenant);
+            return $next($request);
         }
 
-        return $next($request);
+        // Sem tenant válido: NÃO segue (cairia no banco central que não tem tabelas de clínica → 500).
+        // Master vai pro painel; demais usuários vão pro select-tenant que mostra "sem acesso".
+        if (auth()->user()->is_master) {
+            return redirect()->route('master.dashboard');
+        }
+
+        return redirect()->route('select.tenant');
     }
 }
