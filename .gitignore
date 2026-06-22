@@ -31,3 +31,4 @@ Thumbs.db
 
 .env.runtime
 *.bak
+CLAUDE.md
