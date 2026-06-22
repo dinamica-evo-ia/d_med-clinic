@@ -66,6 +66,8 @@ class PatientController extends Controller
             'appointments' => fn ($q) => $q->latest('starts_at')->limit(12),
             'medicalRecords' => fn ($q) => $q->with('doctor:id,name')->latest()->limit(50),
             'attachments',
+            'allergies',
+            'bodyCompositions',
         ]);
 
         $prescriptions = Prescription::with('doctor:id,name')->where('patient_id', $patient->id)->latest()->limit(50)->get();

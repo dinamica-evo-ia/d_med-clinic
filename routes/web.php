@@ -41,6 +41,10 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
 
     Route::resource('patients', PatientController::class);
     Route::patch('patients/{patient}/notes', [PatientController::class, 'updateNotes'])->name('patients.notes');
+    Route::post('patients/{patient}/allergies', [\App\Http\Controllers\AllergyController::class, 'store'])->name('allergies.store');
+    Route::delete('allergies/{allergy}', [\App\Http\Controllers\AllergyController::class, 'destroy'])->name('allergies.destroy');
+    Route::post('patients/{patient}/body-compositions', [\App\Http\Controllers\BodyCompositionController::class, 'store'])->name('body.store');
+    Route::delete('body-compositions/{bodyComposition}', [\App\Http\Controllers\BodyCompositionController::class, 'destroy'])->name('body.destroy');
 
     Route::resource('appointments', AppointmentController::class);
     Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])->name('appointments.status');

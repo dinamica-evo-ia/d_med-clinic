@@ -15,6 +15,11 @@ export default function Index({ patients }) {
     }
 
     useEffect(() => {
+        const pid = new URLSearchParams(window.location.search).get('patient_id');
+        if (pid) setPatientId(pid);
+    }, []);
+
+    useEffect(() => {
         function onMsg(e) {
             if (e.origin !== EVO_ORIGIN) return;
             if (e.data?.type === 'dmed:anamnese') {

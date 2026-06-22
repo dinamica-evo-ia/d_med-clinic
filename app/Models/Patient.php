@@ -58,4 +58,14 @@ class Patient extends Model
     {
         return $this->morphMany(Attachment::class, 'attachable');
     }
+
+    public function allergies()
+    {
+        return $this->hasMany(Allergy::class)->latest();
+    }
+
+    public function bodyCompositions()
+    {
+        return $this->hasMany(BodyComposition::class)->orderBy('measured_at', 'desc');
+    }
 }

@@ -26,6 +26,8 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
   const TABS = [
     ['resumo', 'Resumo'],
     ['evolucoes', `Evoluções${counts.records ? ` (${counts.records})` : ''}`],
+    ['alergias', `Alergias${(patient.allergies || []).length ? ` (${patient.allergies.length})` : ''}`],
+    ['composicao', 'Composição Corporal'],
     ['exames', `Exames${counts.exams ? ` (${counts.exams})` : ''}`],
     ['receitas', `Receitas${counts.prescriptions ? ` (${counts.prescriptions})` : ''}`],
     ['atestados', `Atestados/Laudos${counts.certificates ? ` (${counts.certificates})` : ''}`],
@@ -54,9 +56,9 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
               {patient.email && <span>✉ {patient.email}</span>}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/patients/${pid}/records/create`} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Evolução</Link>
-            <Link href={`/appointments/create?patient_id=${pid}`} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">Nova consulta</Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <NovaConsulta pid={pid} />
+            <Link href={`/appointments/create?patient_id=${pid}`} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">Agendar</Link>
             <Link href={`/patients/${pid}/edit`} className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">Editar</Link>
           </div>
         </div>
@@ -76,6 +78,8 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
       <div>
         {tab === 'resumo' && <Resumo patient={patient} a={a} />}
         {tab === 'evolucoes' && <Evolucoes records={records} pid={pid} />}
+        {tab === 'alergias' && <Alergias patient={patient} pid={pid} />}
+        {tab === 'composicao' && <Composicao patient={patient} pid={pid} />}
         {tab === 'exames' && <DocList title="Exames" items={exams} pid={pid} base="exam-requests" render={(e) => ({ main: dt(e.created_at), sub: e.status })} />}
         {tab === 'receitas' && <DocList title="Receitas" items={prescriptions} pid={pid} base="prescriptions" render={(p) => ({ main: dt(p.created_at), sub: p.doctor?.name })} />}
         {tab === 'atestados' && <DocList title="Atestados / Laudos" items={certificates} pid={pid} base="certificates" render={(c) => ({ main: dt(c.created_at), sub: c.type })} />}
@@ -262,6 +266,135 @@ function Anotacoes({ patient, pid }) {
         placeholder="Anotações gerais sobre o paciente (visível apenas internamente)..."
         className="w-full rounded-xl border border-slate-200 p-4 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
     </Card>
+  );
+}
+
+function NovaConsulta({ pid }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 inline-flex items-center gap-1.5">
+        Nova consulta <span className="text-xs">▾</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 z-20 mt-1 w-64 rounded-xl border border-slate-200 bg-white shadow-lg p-1.5">
+            <Link href={`/studio-med?patient_id=${pid}`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
+              <span className="text-lg">🎙️</span>
+              <span><span className="block text-sm font-semibold text-slate-800">Gravada (Studio Med)</span><span className="block text-xs text-slate-400">Grava a consulta e gera a anamnese com IA</span></span>
+            </Link>
+            <Link href={`/patients/${pid}/records/create`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
+              <span className="text-lg">✍️</span>
+              <span><span className="block text-sm font-semibold text-slate-800">Manual</span><span className="block text-xs text-slate-400">Preencher o prontuário manualmente</span></span>
+            </Link>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Alergias({ patient, pid }) {
+  const items = patient.allergies || [];
+  const form = useForm({ substance: '', reaction: '', severity: '', notes: '' });
+  const add = (e) => { e.preventDefault(); form.post(`/patients/${pid}/allergies`, { preserveScroll: true, onSuccess: () => form.reset() }); };
+  const del = (id) => { if (confirm('Remover esta alergia?')) router.delete(`/allergies/${id}`, { preserveScroll: true }); };
+  const sev = (s) => ({ grave: 'bg-rose-100 text-rose-700', moderada: 'bg-amber-100 text-amber-700', leve: 'bg-emerald-100 text-emerald-700' }[String(s || '').toLowerCase()] || 'bg-slate-100 text-slate-600');
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <Card className="lg:col-span-2">
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Alergias</h2>
+        {items.length === 0 ? <p className="text-sm text-slate-400">Nenhuma alergia registrada.</p> : (
+          <div className="divide-y divide-slate-100">
+            {items.map((al) => (
+              <div key={al.id} className="flex items-start justify-between py-3 gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">{al.substance}</p>
+                    {al.severity && <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${sev(al.severity)}`}>{al.severity}</span>}
+                  </div>
+                  {al.reaction && <p className="text-xs text-slate-500">Reação: {al.reaction}</p>}
+                  {al.notes && <p className="text-xs text-slate-400">{al.notes}</p>}
+                </div>
+                <button onClick={() => del(al.id)} className="text-sm text-rose-600 hover:text-rose-800 shrink-0">Remover</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <Card>
+        <h3 className="font-semibold text-slate-900 mb-3">Adicionar alergia</h3>
+        <form onSubmit={add} className="space-y-3">
+          <input value={form.data.substance} onChange={(e) => form.setData('substance', e.target.value)} required placeholder="Substância (ex.: Dipirona)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          <input value={form.data.reaction} onChange={(e) => form.setData('reaction', e.target.value)} placeholder="Reação (ex.: urticária)" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          <select value={form.data.severity} onChange={(e) => form.setData('severity', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm">
+            <option value="">Gravidade…</option><option value="leve">Leve</option><option value="moderada">Moderada</option><option value="grave">Grave</option>
+          </select>
+          <textarea value={form.data.notes} onChange={(e) => form.setData('notes', e.target.value)} rows={2} placeholder="Observações" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+          <button disabled={form.processing} className="w-full bg-blue-600 text-white text-sm font-semibold rounded-lg py-2 hover:bg-blue-700 disabled:opacity-60">Adicionar</button>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+function Composicao({ patient, pid }) {
+  const items = patient.body_compositions || [];
+  const form = useForm({ measured_at: new Date().toISOString().slice(0, 10), weight: '', height: '', body_fat: '', lean_mass: '', waist: '', hip: '', notes: '' });
+  const add = (e) => { e.preventDefault(); form.post(`/patients/${pid}/body-compositions`, { preserveScroll: true, onSuccess: () => form.reset('weight', 'height', 'body_fat', 'lean_mass', 'waist', 'hip', 'notes') }); };
+  const del = (id) => { if (confirm('Remover esta avaliação?')) router.delete(`/body-compositions/${id}`, { preserveScroll: true }); };
+  const liveBmi = (form.data.weight && form.data.height) ? (form.data.weight / Math.pow(form.data.height / 100, 2)).toFixed(1) : null;
+  const F = ({ k, label, suf }) => (
+    <label className="block">
+      <span className="text-xs text-slate-400">{label}</span>
+      <input type="number" step="0.1" value={form.data[k]} onChange={(e) => form.setData(k, e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" placeholder={suf} />
+    </label>
+  );
+  return (
+    <div className="space-y-5">
+      <Card>
+        <h3 className="font-semibold text-slate-900 mb-3">Nova avaliação{liveBmi ? ` · IMC ${liveBmi}` : ''}</h3>
+        <form onSubmit={add} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <label className="block"><span className="text-xs text-slate-400">Data</span><input type="date" value={form.data.measured_at} onChange={(e) => form.setData('measured_at', e.target.value)} required className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
+          <F k="weight" label="Peso (kg)" />
+          <F k="height" label="Altura (cm)" />
+          <F k="body_fat" label="% Gordura" />
+          <F k="lean_mass" label="Massa magra (kg)" />
+          <F k="waist" label="Cintura (cm)" />
+          <F k="hip" label="Quadril (cm)" />
+          <label className="block"><span className="text-xs text-slate-400">Obs.</span><input value={form.data.notes} onChange={(e) => form.setData('notes', e.target.value)} className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" /></label>
+          <div className="col-span-2 sm:col-span-4"><button disabled={form.processing} className="bg-blue-600 text-white text-sm font-semibold rounded-lg px-5 py-2 hover:bg-blue-700 disabled:opacity-60">Registrar avaliação</button></div>
+        </form>
+      </Card>
+      <Card>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Histórico</h2>
+        {items.length === 0 ? <p className="text-sm text-slate-400">Nenhuma avaliação registrada.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                <th className="py-2 pr-3">Data</th><th className="pr-3">Peso</th><th className="pr-3">Altura</th><th className="pr-3">IMC</th><th className="pr-3">% Gord.</th><th className="pr-3">M. magra</th><th className="pr-3">Cint.</th><th className="pr-3">Quadril</th><th></th>
+              </tr></thead>
+              <tbody>
+                {items.map((b) => (
+                  <tr key={b.id} className="border-b border-slate-50">
+                    <td className="py-2 pr-3 text-slate-700">{dt(b.measured_at)}</td>
+                    <td className="pr-3">{b.weight ? `${b.weight} kg` : '—'}</td>
+                    <td className="pr-3">{b.height ? `${b.height} cm` : '—'}</td>
+                    <td className="pr-3 font-semibold text-slate-800">{b.bmi || '—'}</td>
+                    <td className="pr-3">{b.body_fat ? `${b.body_fat}%` : '—'}</td>
+                    <td className="pr-3">{b.lean_mass ? `${b.lean_mass} kg` : '—'}</td>
+                    <td className="pr-3">{b.waist ? `${b.waist}` : '—'}</td>
+                    <td className="pr-3">{b.hip ? `${b.hip}` : '—'}</td>
+                    <td className="text-right"><button onClick={() => del(b.id)} className="text-rose-600 hover:text-rose-800 text-xs">Remover</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
   );
 }
 
