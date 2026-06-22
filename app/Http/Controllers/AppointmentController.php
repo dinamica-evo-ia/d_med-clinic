@@ -148,4 +148,24 @@ class AppointmentController extends Controller
 
         return response()->json($appointments);
     }
+
+    public function reschedule(Request $request, Appointment $appointment)
+    {
+        $data = $request->validate([
+            'start' => 'required|date',
+            'end' => 'nullable|date',
+        ]);
+
+        $start = \Carbon\Carbon::parse($data['start']);
+        $end = ! empty($data['end'])
+            ? \Carbon\Carbon::parse($data['end'])
+            : (clone $start)->addMinutes(30);
+
+        $appointment->update([
+            'starts_at' => $start,
+            'ends_at' => $end,
+        ]);
+
+        return response()->json(['ok' => true]);
+    }
 }

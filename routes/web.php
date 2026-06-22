@@ -43,6 +43,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
 
     Route::resource('appointments', AppointmentController::class);
     Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])->name('appointments.status');
+    Route::patch('appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->name('appointments.reschedule');
 
     Route::get('patients/{patient}/records', [MedicalRecordController::class, 'index'])->name('patients.records.index');
     Route::get('patients/{patient}/records/create', [MedicalRecordController::class, 'create'])->name('patients.records.create');
