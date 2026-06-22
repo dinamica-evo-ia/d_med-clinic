@@ -1,6 +1,4 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 export default function Index({ prescriptions, filters }) {
     const { flash } = usePage().props;
     const { data, meta } = prescriptions;
@@ -20,7 +18,7 @@ export default function Index({ prescriptions, filters }) {
     }
 
     return (
-        <AppLayout>
+        <>
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">Receituário Avulso</h1>
@@ -133,6 +131,6 @@ export default function Index({ prescriptions, filters }) {
                     </div>
                 )}
             </div>
-        </AppLayout>
+        </>
     );
 }

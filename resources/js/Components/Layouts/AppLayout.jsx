@@ -3,7 +3,8 @@ import { useState } from 'react';
 
 export default function AppLayout({ children }) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
-    const { url, auth } = usePage().props;
+    const { auth } = usePage().props;
+    const url = usePage().url;
     const userRole = auth?.role;
 
     const allNavigation = [
@@ -72,7 +73,7 @@ function SidebarContent({ navigation, currentUrl, onNavClick }) {
         <>
             <div className="flex h-16 shrink-0 items-center">
                 <Link href="/" className="text-xl font-bold text-blue-600">
-                    🏥 MedHealth
+                    🏥 D_Med Clinic
                 </Link>
             </div>
             <nav className="flex flex-1 flex-col">

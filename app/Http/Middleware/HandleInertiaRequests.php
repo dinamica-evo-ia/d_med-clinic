@@ -30,20 +30,21 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        $role = null;
-
-        if ($user && tenant()) {
-            $pivot = $user->tenants()
-                ->where('tenant_id', tenant()->id)
-                ->first()?->pivot;
-            $role = $pivot?->role;
-        }
 
         return [
             ...parent::share($request),
             'auth' => [
                 'user' => $user,
-                'role' => $role,
+                // Lazy: avaliado na renderizacao (depois do middleware tenancy.by_user
+                // inicializar o tenant), senao tenant() ainda e null aqui e o role vem null.
+                'role' => function () use ($user) {
+                    if ($user && tenant()) {
+                        return $user->tenants()
+                            ->where('tenant_id', tenant()->id)
+                            ->first()?->pivot?->role;
+                    }
+                    return null;
+                },
             ],
         ];
     }

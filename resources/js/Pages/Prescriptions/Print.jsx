@@ -9,7 +9,7 @@ export default function Print({ prescription }) {
         window.print();
     }, []);
 
-    const clinicName = tenant?.name || 'MedHealth Clínica';
+    const clinicName = tenant?.name || 'D_Med Clinic';
 
     return (
         <div className="print-container">

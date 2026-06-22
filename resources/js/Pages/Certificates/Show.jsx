@@ -1,6 +1,4 @@
 import { Link, router } from '@inertiajs/react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 const typeLabels = {
     medical_certificate: 'Atestado Médico',
     attendance_declaration: 'Declaração de Comparecimento',
@@ -18,7 +16,7 @@ export default function Show({ certificate }) {
     }
 
     return (
-        <AppLayout>
+        <>
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">Detalhes do Atestado</h1>
@@ -93,6 +91,6 @@ export default function Show({ certificate }) {
                     </button>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }

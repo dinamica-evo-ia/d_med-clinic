@@ -1,3 +1,4 @@
+import './polyfills';
 import '../css/app.css';
 import './bootstrap';
 
@@ -6,7 +7,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createRoot } from 'react-dom/client';
 import AppLayout from './Components/Layouts/AppLayout';
 
-const appName = import.meta.env.VITE_APP_NAME || 'MedHealth';
+const appName = import.meta.env.VITE_APP_NAME || 'D_Med Clinic';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

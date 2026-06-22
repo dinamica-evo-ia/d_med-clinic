@@ -11,17 +11,20 @@ if [ "$DB_CONNECTION" = "sqlite" ]; then
     fi
 fi
 
+# Permissoes (php-fpm = www-data)
+chown -R www-data:www-data /app/storage /app/bootstrap/cache /app/database 2>/dev/null || true
+
 # Run migrations
 echo "Running central migrations..."
-php artisan migrate --force
+su -s /bin/sh www-data -c "php artisan migrate --force"
 
 echo "Running tenant migrations..."
-php artisan tenants:migrate --force
+su -s /bin/sh www-data -c "php artisan tenants:migrate --force"
 
 echo "Optimizing Laravel..."
-php artisan optimize
-php artisan view:cache
-php artisan event:cache
+su -s /bin/sh www-data -c "php artisan optimize"
+su -s /bin/sh www-data -c "php artisan view:cache"
+su -s /bin/sh www-data -c "php artisan event:cache"
 
 echo "Starting supervisord..."
 exec /usr/bin/supervisord -c /etc/supervisor.d/laravel.conf

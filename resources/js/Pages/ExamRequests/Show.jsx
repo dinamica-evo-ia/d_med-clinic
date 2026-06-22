@@ -1,6 +1,4 @@
 import { Link, router, useForm } from '@inertiajs/react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 const statusLabels = {
     requested: 'Solicitado',
     performed: 'Realizado',
@@ -34,7 +32,7 @@ export default function Show({ examRequest }) {
     }
 
     return (
-        <AppLayout>
+        <>
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">Detalhes da Solicitação</h1>
@@ -152,6 +150,6 @@ export default function Show({ examRequest }) {
                     </button>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }

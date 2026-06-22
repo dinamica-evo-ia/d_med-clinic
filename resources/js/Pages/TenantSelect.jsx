@@ -5,7 +5,7 @@ export default function TenantSelect({ tenants }) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-md w-full text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-2">MedHealth</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">D_Med Clinic</h1>
                     <p className="text-gray-500">Você não possui acesso a nenhuma clínica.</p>
                 </div>
             </div>
@@ -16,7 +16,7 @@ export default function TenantSelect({ tenants }) {
         <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
             <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 max-w-md w-full">
                 <div className="text-center mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-1">🏥 MedHealth</h1>
+                    <h1 className="text-2xl font-bold text-gray-900 mb-1">🏥 D_Med Clinic</h1>
                     <p className="text-gray-500 text-sm">Selecione a clínica para acessar</p>
                 </div>
 

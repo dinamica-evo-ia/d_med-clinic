@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 export default function Form({ prescription, patients, doctors }) {
     const { flash } = usePage().props;
     const isEditing = !!prescription;
@@ -54,7 +52,7 @@ export default function Form({ prescription, patients, doctors }) {
     }
 
     return (
-        <AppLayout>
+        <>
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">
@@ -253,6 +251,6 @@ export default function Form({ prescription, patients, doctors }) {
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </>
     );
 }

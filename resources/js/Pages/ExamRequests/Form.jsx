@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 export default function Form({ examRequest, patients, doctors, examTypes }) {
     const { data, setData, post, errors, processing } = useForm({
         patient_id: '',
@@ -40,7 +38,7 @@ export default function Form({ examRequest, patients, doctors, examTypes }) {
     }
 
     return (
-        <AppLayout>
+        <>
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">Nova Solicitação de Exames</h1>
@@ -146,6 +144,6 @@ export default function Form({ examRequest, patients, doctors, examTypes }) {
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </>
     );
 }

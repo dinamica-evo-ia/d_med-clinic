@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 export default function Index() {
     const [patientSearch, setPatientSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
@@ -9,7 +7,7 @@ export default function Index() {
     const [finDateTo, setFinDateTo] = useState('');
 
     return (
-        <AppLayout>
+        <>
             <div className="space-y-6">
                 <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
 
@@ -78,6 +76,6 @@ export default function Index() {
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }

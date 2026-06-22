@@ -1,6 +1,4 @@
 import { Link, useForm } from '@inertiajs/react';
-import AppLayout from '@/Components/Layouts/AppLayout';
-
 const certificateTypes = [
     { value: 'medical_certificate', label: 'Atestado Médico' },
     { value: 'attendance_declaration', label: 'Declaração de Comparecimento' },
@@ -38,7 +36,7 @@ export default function Form({ certificate, patients, doctors }) {
     }
 
     return (
-        <AppLayout>
+        <>
             <div className="max-w-3xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">
@@ -137,6 +135,6 @@ export default function Form({ certificate, patients, doctors }) {
                     </div>
                 </form>
             </div>
-        </AppLayout>
+        </>
     );
 }
