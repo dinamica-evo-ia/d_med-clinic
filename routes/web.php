@@ -40,6 +40,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::resource('patients', PatientController::class);
+    Route::patch('patients/{patient}/notes', [PatientController::class, 'updateNotes'])->name('patients.notes');
 
     Route::resource('appointments', AppointmentController::class);
     Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])->name('appointments.status');

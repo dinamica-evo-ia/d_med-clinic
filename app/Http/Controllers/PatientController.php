@@ -62,26 +62,52 @@ class PatientController extends Controller
 
     public function show(Patient $patient)
     {
-        $patient->load(['appointments' => function ($q) {
-            $q->latest('starts_at')->limit(8);
-        }, 'medicalRecords' => function ($q) {
-            $q->latest()->limit(5);
-        }, 'attachments']);
+        $patient->load([
+            'appointments' => fn ($q) => $q->latest('starts_at')->limit(12),
+            'medicalRecords' => fn ($q) => $q->with('doctor:id,name')->latest()->limit(50),
+            'attachments',
+        ]);
+
+        $prescriptions = Prescription::with('doctor:id,name')->where('patient_id', $patient->id)->latest()->limit(50)->get();
+        $exams = ExamRequest::where('patient_id', $patient->id)->latest()->limit(50)->get();
+        $certificates = Certificate::where('patient_id', $patient->id)->latest()->limit(50)->get();
+
+        // Agrega CIDs unicos a partir dos diagnosticos das evolucoes
+        $cids = [];
+        foreach ($patient->medicalRecords as $rec) {
+            $diag = is_array($rec->diagnosis) ? $rec->diagnosis : (json_decode($rec->diagnosis ?? '[]', true) ?: []);
+            foreach ($diag as $d) {
+                $code = $d['code'] ?? null;
+                $desc = $d['description'] ?? null;
+                $key = $code ?: $desc;
+                if ($key && ! isset($cids[$key])) {
+                    $cids[$key] = ['code' => $code, 'description' => $desc, 'date' => optional($rec->created_at)->toDateString()];
+                }
+            }
+        }
 
         return Inertia::render('Patients/Show', [
             'patient' => $patient,
-            'recent' => [
-                'prescriptions' => Prescription::with('doctor:id,name')->where('patient_id', $patient->id)->latest()->limit(3)->get(),
-                'exams' => ExamRequest::where('patient_id', $patient->id)->latest()->limit(3)->get(),
-                'certificates' => Certificate::where('patient_id', $patient->id)->latest()->limit(3)->get(),
-            ],
+            'prescriptions' => $prescriptions,
+            'exams' => $exams,
+            'certificates' => $certificates,
+            'cids' => array_values($cids),
             'counts' => [
-                'prescriptions' => Prescription::where('patient_id', $patient->id)->count(),
-                'exams' => ExamRequest::where('patient_id', $patient->id)->count(),
-                'certificates' => Certificate::where('patient_id', $patient->id)->count(),
-                'records' => $patient->medicalRecords()->count(),
+                'prescriptions' => $prescriptions->count(),
+                'exams' => $exams->count(),
+                'certificates' => $certificates->count(),
+                'records' => $patient->medicalRecords->count(),
+                'cids' => count($cids),
             ],
         ]);
+    }
+
+    public function updateNotes(Request $request, Patient $patient)
+    {
+        $data = $request->validate(['notes' => 'nullable|string']);
+        $patient->update(['notes' => $data['notes'] ?? null]);
+
+        return back()->with('success', 'Anotações salvas.');
     }
 
     public function edit(Patient $patient)
