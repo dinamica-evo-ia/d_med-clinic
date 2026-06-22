@@ -41,6 +41,10 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
 
     Route::resource('patients', PatientController::class);
     Route::patch('patients/{patient}/notes', [PatientController::class, 'updateNotes'])->name('patients.notes');
+    // Importação de pacientes via CSV
+    Route::get('patients-import', [\App\Http\Controllers\PatientImportController::class, 'form'])->name('patients.import.form');
+    Route::post('patients-import/preview', [\App\Http\Controllers\PatientImportController::class, 'preview'])->name('patients.import.preview');
+    Route::post('patients-import', [\App\Http\Controllers\PatientImportController::class, 'store'])->name('patients.import.store');
     Route::post('patients/{patient}/allergies', [\App\Http\Controllers\AllergyController::class, 'store'])->name('allergies.store');
     Route::delete('allergies/{allergy}', [\App\Http\Controllers\AllergyController::class, 'destroy'])->name('allergies.destroy');
     Route::post('patients/{patient}/body-compositions', [\App\Http\Controllers\BodyCompositionController::class, 'store'])->name('body.store');

@@ -11,17 +11,15 @@ class Tenant extends BaseTenant implements TenantWithDatabase
 {
     use HasDatabase, HasDomains;
 
-    protected $fillable = [
-        'id',
-        'data',
-        'settings',
-    ];
+    // Mass-assignment liberado: o stancl usa VirtualColumn — campos não-custom (name, slug, plan, status, etc.)
+    // viram virtuais e são armazenados em 'data' JSON automaticamente. $fillable estava bloqueando isso.
+    protected $guarded = [];
 
     protected function casts(): array
     {
         return [
-            'data' => 'array',
-            'settings' => 'array',
+            // 'data' é gerenciado pelo VirtualColumn do stancl (não cast aqui).
+            // 'settings' sem cast: estava corrompendo (double-encoded JSON).
         ];
     }
 

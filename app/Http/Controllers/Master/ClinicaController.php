@@ -6,8 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -77,32 +79,49 @@ class ClinicaController extends Controller
             'admin_password' => 'required|string|min:8',
         ]);
 
-        DB::transaction(function () use ($data) {
-            $tenant = Tenant::create([
-                'id' => (string) Str::uuid(),
-                'name' => $data['name'],
-                'slug' => $data['slug'],
-                'email' => $data['email'],
-                'document' => $data['document'],
-                'phone' => $data['phone'],
-                'plan' => $data['plan'],
-                'status' => $data['status'],
-            ]);
+        // 1) Cria o tenant central (linha em `tenants`)
+        $tenant = Tenant::create([
+            'id' => (string) Str::uuid(),
+            'name' => $data['name'],
+            'slug' => $data['slug'],
+            'email' => $data['email'],
+            'document' => $data['document'],
+            'phone' => $data['phone'],
+            'plan' => $data['plan'],
+            'status' => $data['status'],
+        ]);
+        $tenant->domains()->create(['domain' => $data['slug'].'.localhost']);
 
-            $tenant->domains()->create(['domain' => $data['slug'].'.localhost']);
+        // 2) Associa o admin (cria user se nao existir)
+        $user = User::firstWhere('email', $data['admin_email']) ?? User::create([
+            'name' => $data['admin_name'],
+            'email' => $data['admin_email'],
+            'password' => $data['admin_password'],
+        ]);
+        $tenant->users()->syncWithoutDetaching([
+            $user->id => ['role' => 'admin', 'is_active' => true],
+        ]);
 
-            $user = User::firstWhere('email', $data['admin_email']) ?? User::create([
-                'name' => $data['admin_name'],
-                'email' => $data['admin_email'],
-                'password' => $data['admin_password'],
-            ]);
+        // 3) Cria o BANCO próprio da clínica (multi-DB) e roda as migrations de tenant nele.
+        // Isso garante isolamento físico — clínica nova começa ZERADA.
+        try {
+            $tenant->database()->manager()->createDatabase($tenant);
+        } catch (\Throwable $e) {
+            // Se o DB já existe (raro pq UUID), seguimos
+            Log::warning('createDatabase tenant: '.$e->getMessage());
+        }
 
-            $tenant->users()->syncWithoutDetaching([
-                $user->id => ['role' => 'admin', 'is_active' => true],
-            ]);
-        });
+        Artisan::call('tenants:migrate', ['--tenants' => [$tenant->id], '--force' => true]);
 
-        return redirect()->route('master.clinicas.index')->with('success', 'Clínica criada.');
+        // Seed mínimo: só CID-10 + categorias financeiras (estruturais, não fictícios).
+        // Pacientes/médicos/consultas o usuário cadastra ou importa.
+        Artisan::call('tenants:seed', [
+            '--tenants' => [$tenant->id],
+            '--class' => \Database\Seeders\TenantSetupSeeder::class,
+            '--force' => true,
+        ]);
+
+        return redirect()->route('master.clinicas.index')->with('success', "Clínica \"{$data['name']}\" criada (banco isolado, começa vazia).");
     }
 
     public function update(Request $request, Tenant $clinica)

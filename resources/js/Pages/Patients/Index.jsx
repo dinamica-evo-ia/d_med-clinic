@@ -31,9 +31,14 @@ export default function Index({ patients, filters }) {
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold text-gray-900">Pacientes</h1>
-                <Link href="/patients/create" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
-                    + Novo Paciente
-                </Link>
+                <div className="flex items-center gap-2">
+                    <Link href="/patients-import" className="px-3 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50">
+                        Importar CSV
+                    </Link>
+                    <Link href="/patients/create" className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+                        + Novo Paciente
+                    </Link>
+                </div>
             </div>
 
             <div className="mb-4 max-w-md">
