@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Patient;
 use App\Models\Invoice;
-use App\Models\Expense;
-use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
@@ -15,47 +14,89 @@ class DashboardController extends Controller
     {
         $today = now()->startOfDay();
         $todayEnd = now()->endOfDay();
+        $weekStart = now()->startOfWeek(Carbon::MONDAY);
         $monthStart = now()->startOfMonth();
-        $monthEnd = now()->endOfMonth();
 
         $todayAppointments = Appointment::whereBetween('starts_at', [$today, $todayEnd])
             ->with(['patient:id,name', 'doctor:id,name'])
             ->orderBy('starts_at')
             ->get();
 
-        $upcoming = Appointment::whereBetween('starts_at', [now(), now()->addDays(7)])
-            ->where('status', '!=', 'cancelled')
-            ->with(['patient:id,name', 'doctor:id,name'])
-            ->orderBy('starts_at')
-            ->limit(8)
-            ->get();
+        $nextUp = $todayAppointments
+            ->whereNotIn('status', ['cancelled', 'completed', 'no_show'])
+            ->first(fn ($a) => $a->starts_at->greaterThan(now()));
 
         $stats = [
-            'today_appointments' => $todayAppointments->count(),
-            'completed_today' => $todayAppointments->where('status', 'completed')->count(),
-            'month_appointments' => Appointment::whereBetween('starts_at', [$monthStart, $monthEnd])->count(),
-            'total_patients' => Patient::count(),
-            'month_revenue' => (float) Invoice::where('status', 'paid')->where('paid_at', '>=', $monthStart)->sum('amount'),
-            'month_expense' => (float) Expense::where('status', 'paid')->where('paid_at', '>=', $monthStart)->sum('amount'),
-            'pending_invoices' => (float) Invoice::where('status', 'pending')->sum('amount'),
-            'pending_expenses' => (float) Expense::where('status', 'pending')->sum('amount'),
+            'patients_today'   => $todayAppointments->whereNotIn('status', ['cancelled'])->count(),
+            'attended_today'   => $todayAppointments->where('status', 'completed')->count(),
+            'cancelled_today'  => $todayAppointments->where('status', 'cancelled')->count(),
+            'month_appointments' => Appointment::whereBetween('starts_at', [$monthStart, now()->endOfMonth()])->count(),
         ];
 
-        $series = [];
-        for ($i = 5; $i >= 0; $i--) {
-            $d = now()->copy()->subMonths($i);
-            $series[] = [
-                'month' => ucfirst($d->translatedFormat('M')),
-                'receita' => (float) Invoice::where('status', 'paid')->whereMonth('paid_at', $d->month)->whereYear('paid_at', $d->year)->sum('amount'),
-                'despesa' => (float) Expense::where('status', 'paid')->whereMonth('paid_at', $d->month)->whereYear('paid_at', $d->year)->sum('amount'),
+        $agenda = $todayAppointments->map(fn ($a) => [
+            'id' => $a->id,
+            'starts_at' => $a->starts_at,
+            'ends_at' => $a->ends_at,
+            'patient_name' => $a->patient?->name,
+            'doctor_name' => $a->doctor?->name,
+            'status' => $a->status,
+            'type' => $a->type,
+            'is_next' => $nextUp && $a->id === $nextUp->id,
+        ])->values();
+
+        // Resumo da semana (Seg–Sex, mesmo recorte da agenda)
+        $weekSummary = [];
+        $labels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'];
+        for ($i = 0; $i < 5; $i++) {
+            $day = $weekStart->copy()->addDays($i);
+            $dayApts = Appointment::whereBetween('starts_at', [$day->copy()->startOfDay(), $day->copy()->endOfDay()])->get();
+            $weekSummary[] = [
+                'date' => $day->format('Y-m-d'),
+                'label' => $labels[$i],
+                'day' => $day->format('d'),
+                'is_today' => $day->isToday(),
+                'total' => $dayApts->whereNotIn('status', ['cancelled'])->count(),
+                'completed' => $dayApts->where('status', 'completed')->count(),
+                'cancelled' => $dayApts->where('status', 'cancelled')->count(),
             ];
         }
 
+        // Aniversariantes — compara mês/dia (independe do ano), via PHP (robusto entre SQLite/MySQL)
+        $patientsWithBirthday = Patient::whereNotNull('birth_date')->get(['id', 'name', 'birth_date']);
+        $todayMd = now()->format('m-d');
+        $currentYear = now()->year;
+        $weekDates = collect(range(0, 6))->map(fn ($i) => $weekStart->copy()->addDays($i));
+
+        $birthdaysToday = $patientsWithBirthday
+            ->filter(fn ($p) => $p->birth_date->format('m-d') === $todayMd)
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'age' => $currentYear - $p->birth_date->year,
+            ])->values();
+
+        $birthdaysWeek = $patientsWithBirthday
+            ->filter(fn ($p) => $p->birth_date->format('m-d') !== $todayMd)
+            ->map(function ($p) use ($weekDates, $currentYear) {
+                $match = $weekDates->first(fn ($d) => $d->format('m-d') === $p->birth_date->format('m-d'));
+                return $match ? [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'age' => $currentYear - $p->birth_date->year,
+                    'date' => $match->format('Y-m-d'),
+                    'weekday' => ucfirst($match->translatedFormat('D')),
+                ] : null;
+            })
+            ->filter()
+            ->sortBy('date')
+            ->values();
+
         return Inertia::render('Dashboard', [
-            'appointments' => $todayAppointments,
-            'upcoming' => $upcoming,
+            'agenda' => $agenda,
             'stats' => $stats,
-            'series' => $series,
+            'week_summary' => $weekSummary,
+            'birthdays_today' => $birthdaysToday,
+            'birthdays_week' => $birthdaysWeek,
         ]);
     }
 

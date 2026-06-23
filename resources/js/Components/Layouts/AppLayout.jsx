@@ -22,7 +22,7 @@ function Icon({ n, className }) {
 
 const NAV = [
   { section: 'Principal', items: [
-    { name: 'Dashboard', href: '/', icon: 'home', roles: ['admin', 'doctor', 'receptionist'] },
+    { name: 'A Clínica Hoje', href: '/', icon: 'home', roles: ['admin', 'doctor', 'receptionist'] },
     { name: 'Pacientes', href: '/patients', icon: 'users', roles: ['admin', 'doctor', 'receptionist'] },
     { name: 'Agenda', href: '/appointments', icon: 'calendar', roles: ['admin', 'doctor', 'receptionist'] },
   ]},
