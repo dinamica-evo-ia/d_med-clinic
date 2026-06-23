@@ -62,7 +62,7 @@ export default function Index() {
 
   const range = useMemo(() => {
     if (view === 'month') { const s = startOfWeek(startOfMonth(cursor)); return [s, addDays(s, 41)]; }
-    if (view === 'week') { const s = startOfWeek(cursor); return [s, addDays(s, 6)]; }
+    if (view === 'week') { const s = startOfWeek(cursor); return [addDays(s, 1), addDays(s, 5)]; } // Seg–Sex
     return [startOfDay(cursor), startOfDay(cursor)];
   }, [view, cursor]);
 
@@ -148,7 +148,7 @@ export default function Index() {
 
       <div className="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         {view === 'month' && <MonthView cursor={cursor} range={range} events={events} today={today} dragRef={dragRef} onReschedule={reschedule} onDay={(d) => { setCursor(d); setView('day'); }} schedule={schedule} />}
-        {view === 'week' && <TimeGrid days={Array.from({ length: 7 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
+        {view === 'week' && <TimeGrid days={Array.from({ length: 5 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
         {view === 'day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} single H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
       </div>
       <p className="mt-2 text-xs text-slate-400">
