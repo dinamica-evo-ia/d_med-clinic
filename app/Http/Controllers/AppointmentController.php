@@ -29,12 +29,19 @@ class AppointmentController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        $doctors = Doctor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'schedule']);
+
         return Inertia::render('Appointments/Form', [
             'appointment' => null,
             'patients' => Patient::orderBy('name')->get(['id', 'name', 'phone']),
-            'doctors' => Doctor::where('is_active', true)->get(['id', 'name']),
+            'doctors' => $doctors->map(fn ($d) => [
+                'id' => $d->id,
+                'name' => $d->name,
+                'schedule' => DoctorSchedule::normalize($d->schedule),
+            ])->values(),
+            'preselectedDoctorId' => $request->get('doctor_id'),
         ]);
     }
 
