@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Doctor;
+use App\Support\DoctorSchedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -39,9 +41,64 @@ class AccountController extends Controller
     }
 
     public function settingsDoctor()     { return Inertia::render('Account/Settings/Doctor'); }
-    public function settingsSchedule()   { return Inertia::render('Account/Settings/Schedule'); }
     public function settingsPrint()      { return Inertia::render('Account/Settings/Print'); }
     public function settingsCertificate(){ return Inertia::render('Account/Settings/Certificate'); }
+
+    public function settingsSchedule(Request $request)
+    {
+        $doctors = Doctor::where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'specialty', 'schedule']);
+
+        $selectedId = $request->get('doctor_id') ?: optional($doctors->first())->id;
+        $selected   = $doctors->firstWhere('id', $selectedId);
+
+        return Inertia::render('Account/Settings/Schedule', [
+            'doctors'  => $doctors->map(fn ($d) => [
+                'id'        => $d->id,
+                'name'      => $d->name,
+                'specialty' => $d->specialty,
+            ])->values(),
+            'doctor'   => $selected ? [
+                'id'        => $selected->id,
+                'name'      => $selected->name,
+                'specialty' => $selected->specialty,
+            ] : null,
+            'schedule' => DoctorSchedule::normalize($selected?->schedule),
+            'defaults' => DoctorSchedule::defaults(),
+        ]);
+    }
+
+    public function scheduleUpdate(Request $request)
+    {
+        $data = $request->validate([
+            'doctor_id'                       => ['required', 'exists:doctors,id'],
+            'schedule'                        => ['required', 'array'],
+            'schedule.days'                   => ['required', 'array'],
+            'schedule.days.*.active'          => ['required', 'boolean'],
+            'schedule.days.*.open'            => ['required', 'date_format:H:i'],
+            'schedule.days.*.close'           => ['required', 'date_format:H:i', 'after:schedule.days.*.open'],
+            'schedule.days.*.lunch'           => ['nullable', 'array'],
+            'schedule.days.*.lunch.start'     => ['nullable', 'date_format:H:i', 'required_with:schedule.days.*.lunch.end'],
+            'schedule.days.*.lunch.end'       => ['nullable', 'date_format:H:i', 'required_with:schedule.days.*.lunch.start', 'after:schedule.days.*.lunch.start'],
+            'schedule.slot_minutes'           => ['required', 'integer', 'in:10,15,20,30,45,60,90'],
+            'schedule.min_lead_minutes'       => ['required', 'integer', 'min:0', 'max:10080'],
+            'schedule.max_lead_days'          => ['required', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        // garante exatamente as 7 chaves de dias
+        foreach (DoctorSchedule::DAYS as $d) {
+            if (! isset($data['schedule']['days'][$d])) {
+                return back()->withErrors(['schedule' => "Dia '{$d}' ausente na configuração."]);
+            }
+        }
+
+        $doctor = Doctor::findOrFail($data['doctor_id']);
+        $doctor->schedule = DoctorSchedule::normalize($data['schedule']);
+        $doctor->save();
+
+        return back()->with('success', 'Horários atualizados.');
+    }
 
     public function sessions()    { return Inertia::render('Account/Sessions'); }
     public function suggestions() { return Inertia::render('Account/Suggestions'); }

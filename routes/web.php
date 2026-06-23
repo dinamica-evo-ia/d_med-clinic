@@ -144,6 +144,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('/plan', [\App\Http\Controllers\AccountController::class, 'plan'])->name('plan');
         Route::get('/settings/doctor', [\App\Http\Controllers\AccountController::class, 'settingsDoctor'])->name('settings.doctor');
         Route::get('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'settingsSchedule'])->name('settings.schedule');
+        Route::put('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'scheduleUpdate'])->name('settings.schedule.update');
         Route::get('/settings/print', [\App\Http\Controllers\AccountController::class, 'settingsPrint'])->name('settings.print');
         Route::get('/settings/certificate', [\App\Http\Controllers\AccountController::class, 'settingsCertificate'])->name('settings.certificate');
         Route::get('/sessions', [\App\Http\Controllers\AccountController::class, 'sessions'])->name('sessions');

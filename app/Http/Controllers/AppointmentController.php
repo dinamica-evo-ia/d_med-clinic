@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Patient;
+use App\Support\DoctorSchedule;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -53,6 +54,10 @@ class AppointmentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        if ($violation = $this->scheduleViolation($validated['doctor_id'], $validated['starts_at'], $validated['ends_at'])) {
+            return back()->withErrors(['starts_at' => $violation])->withInput();
+        }
+
         // Check for time conflicts
         $conflict = Appointment::where('doctor_id', $validated['doctor_id'])
             ->where('status', '!=', 'cancelled')
@@ -93,6 +98,10 @@ class AppointmentController extends Controller
             'type' => 'nullable|string|in:consultation,followup,exam,other',
             'notes' => 'nullable|string',
         ]);
+
+        if ($violation = $this->scheduleViolation($validated['doctor_id'], $validated['starts_at'], $validated['ends_at'])) {
+            return back()->withErrors(['starts_at' => $violation])->withInput();
+        }
 
         $appointment->update($validated);
 
@@ -161,11 +170,29 @@ class AppointmentController extends Controller
             ? \Carbon\Carbon::parse($data['end'])
             : (clone $start)->addMinutes(30);
 
+        if ($violation = $this->scheduleViolation($appointment->doctor_id, $start, $end)) {
+            return response()->json(['ok' => false, 'message' => $violation], 422);
+        }
+
         $appointment->update([
             'starts_at' => $start,
             'ends_at' => $end,
         ]);
 
         return response()->json(['ok' => true]);
+    }
+
+    /**
+     * Retorna mensagem de violação se o intervalo cair fora do expediente do médico, ou null se OK.
+     */
+    private function scheduleViolation($doctorId, $startsAt, $endsAt): ?string
+    {
+        $doctor = Doctor::find($doctorId);
+        if (! $doctor) return null;
+
+        $start = $startsAt instanceof \Carbon\CarbonInterface ? $startsAt : \Carbon\Carbon::parse($startsAt);
+        $end   = $endsAt   instanceof \Carbon\CarbonInterface ? $endsAt   : \Carbon\Carbon::parse($endsAt);
+
+        return DoctorSchedule::violation($doctor, $start, $end);
     }
 }
