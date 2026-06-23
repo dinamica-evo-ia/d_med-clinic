@@ -75,8 +75,9 @@ export default function Dashboard({ agenda = [], stats = {}, week_summary = [], 
           <div className="absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-indigo-400/20 blur-3xl" />
         </div>
 
-        {/* Chrome: hamburger (mobile) + atalho master + usuário — substitui a barra de topo nesta página */}
-        <div className="relative z-10 flex items-center justify-between gap-3 mb-4">
+        {/* Chrome: hamburger (mobile) + atalho master + usuário — substitui a barra de topo nesta página.
+            z-30 > z-10 dos KPIs flutuantes, senão o dropdown do usuário fica por baixo deles. */}
+        <div className="relative z-30 flex items-center justify-between gap-3 mb-4">
           <button className="lg:hidden -ml-1.5 p-1.5 rounded-lg text-blue-100 hover:bg-white/10" onClick={openMobileMenu} aria-label="Abrir menu">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" /></svg>
           </button>

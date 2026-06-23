@@ -48,9 +48,12 @@ export default function AppLayout({ children }) {
   const [collapsed, setCollapsed] = useState(() => (
     typeof window !== 'undefined' && localStorage.getItem(SIDEBAR_COLLAPSE_KEY) === '1'
   ));
+  const [hovering, setHovering] = useState(false);
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSE_KEY, collapsed ? '1' : '0');
   }, [collapsed]);
+  // Recolhida + mouse em cima → expande temporariamente (sem alterar a preferência salva)
+  const visualCollapsed = collapsed && !hovering;
 
   const { auth, impersonating, tenant } = usePage().props;
   const url = usePage().url;
@@ -77,8 +80,11 @@ export default function AppLayout({ children }) {
           </div>
         )}
 
-        <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-[width] duration-200 ${collapsed ? 'lg:w-20' : 'lg:w-64'}`}>
-          <Sidebar url={url} role={role} collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
+        <div
+          onMouseEnter={() => setHovering(true)}
+          onMouseLeave={() => setHovering(false)}
+          className={`hidden lg:fixed lg:inset-y-0 lg:z-30 lg:flex lg:flex-col transition-[width] duration-200 ${visualCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
+          <Sidebar url={url} role={role} collapsed={visualCollapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
         </div>
 
         <div className={`transition-[padding] duration-200 ${collapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
