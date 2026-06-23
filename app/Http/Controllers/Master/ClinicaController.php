@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Master;
 
 use App\Http\Controllers\Controller;
+use App\Models\Doctor;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -77,7 +78,13 @@ class ClinicaController extends Controller
             'admin_name' => 'required|string|max:255',
             'admin_email' => 'required|email|max:255',
             'admin_password' => 'required|string|min:8',
+            'create_doctor' => 'sometimes|boolean',
+            'doctor_crm' => 'nullable|string|max:32|required_if:create_doctor,true',
+            'doctor_specialty' => 'nullable|string|max:120',
         ]);
+
+        // Em plano Solo, faz sentido criar a ficha do médico no mesmo passo
+        $createDoctor = ! empty($data['create_doctor']) || $data['plan'] === 'solo';
 
         // Transação central + cleanup explícito do DB tenant em caso de falha.
         $createdUserHere = false;
@@ -126,8 +133,31 @@ class ClinicaController extends Controller
                 '--force' => true,
             ]);
 
-            return redirect()->route('master.clinicas.index')->with('success', "Clínica \"{$data['name']}\" criada (banco isolado, começa vazia).");
+            // 5) (Opcional) Cria a ficha do médico junto — inicializa o tenancy pra escrever no DB da clínica
+            if ($createDoctor) {
+                tenancy()->initialize($tenant);
+                try {
+                    Doctor::create([
+                        'name' => $data['admin_name'],
+                        'email' => $data['admin_email'],
+                        'phone' => $data['phone'] ?? null,
+                        'license_number' => $data['doctor_crm'] ?? null,
+                        'specialty' => $data['doctor_specialty'] ?? null,
+                        'is_active' => true,
+                    ]);
+                } finally {
+                    tenancy()->end();
+                }
+            }
+
+            $msg = "Clínica \"{$data['name']}\" criada (banco isolado, começa vazia).";
+            if ($createDoctor) $msg .= ' Ficha do médico cadastrada.';
+
+            return redirect()->route('master.clinicas.index')->with('success', $msg);
         } catch (\Throwable $e) {
+            // Defensivo: garante que o tenancy não fica iniciado se algo explodiu no meio
+            if (tenancy()->initialized) tenancy()->end();
+
             // Rollback: apaga arquivo do tenant DB + user (se criamos nós) — a transação central já reverteu o resto
             if ($tenantDbFile && file_exists($tenantDbFile)) @unlink($tenantDbFile);
             if ($createdUserHere) User::where('email', $data['admin_email'])->delete();

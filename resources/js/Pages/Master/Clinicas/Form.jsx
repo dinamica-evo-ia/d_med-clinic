@@ -9,9 +9,13 @@ export default function Form({ plans, statuses }) {
     name: '', slug: '', email: '', document: '', phone: '',
     plan: 'solo', status: 'trial',
     admin_name: '', admin_email: '', admin_password: '',
+    create_doctor: true, doctor_crm: '', doctor_specialty: '',
   });
   const [showPwd, setShowPwd] = useState(false);
   const submit = (e) => { e.preventDefault(); form.post('/master/clinicas'); };
+
+  const isSolo = form.data.plan === 'solo';
+  const showDoctor = isSolo || form.data.create_doctor;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -85,6 +89,44 @@ export default function Form({ plans, statuses }) {
               </div>
             </F>
           </div>
+        </section>
+
+        <section className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Ficha do médico</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                {isSolo
+                  ? 'Plano Solo: a ficha do médico é criada automaticamente com os dados do admin.'
+                  : 'Marque para já cadastrar a ficha (com os dados do admin) — o médico aparece na agenda sem passo extra.'}
+              </p>
+            </div>
+            {!isSolo && (
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                <input type="checkbox" checked={form.data.create_doctor}
+                  onChange={(e) => form.setData('create_doctor', e.target.checked)}
+                  className="rounded border-slate-600 bg-slate-800" />
+                Cadastrar ficha junto
+              </label>
+            )}
+          </div>
+
+          {showDoctor && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <F label="CRM (nº do registro)" err={form.errors.doctor_crm}>
+                <input value={form.data.doctor_crm}
+                  onChange={(e) => form.setData('doctor_crm', e.target.value)}
+                  required={isSolo || form.data.create_doctor}
+                  className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm" />
+              </F>
+              <F label="Especialidade" err={form.errors.doctor_specialty}>
+                <input value={form.data.doctor_specialty}
+                  onChange={(e) => form.setData('doctor_specialty', e.target.value)}
+                  placeholder="Ex.: Clínico Geral, Cardiologia…"
+                  className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-sm" />
+              </F>
+            </div>
+          )}
         </section>
 
         <div className="flex justify-end gap-2">
