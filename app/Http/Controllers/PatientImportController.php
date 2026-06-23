@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Patient;
+use App\Support\CsvImport;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -13,10 +14,12 @@ use Inertia\Inertia;
  * Importar pacientes via CSV.
  * Fluxo: 1) GET form -> 2) POST preview (parseia, não salva) -> 3) POST confirm (salva).
  *
- * Colunas esperadas (UTF-8, separador vírgula OU ponto-e-vírgula; primeira linha = cabeçalhos):
- *   name, email, phone, document, birth_date, gender
- * Aliases aceitos: nome→name, e-mail/email→email, telefone→phone, cpf/documento→document,
- *   nascimento/data_nascimento→birth_date, genero/sexo→gender.
+ * Colunas esperadas (separador vírgula OU ponto-e-vírgula; primeira linha = cabeçalhos;
+ * UTF-8 ou ISO-8859-1, detectado automaticamente): name, email, phone, document, birth_date, gender.
+ * Também reconhece o layout de export de sistemas legados (ex.: "Clientes.csv"): CEP/Bairro/
+ * Endereço/Número/Complemento → address (JSON); Plano de saúde/Número do plano → insurance
+ * (JSON); RG/Estado civil/Profissão/Mãe/Pai/Cônjuge/Profissional/Observações → anexados ao
+ * campo notes (texto livre, são apenas informativos no model atual).
  */
 class PatientImportController extends Controller
 {
@@ -27,6 +30,7 @@ class PatientImportController extends Controller
         'email' => 'email',
         'telefone' => 'phone',
         'celular' => 'phone',
+        'whatsapp' => 'phone',
         'phone' => 'phone',
         'cpf' => 'document',
         'documento' => 'document',
@@ -39,6 +43,34 @@ class PatientImportController extends Controller
         'gênero' => 'gender',
         'sexo' => 'gender',
         'gender' => 'gender',
+        // endereço → vira JSON em address
+        'cep' => 'addr_zip',
+        'bairro' => 'addr_neighborhood',
+        'endereço' => 'addr_street',
+        'endereco' => 'addr_street',
+        'número' => 'addr_number',
+        'numero' => 'addr_number',
+        'complemento' => 'addr_complement',
+        'cidade' => 'addr_city',
+        // convênio → vira JSON em insurance
+        'plano de saúde' => 'ins_name',
+        'plano de saude' => 'ins_name',
+        'número do plano' => 'ins_number',
+        'numero do plano' => 'ins_number',
+        // informativo → anexado a notes (sem coluna própria no model hoje)
+        'rg' => 'note_rg',
+        'estado civil' => 'note_marital_status',
+        'profissão' => 'note_occupation',
+        'profissao' => 'note_occupation',
+        'mãe' => 'note_mother',
+        'mae' => 'note_mother',
+        'pai' => 'note_father',
+        'cônjuge' => 'note_spouse',
+        'conjuge' => 'note_spouse',
+        'profissional' => 'note_doctor_name',
+        'observações' => 'note_legacy_notes',
+        'observacoes' => 'note_legacy_notes',
+        'status' => 'note_status',
     ];
 
     public function form()
@@ -68,8 +100,9 @@ class PatientImportController extends Controller
         $ok = 0; $skip = 0; $errors = [];
 
         foreach ($parsed['rows'] as $i => $row) {
-            // valida cada linha
-            $v = Validator::make($row, [
+            $patientData = $this->toPatientFields($row);
+
+            $v = Validator::make($patientData, [
                 'name' => 'required|string|max:255',
                 'email' => 'nullable|email|max:255',
                 'phone' => 'nullable|string|max:32',
@@ -83,12 +116,12 @@ class PatientImportController extends Controller
                 continue;
             }
             // dedupe por CPF se vier preenchido
-            if (! empty($row['document']) && Patient::where('document', $row['document'])->exists()) {
+            if (! empty($patientData['document']) && Patient::where('document', $patientData['document'])->exists()) {
                 $skip++;
-                $errors[] = "Linha ".($i+2).": já existe paciente com CPF {$row['document']}";
+                $errors[] = "Linha ".($i+2).": já existe paciente com CPF {$patientData['document']}";
                 continue;
             }
-            Patient::create($row + ['id' => (string) Str::uuid()]);
+            Patient::create($patientData + ['id' => (string) Str::uuid()]);
             $ok++;
         }
 
@@ -96,48 +129,75 @@ class PatientImportController extends Controller
             ->with('importErrors', array_slice($errors, 0, 20));
     }
 
+    /** Monta os campos reais do model Patient a partir da linha já mapeada (junta endereço/convênio/notas extras em JSON/texto). */
+    private function toPatientFields(array $row): array
+    {
+        $address = array_filter([
+            'zip' => $row['addr_zip'] ?? null,
+            'neighborhood' => $row['addr_neighborhood'] ?? null,
+            'street' => $row['addr_street'] ?? null,
+            'number' => $row['addr_number'] ?? null,
+            'complement' => $row['addr_complement'] ?? null,
+            'city' => $row['addr_city'] ?? null,
+        ]);
+
+        $insurance = array_filter([
+            'name' => $row['ins_name'] ?? null,
+            'number' => $row['ins_number'] ?? null,
+        ]);
+
+        $extraNotes = array_filter([
+            $row['note_doctor_name'] ?? null ? "Profissional (sistema anterior): {$row['note_doctor_name']}" : null,
+            $row['note_occupation'] ?? null ? "Profissão: {$row['note_occupation']}" : null,
+            $row['note_marital_status'] ?? null ? "Estado civil: {$row['note_marital_status']}" : null,
+            $row['note_rg'] ?? null ? "RG: {$row['note_rg']}" : null,
+            $row['note_mother'] ?? null ? "Mãe: {$row['note_mother']}" : null,
+            $row['note_father'] ?? null ? "Pai: {$row['note_father']}" : null,
+            $row['note_spouse'] ?? null ? "Cônjuge: {$row['note_spouse']}" : null,
+            $row['note_status'] ?? null ? "Status (sistema anterior): {$row['note_status']}" : null,
+            $row['note_legacy_notes'] ?? null,
+        ]);
+
+        return [
+            'name' => $row['name'] ?? null,
+            'email' => $row['email'] ?? null,
+            'phone' => $row['phone'] ?? null,
+            'document' => $row['document'] ?? null,
+            'birth_date' => $row['birth_date'] ?? null,
+            'gender' => $row['gender'] ?? null,
+            'address' => $address ?: null,
+            'insurance' => $insurance ?: null,
+            'notes' => $extraNotes ? implode("\n", $extraNotes) : null,
+        ];
+    }
+
     private function parseCsv(string $path): array
     {
-        $contents = file_get_contents($path);
-        // detecta separador (, ou ;)
-        $firstLine = strtok($contents, "\r\n");
-        $sep = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
-
-        $fh = fopen($path, 'r');
-        $headers = fgetcsv($fh, 0, $sep) ?: [];
-        $headers = array_map(fn ($h) => self::HEADER_ALIASES[strtolower(trim($h))] ?? null, $headers);
-
-        $map = array_filter($headers);
+        $parsed = CsvImport::parse($path, self::HEADER_ALIASES);
         $rows = [];
         $errors = [];
-        $line = 1;
-        while (($r = fgetcsv($fh, 0, $sep)) !== false) {
-            $line++;
-            $row = [];
-            foreach ($headers as $i => $key) {
-                if ($key === null) continue;
-                $val = isset($r[$i]) ? trim($r[$i]) : null;
-                if ($val === '') $val = null;
-                if ($key === 'birth_date' && $val) {
-                    try {
-                        $val = $this->parseDate($val);
-                    } catch (\Throwable $e) {
-                        $errors[] = "Linha $line: data inválida \"$val\"";
-                        $val = null;
-                    }
+
+        foreach ($parsed['rows'] as $row) {
+            $line = $row['_line'];
+            unset($row['_line']);
+
+            if (! empty($row['birth_date'])) {
+                try {
+                    $row['birth_date'] = $this->parseDate($row['birth_date']);
+                } catch (\Throwable $e) {
+                    $errors[] = "Linha $line: data inválida \"{$row['birth_date']}\"";
+                    $row['birth_date'] = null;
                 }
-                if ($key === 'gender' && $val) {
-                    $val = $this->normalizeGender($val);
-                }
-                $row[$key] = $val;
+            }
+            if (! empty($row['gender'])) {
+                $row['gender'] = $this->normalizeGender($row['gender']);
             }
             if (! empty($row['name'])) {
                 $rows[] = $row;
             }
         }
-        fclose($fh);
 
-        return ['rows' => $rows, 'map' => $map, 'errors' => $errors];
+        return ['rows' => $rows, 'map' => $parsed['map'], 'errors' => $errors];
     }
 
     private function parseDate(string $v): string

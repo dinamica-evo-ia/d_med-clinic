@@ -100,7 +100,6 @@ class AccountController extends Controller
         return back()->with('success', 'Horários atualizados.');
     }
 
-    public function sessions()    { return Inertia::render('Account/Sessions'); }
     public function suggestions() { return Inertia::render('Account/Suggestions'); }
     public function referral()    { return Inertia::render('Account/Referral'); }
 }

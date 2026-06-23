@@ -1,6 +1,14 @@
 import { Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
+const COLUMN_LABELS = {
+  name: 'Nome', email: 'E-mail', phone: 'Telefone', document: 'CPF', birth_date: 'Nascimento', gender: 'Sexo',
+  addr_zip: 'CEP', addr_neighborhood: 'Bairro', addr_street: 'Endereço', addr_number: 'Número', addr_complement: 'Complemento', addr_city: 'Cidade',
+  ins_name: 'Convênio', ins_number: 'Nº plano',
+  note_rg: 'RG', note_marital_status: 'Estado civil', note_occupation: 'Profissão', note_mother: 'Mãe', note_father: 'Pai',
+  note_spouse: 'Cônjuge', note_doctor_name: 'Profissional', note_legacy_notes: 'Observações', note_status: 'Status',
+};
+
 export default function Import({ existing }) {
   const { flash, importErrors } = usePage().props;
   const [file, setFile] = useState(null);
@@ -60,6 +68,7 @@ export default function Import({ existing }) {
           name, email, phone, document, birth_date, gender
         </code>
         <p className="text-xs text-slate-500">Aliases em português também funcionam: <em>nome, telefone, cpf, nascimento, sexo</em>. Datas em <code>dd/mm/yyyy</code> ou <code>yyyy-mm-dd</code>. Gênero: M/F/Outro (ou Masculino/Feminino).</p>
+        <p className="text-xs text-slate-500">Exports de sistemas legados também funcionam: colunas como <em>CEP, Bairro, Endereço, Plano de saúde, RG, Profissional</em> etc. são reconhecidas automaticamente (endereço e convênio viram dados estruturados; o resto é anexado às observações do paciente). Encoding ISO-8859-1 é convertido automaticamente.</p>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
@@ -91,7 +100,7 @@ export default function Import({ existing }) {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase text-slate-400 border-b border-slate-200">
-                <tr>{preview.mapped_columns.map((c) => <th key={c} className="px-3 py-2">{c}</th>)}</tr>
+                <tr>{preview.mapped_columns.map((c) => <th key={c} className="px-3 py-2">{COLUMN_LABELS[c] || c}</th>)}</tr>
               </thead>
               <tbody>
                 {preview.rows.map((row, i) => (

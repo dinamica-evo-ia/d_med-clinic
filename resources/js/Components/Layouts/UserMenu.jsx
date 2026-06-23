@@ -56,7 +56,7 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
           </Section>
 
           <Section>
-            <MItem href="/account/sessions" onClick={() => setOpen(false)} label="Logins ativos" icon="device" />
+            <MItem href="/account/settings/import-export" onClick={() => setOpen(false)} label="Importar & Exportar" icon="swap" />
             <MItem href="/account/suggestions" onClick={() => setOpen(false)} label="Sugestões" icon="bulb" />
             <MItem href="/account/referral" onClick={() => setOpen(false)} label="Indique um colega" icon="gift" />
           </Section>
@@ -108,6 +108,7 @@ function MiniIcon({ n }) {
     'printer': <><path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></>,
     'seal': <><circle cx="12" cy="9" r="6"/><path d="M9 14l-2 7 5-3 5 3-2-7"/></>,
     'device': <><rect x="3" y="5" width="14" height="11" rx="1"/><path d="M21 19h-2M7 20h6"/></>,
+    'swap': <><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></>,
     'bulb': <><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12c1 1 1 2 1 3h6c0-1 0-2 1-3a7 7 0 00-4-12z"/></>,
     'gift': <><rect x="3" y="8" width="18" height="13" rx="1"/><path d="M3 12h18M12 8v13M7 8a3 3 0 010-6c2 0 5 6 5 6s3-6 5-6a3 3 0 010 6"/></>,
   };

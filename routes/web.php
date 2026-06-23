@@ -147,7 +147,16 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::put('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'scheduleUpdate'])->name('settings.schedule.update');
         Route::get('/settings/print', [\App\Http\Controllers\AccountController::class, 'settingsPrint'])->name('settings.print');
         Route::get('/settings/certificate', [\App\Http\Controllers\AccountController::class, 'settingsCertificate'])->name('settings.certificate');
-        Route::get('/sessions', [\App\Http\Controllers\AccountController::class, 'sessions'])->name('sessions');
+
+        // Importar & Exportar (substitui "Logins ativos")
+        Route::get('/settings/import-export', [\App\Http\Controllers\ImportExportController::class, 'index'])->name('settings.import-export');
+        Route::get('/settings/import-export/medical-records', [\App\Http\Controllers\ImportExportController::class, 'medicalRecordsForm'])->name('settings.import-export.medical-records');
+        Route::post('/settings/import-export/medical-records/preview', [\App\Http\Controllers\ImportExportController::class, 'medicalRecordsPreview'])->name('settings.import-export.medical-records.preview');
+        Route::post('/settings/import-export/medical-records', [\App\Http\Controllers\ImportExportController::class, 'medicalRecordsStore'])->name('settings.import-export.medical-records.store');
+        Route::get('/settings/import-export/prescriptions', [\App\Http\Controllers\ImportExportController::class, 'prescriptionsForm'])->name('settings.import-export.prescriptions');
+        Route::post('/settings/import-export/prescriptions/preview', [\App\Http\Controllers\ImportExportController::class, 'prescriptionsPreview'])->name('settings.import-export.prescriptions.preview');
+        Route::post('/settings/import-export/prescriptions', [\App\Http\Controllers\ImportExportController::class, 'prescriptionsStore'])->name('settings.import-export.prescriptions.store');
+
         Route::get('/suggestions', [\App\Http\Controllers\AccountController::class, 'suggestions'])->name('suggestions');
         Route::get('/referral', [\App\Http\Controllers\AccountController::class, 'referral'])->name('referral');
     });
