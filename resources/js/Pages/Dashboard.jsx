@@ -1,5 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { useMemo } from 'react';
+import { useAppChrome } from '@/Components/Layouts/AppChrome';
+import UserMenu from '@/Components/Layouts/UserMenu';
 
 const TZ = 'America/Sao_Paulo';
 const _fmt = new Intl.DateTimeFormat('en-CA', {
@@ -52,7 +54,8 @@ const AVATAR_COLORS = ['bg-blue-100 text-blue-700', 'bg-violet-100 text-violet-7
 const colorFor = (s) => AVATAR_COLORS[(s || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 
 export default function Dashboard({ agenda = [], stats = {}, week_summary = [], birthdays_today = [], birthdays_week = [] }) {
-  const { auth } = usePage().props;
+  const { auth, tenant, impersonating } = usePage().props;
+  const { openMobileMenu } = useAppChrome();
   const firstName = auth?.user?.name?.split(' ')[0] || '';
   const now = useMemo(() => toSP(new Date()), []);
   const hour = now.getHours();
@@ -66,9 +69,28 @@ export default function Dashboard({ agenda = [], stats = {}, week_summary = [], 
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 sm:px-8 pt-7 pb-14 text-white shadow-lg">
-        <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/10 blur-2xl pointer-events-none" />
-        <div className="absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-indigo-400/20 blur-3xl pointer-events-none" />
+      <div className="relative rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 px-6 sm:px-8 pt-5 pb-14 text-white shadow-lg">
+        <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+          <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-indigo-400/20 blur-3xl" />
+        </div>
+
+        {/* Chrome: hamburger (mobile) + atalho master + usuário — substitui a barra de topo nesta página */}
+        <div className="relative z-10 flex items-center justify-between gap-3 mb-4">
+          <button className="lg:hidden -ml-1.5 p-1.5 rounded-lg text-blue-100 hover:bg-white/10" onClick={openMobileMenu} aria-label="Abrir menu">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" /></svg>
+          </button>
+          <div className="flex-1" />
+          <div className="flex items-center gap-3">
+            {auth?.isMaster && !impersonating && (
+              <Link href="/master" className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-amber-100 bg-white/10 border border-white/20 px-2.5 py-1 rounded-full hover:bg-white/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-300" /> Painel Master
+              </Link>
+            )}
+            <UserMenu user={auth?.user} role={auth?.role} tenant={tenant} isMaster={auth?.isMaster} dark />
+          </div>
+        </div>
+
         <div className="relative z-10 flex flex-wrap items-start justify-between gap-6">
           <div>
             <p className="text-blue-100 text-xs font-semibold uppercase tracking-wider">{dateLabel}</p>
