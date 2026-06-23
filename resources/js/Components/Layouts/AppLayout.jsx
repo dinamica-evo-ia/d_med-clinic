@@ -54,6 +54,13 @@ export default function AppLayout({ children }) {
   }, [collapsed]);
   // Recolhida + mouse em cima → expande temporariamente (sem alterar a preferência salva)
   const visualCollapsed = collapsed && !hovering;
+  // O botão de toggle fica dentro da própria sidebar: ao clicar, o mouse ainda está "em cima"
+  // (hovering=true), o que mascarava o recolhimento. Forçamos hovering=false no clique
+  // pra sidebar e conteúdo reagirem juntos, na mesma hora.
+  const toggleCollapsed = () => {
+    setHovering(false);
+    setCollapsed((c) => !c);
+  };
 
   const { auth, impersonating, tenant } = usePage().props;
   const url = usePage().url;
@@ -84,7 +91,7 @@ export default function AppLayout({ children }) {
           onMouseEnter={() => setHovering(true)}
           onMouseLeave={() => setHovering(false)}
           className={`hidden lg:fixed lg:inset-y-0 lg:z-30 lg:flex lg:flex-col transition-[width] duration-200 ${visualCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
-          <Sidebar url={url} role={role} collapsed={visualCollapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
+          <Sidebar url={url} role={role} collapsed={visualCollapsed} onToggleCollapsed={toggleCollapsed} />
         </div>
 
         <div className={`transition-[padding] duration-200 ${collapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
