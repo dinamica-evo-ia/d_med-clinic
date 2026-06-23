@@ -13,24 +13,19 @@ class AppointmentController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Appointment::with(['patient:id,name', 'doctor:id,name']);
+        $doctors = Doctor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'schedule']);
 
-        if ($date = $request->get('date')) {
-            $query->whereDate('starts_at', $date);
-        }
+        $doctorId = $request->get('doctor_id');
+        $selected = $doctorId ? $doctors->firstWhere('id', $doctorId) : null;
 
-        if ($doctorId = $request->get('doctor_id')) {
-            $query->where('doctor_id', $doctorId);
-        }
-
-        if ($status = $request->get('status')) {
-            $query->where('status', $status);
-        }
+        $schedule = $selected
+            ? DoctorSchedule::normalize($selected->schedule)
+            : DoctorSchedule::union($doctors->pluck('schedule')->all());
 
         return Inertia::render('Appointments/Index', [
-            'appointments' => $query->orderBy('starts_at')->paginate(20)->withQueryString(),
-            'doctors' => Doctor::where('is_active', true)->get(['id', 'name']),
-            'filters' => $request->only(['date', 'doctor_id', 'status']),
+            'doctors'  => $doctors->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])->values(),
+            'filters'  => ['doctor_id' => $doctorId],
+            'schedule' => $schedule,
         ]);
     }
 
@@ -132,9 +127,11 @@ class AppointmentController extends Controller
     {
         $start = $request->get('start', now()->startOfMonth());
         $end = $request->get('end', now()->endOfMonth());
+        $doctorId = $request->get('doctor_id');
 
         $appointments = Appointment::with(['patient:id,name', 'doctor:id,name'])
             ->whereBetween('starts_at', [$start, $end])
+            ->when($doctorId, fn ($q) => $q->where('doctor_id', $doctorId))
             ->get()
             ->map(function ($appointment) {
                 return [

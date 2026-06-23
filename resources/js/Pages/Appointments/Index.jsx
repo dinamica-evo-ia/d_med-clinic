@@ -1,15 +1,16 @@
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 
 const WD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const H0 = 7, H1 = 21, ROW = 56;
+// dayOfWeek (0=Dom..6=Sab) → key do schedule (mon..sun, ISO seg=1..dom=7)
+const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const ROW = 56;
 const TZ = 'America/Sao_Paulo';
 const STATUS = {
   scheduled: 'Agendado', confirmed: 'Confirmado', in_progress: 'Em andamento',
   completed: 'Concluído', cancelled: 'Cancelado', no_show: 'Faltou',
 };
 
-// --- timezone: converte um Date para o "relógio de parede" de São Paulo ---
 const _fmt = new Intl.DateTimeFormat('en-CA', {
   timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
@@ -32,8 +33,21 @@ const parse = (s) => new Date(String(s).replace(' ', 'T'));
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const patientOf = (ev) => (ev.title || '').split(' - ')[0] || 'Consulta';
+const hhmmToMin = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
+
+// Deriva range [H0, H1] em horas inteiras a partir do schedule (cobrindo os dias ativos)
+function rangeFromSchedule(sch) {
+  const days = Object.values(sch?.days || {}).filter((d) => d?.active);
+  if (!days.length) return [8, 18]; // sem dia ativo → range neutro
+  const opens = days.map((d) => hhmmToMin(d.open));
+  const closes = days.map((d) => hhmmToMin(d.close));
+  const H0 = Math.max(0, Math.floor(Math.min(...opens) / 60));
+  const H1 = Math.min(24, Math.ceil(Math.max(...closes) / 60));
+  return [H0, Math.max(H0 + 1, H1)];
+}
 
 export default function Index() {
+  const { doctors = [], filters = {}, schedule } = usePage().props;
   const [view, setView] = useState('week');
   const [cursor, setCursor] = useState(startOfDay(toSP(new Date())));
   const [events, setEvents] = useState([]);
@@ -41,6 +55,10 @@ export default function Index() {
   const dragRef = useRef(null);
   const today = startOfDay(toSP(new Date()));
   const nowTick = toSP(new Date());
+
+  const doctorId = filters.doctor_id || '';
+  const [H0, H1] = useMemo(() => rangeFromSchedule(schedule), [schedule]);
+  const SLOT = schedule?.slot_minutes || 30;
 
   const range = useMemo(() => {
     if (view === 'month') { const s = startOfWeek(startOfMonth(cursor)); return [s, addDays(s, 41)]; }
@@ -52,7 +70,11 @@ export default function Index() {
     setLoading(true);
     try {
       const { data } = await window.axios.get('/api/appointments/calendar', {
-        params: { start: ymd(range[0]) + ' 00:00:00', end: ymd(range[1]) + ' 23:59:59' },
+        params: {
+          start: ymd(range[0]) + ' 00:00:00',
+          end: ymd(range[1]) + ' 23:59:59',
+          ...(doctorId ? { doctor_id: doctorId } : {}),
+        },
       });
       setEvents((data || []).map((e) => {
         const us = parse(e.start), ue = parse(e.end || e.start);
@@ -60,22 +82,31 @@ export default function Index() {
       }));
     } catch { setEvents([]); }
     setLoading(false);
-  }, [range]);
+  }, [range, doctorId]);
   useEffect(() => { load(); }, [load]);
 
   const reschedule = useCallback(async (ev, deltaMs) => {
     if (!deltaMs) return;
     const ns = new Date(ev._utcS.getTime() + deltaMs);
     const ne = new Date(ev._utcE.getTime() + deltaMs);
-    // atualizacao otimista
+    const prev = events;
     setEvents((list) => list.map((x) => x.id === ev.id
       ? { ...x, _utcS: ns, _utcE: ne, _s: toSP(ns), _e: toSP(ne) } : x));
     try {
       await window.axios.patch(`/appointments/${ev.id}/reschedule`, {
         start: ns.toISOString(), end: ne.toISOString(),
       });
-    } catch { load(); }
-  }, [load]);
+    } catch (err) {
+      // backend rejeitou (fora do expediente, almoço, etc) → reverte + avisa
+      setEvents(prev);
+      const msg = err?.response?.data?.message || 'Não foi possível reagendar.';
+      window.alert(msg);
+    }
+  }, [events]);
+
+  const onDoctorChange = (id) => {
+    router.get('/appointments', id ? { doctor_id: id } : {}, { preserveScroll: true });
+  };
 
   const go = (n) => setCursor((c) => view === 'month' ? addMonths(c, n) : addDays(c, view === 'week' ? 7 * n : n));
   const title = view === 'month'
@@ -95,27 +126,42 @@ export default function Index() {
           {loading && <span className="text-xs text-slate-400">carregando…</span>}
         </div>
         <div className="flex items-center gap-3">
+          <select
+            value={doctorId}
+            onChange={(e) => onDoctorChange(e.target.value)}
+            className="h-9 rounded-lg border border-slate-200 px-2 text-sm text-slate-700 bg-white"
+            title="Filtrar por médico"
+          >
+            <option value="">Todos os médicos</option>
+            {doctors.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+          </select>
           <div className="flex rounded-lg bg-slate-100 p-0.5">
             {[['day', 'Dia'], ['week', 'Semana'], ['month', 'Mês']].map(([v, l]) => (
               <button key={v} onClick={() => setView(v)}
                 className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
             ))}
           </div>
-          <Link href="/appointments/create" className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Nova Consulta</Link>
+          <Link href={doctorId ? `/appointments/create?doctor_id=${doctorId}` : '/appointments/create'}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Nova Consulta</Link>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        {view === 'month' && <MonthView cursor={cursor} range={range} events={events} today={today} dragRef={dragRef} onReschedule={reschedule} onDay={(d) => { setCursor(d); setView('day'); }} />}
-        {view === 'week' && <TimeGrid days={Array.from({ length: 7 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} />}
-        {view === 'day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} single />}
+        {view === 'month' && <MonthView cursor={cursor} range={range} events={events} today={today} dragRef={dragRef} onReschedule={reschedule} onDay={(d) => { setCursor(d); setView('day'); }} schedule={schedule} />}
+        {view === 'week' && <TimeGrid days={Array.from({ length: 7 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
+        {view === 'day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} single H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
       </div>
-      <p className="mt-2 text-xs text-slate-400">Dica: arraste um compromisso para outro horário ou dia para reagendar. Horários no fuso de Brasília.</p>
+      <p className="mt-2 text-xs text-slate-400">
+        Dica: arraste um compromisso para outro horário ou dia para reagendar. Horários no fuso de Brasília.
+        {doctorId
+          ? <> Mostrando agenda de <strong>{doctors.find((d) => d.id === doctorId)?.name}</strong>. Áreas em cinza estão fora do expediente.</>
+          : <> Mostrando todos os médicos (range agregado). Selecione um médico para ver o expediente individual.</>}
+      </p>
     </div>
   );
 }
 
-function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule }) {
+function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule, schedule }) {
   const days = Array.from({ length: 42 }, (_, i) => addDays(range[0], i));
   const open = (ev) => router.visit(`/appointments/${ev.id}`);
   const drop = (day) => {
@@ -134,10 +180,12 @@ function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule 
           const evs = events.filter((e) => sameDay(e._s, d)).sort((a, b) => a._s - b._s);
           const out = d.getMonth() !== cursor.getMonth();
           const isToday = sameDay(d, today);
+          const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
+          const inactive = dayCfg && !dayCfg.active;
           return (
             <div key={i}
               onDragOver={(e) => e.preventDefault()} onDrop={() => drop(d)}
-              className={`border-b border-r border-slate-100 p-1 overflow-hidden ${out ? 'bg-slate-50/60' : ''}`}>
+              className={`border-b border-r border-slate-100 p-1 overflow-hidden ${out ? 'bg-slate-50/60' : inactive ? 'bg-slate-100/60' : ''}`}>
               <button onClick={() => onDay(d)} className={`flex items-center justify-center w-6 h-6 text-xs rounded-full ${isToday ? 'bg-blue-600 text-white font-semibold' : out ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100'}`}>{d.getDate()}</button>
               <div className="mt-0.5 space-y-0.5">
                 {evs.slice(0, 3).map((ev) => (
@@ -172,23 +220,60 @@ function layout(evs) {
   return sorted;
 }
 
-function TimeGrid({ days, events, today, now, single, dragRef, onReschedule }) {
+function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLOT, schedule }) {
   const hours = []; for (let h = H0; h <= H1; h++) hours.push(h);
   const totalH = (H1 - H0) * ROW;
   const open = (ev) => router.visit(`/appointments/${ev.id}`);
+  const minToTop = (mins) => ((mins - H0 * 60) / ((H1 - H0) * 60)) * totalH;
   const pos = (d, t) => { const ds = new Date(d); ds.setHours(H0, 0, 0, 0); return ((t - ds) / 60000) / ((H1 - H0) * 60) * totalH; };
+
   const drop = (day, e) => {
     e.preventDefault();
     const ev = dragRef.current; dragRef.current = null;
     if (!ev) return;
     const rect = e.currentTarget.getBoundingClientRect();
     let mins = ((e.clientY - rect.top) / totalH) * ((H1 - H0) * 60) + H0 * 60;
-    mins = Math.round(mins / 15) * 15;
+    mins = Math.round(mins / SLOT) * SLOT;
     mins = Math.max(H0 * 60, Math.min(H1 * 60, mins));
     const target = startOfDay(day); target.setMinutes(mins);
     const delta = target.getTime() - ev._s.getTime();
     onReschedule(ev, delta);
   };
+
+  // Renderiza um overlay cinza pras zonas bloqueadas (fora expediente + almoço + dia inativo)
+  const renderBlocks = (d) => {
+    const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
+    if (!dayCfg) return null;
+    if (!dayCfg.active) {
+      return <div className="absolute inset-0 bg-slate-100/70" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 6px, rgba(148,163,184,0.08) 6px 12px)' }} />;
+    }
+    const openM = hhmmToMin(dayCfg.open);
+    const closeM = hhmmToMin(dayCfg.close);
+    const lunch = dayCfg.lunch;
+    const blocks = [];
+    // antes do expediente
+    if (openM > H0 * 60) blocks.push({ top: 0, height: minToTop(openM) });
+    // depois do expediente
+    if (closeM < H1 * 60) blocks.push({ top: minToTop(closeM), height: totalH - minToTop(closeM) });
+    // almoço
+    if (lunch?.start && lunch?.end) {
+      const ls = hhmmToMin(lunch.start), le = hhmmToMin(lunch.end);
+      if (le > openM && ls < closeM) {
+        blocks.push({ top: minToTop(Math.max(ls, openM)), height: minToTop(Math.min(le, closeM)) - minToTop(Math.max(ls, openM)), lunch: true });
+      }
+    }
+    return blocks.map((b, i) => (
+      <div key={i}
+        className={`absolute left-0 right-0 pointer-events-none ${b.lunch ? 'bg-amber-50/60' : 'bg-slate-100/60'}`}
+        style={{
+          top: b.top, height: b.height,
+          backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 6px, rgba(148,163,184,0.10) 6px 12px)',
+        }}
+        title={b.lunch ? 'Pausa de almoço' : 'Fora do expediente'}
+      />
+    ));
+  };
+
   return (
     <div className="h-full overflow-auto">
       <div className="flex min-w-full">
@@ -200,15 +285,18 @@ function TimeGrid({ days, events, today, now, single, dragRef, onReschedule }) {
           {days.map((d, di) => {
             const evs = layout(events.filter((e) => sameDay(e._s, d)));
             const isToday = sameDay(d, today);
+            const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
+            const inactive = dayCfg && !dayCfg.active;
             return (
               <div key={di} className="border-l border-slate-100">
                 <div className="h-10 sticky top-0 z-10 bg-white border-b border-slate-200 flex flex-col items-center justify-center">
                   <span className="text-[11px] text-slate-400">{WD[d.getDay()]}</span>
-                  <span className={`text-sm font-semibold ${isToday ? 'text-blue-600' : 'text-slate-700'}`}>{d.getDate()}</span>
+                  <span className={`text-sm font-semibold ${isToday ? 'text-blue-600' : inactive ? 'text-slate-300' : 'text-slate-700'}`}>{d.getDate()}</span>
                 </div>
                 <div className="relative" style={{ height: totalH }}
                   onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(d, e)}>
                   {hours.map((h, i) => <div key={h} style={{ top: i * ROW }} className="absolute left-0 right-0 border-b border-slate-100" />)}
+                  {renderBlocks(d)}
                   {isToday && now.getHours() >= H0 && now.getHours() <= H1 && (
                     <div className="absolute left-0 right-0 z-20 pointer-events-none" style={{ top: pos(d, now) }}>
                       <div className="h-0.5 bg-red-500"><span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-red-500" /></div>
@@ -221,7 +309,7 @@ function TimeGrid({ days, events, today, now, single, dragRef, onReschedule }) {
                     return (
                       <button key={ev.id} draggable onDragStart={() => { dragRef.current = ev; }}
                         onClick={() => open(ev)} title={ev.title}
-                        className="absolute rounded-lg px-2 py-1 text-left text-white overflow-hidden shadow-sm cursor-grab active:cursor-grabbing"
+                        className="absolute rounded-lg px-2 py-1 text-left text-white overflow-hidden shadow-sm cursor-grab active:cursor-grabbing z-10"
                         style={{ top, height: h, left: `calc(${ev._col * w}% + 2px)`, width: `calc(${w}% - 4px)`, background: ev.backgroundColor }}>
                         <div className="text-[11px] font-semibold leading-tight truncate">{hhmm(ev._s)} {patientOf(ev)}</div>
                         <div className="text-[10px] opacity-90 truncate">{STATUS[ev.status] || ev.status}</div>

@@ -131,4 +131,49 @@ class DoctorSchedule
         [$h, $m] = array_map('intval', explode(':', $hhmm));
         return $day->copy()->setTime($h, $m, 0);
     }
+
+    /**
+     * Consolida vários schedules em um único (pra agenda mostrar "todos os médicos"):
+     * - dia ativo se QUALQUER médico atende nele
+     * - open = menor open dos ativos
+     * - close = maior close dos ativos
+     * - lunch = só se TODOS os ativos têm exatamente o mesmo almoço (senão null)
+     * - slot_minutes = menor entre os schedules (mais granular)
+     * - antecedências = mais permissivas (menor min, maior max)
+     */
+    public static function union(array $schedules): array
+    {
+        if (empty($schedules)) return self::defaults();
+
+        $schedules = array_map([self::class, 'normalize'], $schedules);
+        $out = self::defaults();
+        $slots = array_map(fn ($s) => $s['slot_minutes'], $schedules);
+        $minL  = array_map(fn ($s) => $s['min_lead_minutes'], $schedules);
+        $maxL  = array_map(fn ($s) => $s['max_lead_days'], $schedules);
+        $out['slot_minutes']     = min($slots);
+        $out['min_lead_minutes'] = min($minL);
+        $out['max_lead_days']    = max($maxL);
+
+        foreach (self::DAYS as $d) {
+            $actives = array_filter($schedules, fn ($s) => ! empty($s['days'][$d]['active']));
+            if (empty($actives)) {
+                $out['days'][$d] = array_merge($out['days'][$d], ['active' => false, 'lunch' => null]);
+                continue;
+            }
+            $opens  = array_map(fn ($s) => $s['days'][$d]['open'],  $actives);
+            $closes = array_map(fn ($s) => $s['days'][$d]['close'], $actives);
+            sort($opens); rsort($closes);
+            $lunches = array_map(fn ($s) => $s['days'][$d]['lunch'] ?? null, $actives);
+            $allSame = count(array_unique(array_map('json_encode', $lunches))) === 1;
+            $lunch = $allSame ? reset($lunches) : null;
+
+            $out['days'][$d] = [
+                'active' => true,
+                'open'   => $opens[0],
+                'close'  => $closes[0],
+                'lunch'  => $lunch,
+            ];
+        }
+        return $out;
+    }
 }
