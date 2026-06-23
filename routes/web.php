@@ -136,6 +136,21 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
     Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 
+    // Minha conta (dropdown do usuário no topo)
+    Route::prefix('account')->name('account.')->group(function () {
+        Route::get('/doctor', [\App\Http\Controllers\AccountController::class, 'doctor'])->name('doctor');
+        Route::get('/password', [\App\Http\Controllers\AccountController::class, 'password'])->name('password');
+        Route::put('/password', [\App\Http\Controllers\AccountController::class, 'passwordUpdate'])->name('password.update');
+        Route::get('/plan', [\App\Http\Controllers\AccountController::class, 'plan'])->name('plan');
+        Route::get('/settings/doctor', [\App\Http\Controllers\AccountController::class, 'settingsDoctor'])->name('settings.doctor');
+        Route::get('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'settingsSchedule'])->name('settings.schedule');
+        Route::get('/settings/print', [\App\Http\Controllers\AccountController::class, 'settingsPrint'])->name('settings.print');
+        Route::get('/settings/certificate', [\App\Http\Controllers\AccountController::class, 'settingsCertificate'])->name('settings.certificate');
+        Route::get('/sessions', [\App\Http\Controllers\AccountController::class, 'sessions'])->name('sessions');
+        Route::get('/suggestions', [\App\Http\Controllers\AccountController::class, 'suggestions'])->name('suggestions');
+        Route::get('/referral', [\App\Http\Controllers\AccountController::class, 'referral'])->name('referral');
+    });
+
     // Reports
     Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/patients', [ReportController::class, 'exportPatients'])->name('reports.patients');

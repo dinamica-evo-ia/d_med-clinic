@@ -48,6 +48,17 @@ class HandleInertiaRequests extends Middleware
                 },
             ],
             'impersonating' => (bool) $request->session()->get('master_impersonator_id'),
+            'tenant' => function () {
+                $t = tenant();
+                if (! $t) return null;
+                return [
+                    'id' => $t->id,
+                    'slug' => $t->slug ?? null,
+                    'name' => $t->name ?? null,
+                    'plan' => $t->plan ?? null,
+                    'status' => $t->status ?? null,
+                ];
+            },
         ];
     }
 }
