@@ -10,6 +10,17 @@ use Inertia\Inertia;
 
 class TenantUserController extends Controller
 {
+    /**
+     * tenant_user vive só no banco central — mas este controller roda com um tenant já
+     * ativo (dentro de tenancy.by_user), onde a conexão padrão já foi trocada pra do
+     * tenant. DB::table() não sabe disso (só os models sabem, via getConnectionName()),
+     * então toda query crua aqui precisa apontar pra conexão central explicitamente.
+     */
+    private function tenantUserTable()
+    {
+        return DB::connection(config('tenancy.database.central_connection'))->table('tenant_user');
+    }
+
     public function index()
     {
         $tenantId = tenant()->id;
@@ -36,15 +47,17 @@ class TenantUserController extends Controller
     {
         $tenantId = tenant()->id;
 
+        $centralConnection = config('tenancy.database.central_connection');
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
+            'email' => "required|email|max:255|unique:{$centralConnection}.users,email",
             'password' => 'required|string|min:6',
             'role' => ['required', Rule::in(['admin', 'doctor', 'receptionist'])],
         ]);
 
         // Limite por plano (medicos vs staff sao seats separados)
-        $planKey = tenant()->data['plan'] ?? config('plans.default');
+        $planKey = tenant()->plan ?? config('plans.default');
         $plan = config("plans.plans.$planKey");
         if ($plan) {
             $isDoctor = $validated['role'] === 'doctor';
@@ -52,7 +65,7 @@ class TenantUserController extends Controller
             $limit = $plan[$limitKey] ?? null;
             if ($limit !== null) {
                 $rolesInLimit = $isDoctor ? ['doctor'] : ['admin', 'receptionist'];
-                $current = DB::table('tenant_user')
+                $current = $this->tenantUserTable()
                     ->where('tenant_id', $tenantId)
                     ->whereIn('role', $rolesInLimit)
                     ->where('is_active', true)
@@ -72,7 +85,7 @@ class TenantUserController extends Controller
             'password' => $validated['password'],
         ]);
 
-        DB::table('tenant_user')->insert([
+        $this->tenantUserTable()->insert([
             'tenant_id' => $tenantId,
             'user_id' => $user->id,
             'role' => $validated['role'],
@@ -94,7 +107,7 @@ class TenantUserController extends Controller
             'is_active' => 'boolean',
         ]);
 
-        $exists = DB::table('tenant_user')
+        $exists = $this->tenantUserTable()
             ->where('tenant_id', $tenantId)
             ->where('user_id', $user->id)
             ->exists();
@@ -104,7 +117,7 @@ class TenantUserController extends Controller
                 ->with('error', 'Usuário não pertence a esta clínica.');
         }
 
-        DB::table('tenant_user')
+        $this->tenantUserTable()
             ->where('tenant_id', $tenantId)
             ->where('user_id', $user->id)
             ->update([
@@ -121,7 +134,7 @@ class TenantUserController extends Controller
     {
         $tenantId = tenant()->id;
 
-        DB::table('tenant_user')
+        $this->tenantUserTable()
             ->where('tenant_id', $tenantId)
             ->where('user_id', $user->id)
             ->delete();

@@ -51,40 +51,43 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('patients-import', [\App\Http\Controllers\PatientImportController::class, 'form'])->name('patients.import.form');
     Route::post('patients-import/preview', [\App\Http\Controllers\PatientImportController::class, 'preview'])->name('patients.import.preview');
     Route::post('patients-import', [\App\Http\Controllers\PatientImportController::class, 'store'])->name('patients.import.store');
-    Route::post('patients/{patient}/allergies', [\App\Http\Controllers\AllergyController::class, 'store'])->name('allergies.store');
-    Route::delete('allergies/{allergy}', [\App\Http\Controllers\AllergyController::class, 'destroy'])->name('allergies.destroy');
-    Route::post('patients/{patient}/body-compositions', [\App\Http\Controllers\BodyCompositionController::class, 'store'])->name('body.store');
-    Route::delete('body-compositions/{bodyComposition}', [\App\Http\Controllers\BodyCompositionController::class, 'destroy'])->name('body.destroy');
+    // Dados clínicos — secretária não acessa (só cadastro do paciente + agenda)
+    Route::middleware('role:admin,doctor')->group(function () {
+        Route::post('patients/{patient}/allergies', [\App\Http\Controllers\AllergyController::class, 'store'])->name('allergies.store');
+        Route::delete('allergies/{allergy}', [\App\Http\Controllers\AllergyController::class, 'destroy'])->name('allergies.destroy');
+        Route::post('patients/{patient}/body-compositions', [\App\Http\Controllers\BodyCompositionController::class, 'store'])->name('body.store');
+        Route::delete('body-compositions/{bodyComposition}', [\App\Http\Controllers\BodyCompositionController::class, 'destroy'])->name('body.destroy');
+
+        Route::get('patients/{patient}/records', [MedicalRecordController::class, 'index'])->name('patients.records.index');
+        Route::get('patients/{patient}/records/create', [MedicalRecordController::class, 'create'])->name('patients.records.create');
+        Route::post('patients/{patient}/records', [MedicalRecordController::class, 'store'])->name('patients.records.store');
+        Route::get('patients/{patient}/records/{record}', [MedicalRecordController::class, 'show'])->name('patients.records.show');
+        Route::get('patients/{patient}/records/{record}/edit', [MedicalRecordController::class, 'edit'])->name('patients.records.edit');
+        Route::put('patients/{patient}/records/{record}', [MedicalRecordController::class, 'update'])->name('patients.records.update');
+
+        // Prescriptions (standalone)
+        Route::resource('prescriptions', PrescriptionController::class)->except(['edit', 'update']);
+        Route::get('prescriptions/{prescription}/print', [PrescriptionController::class, 'print'])->name('prescriptions.print');
+
+        // Certificates
+        Route::resource('certificates', CertificateController::class)->except(['edit', 'update']);
+        Route::get('certificates/{certificate}/print', [CertificateController::class, 'print'])->name('certificates.print');
+
+        // Exam Requests
+        Route::get('exam-requests', [ExamRequestController::class, 'index'])->name('exam-requests.index');
+        Route::get('exam-requests/create', [ExamRequestController::class, 'create'])->name('exam-requests.create');
+        Route::post('exam-requests', [ExamRequestController::class, 'store'])->name('exam-requests.store');
+        Route::get('exam-requests/{examRequest}', [ExamRequestController::class, 'show'])->name('exam-requests.show');
+        Route::patch('exam-requests/{examRequest}/status', [ExamRequestController::class, 'updateStatus'])->name('exam-requests.status');
+        Route::delete('exam-requests/{examRequest}', [ExamRequestController::class, 'destroy'])->name('exam-requests.destroy');
+        Route::get('exam-requests/{examRequest}/print', [ExamRequestController::class, 'print'])->name('exam-requests.print');
+    });
 
     Route::resource('appointments', AppointmentController::class);
     Route::patch('appointments/{appointment}/status', [AppointmentController::class, 'updateStatus'])->name('appointments.status');
     Route::patch('appointments/{appointment}/reschedule', [AppointmentController::class, 'reschedule'])->name('appointments.reschedule');
 
-    Route::get('patients/{patient}/records', [MedicalRecordController::class, 'index'])->name('patients.records.index');
-    Route::get('patients/{patient}/records/create', [MedicalRecordController::class, 'create'])->name('patients.records.create');
-    Route::post('patients/{patient}/records', [MedicalRecordController::class, 'store'])->name('patients.records.store');
-    Route::get('patients/{patient}/records/{record}', [MedicalRecordController::class, 'show'])->name('patients.records.show');
-    Route::get('patients/{patient}/records/{record}/edit', [MedicalRecordController::class, 'edit'])->name('patients.records.edit');
-    Route::put('patients/{patient}/records/{record}', [MedicalRecordController::class, 'update'])->name('patients.records.update');
-
     Route::resource('doctors', DoctorController::class);
-
-    // Prescriptions (standalone)
-    Route::resource('prescriptions', PrescriptionController::class)->except(['edit', 'update']);
-    Route::get('prescriptions/{prescription}/print', [PrescriptionController::class, 'print'])->name('prescriptions.print');
-
-    // Certificates
-    Route::resource('certificates', CertificateController::class)->except(['edit', 'update']);
-    Route::get('certificates/{certificate}/print', [CertificateController::class, 'print'])->name('certificates.print');
-
-    // Exam Requests
-    Route::get('exam-requests', [ExamRequestController::class, 'index'])->name('exam-requests.index');
-    Route::get('exam-requests/create', [ExamRequestController::class, 'create'])->name('exam-requests.create');
-    Route::post('exam-requests', [ExamRequestController::class, 'store'])->name('exam-requests.store');
-    Route::get('exam-requests/{examRequest}', [ExamRequestController::class, 'show'])->name('exam-requests.show');
-    Route::patch('exam-requests/{examRequest}/status', [ExamRequestController::class, 'updateStatus'])->name('exam-requests.status');
-    Route::delete('exam-requests/{examRequest}', [ExamRequestController::class, 'destroy'])->name('exam-requests.destroy');
-    Route::get('exam-requests/{examRequest}/print', [ExamRequestController::class, 'print'])->name('exam-requests.print');
 
     // User management (admin only)
     Route::middleware('role:admin')->group(function () {
@@ -133,10 +136,12 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::post('prescriptions/suggest', [\App\Http\Controllers\Api\AiSuggestionController::class, 'suggest'])->name('api.prescriptions.suggest');
     });
 
-    // Attachments (upload / download)
-    Route::post('/attachments', [AttachmentController::class, 'upload'])->name('attachments.upload');
-    Route::get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
-    Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
+    // Attachments (upload / download) — galeria/documentos clínicos, secretária não acessa
+    Route::middleware('role:admin,doctor')->group(function () {
+        Route::post('/attachments', [AttachmentController::class, 'upload'])->name('attachments.upload');
+        Route::get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
+        Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
+    });
 
     // Minha conta (dropdown do usuário no topo)
     Route::prefix('account')->name('account.')->group(function () {

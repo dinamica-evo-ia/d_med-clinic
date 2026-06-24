@@ -90,6 +90,13 @@ export default function Show({ appointment }) {
                             + Prontuário
                         </Link>
                     )}
+                    {appointment.status === 'cancelled' && (
+                        <button
+                            onClick={() => { if (confirm('Remover esta consulta cancelada definitivamente?')) router.delete(`/appointments/${appointment.id}`); }}
+                            className="mt-3 w-full px-3 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-center">
+                            Remover consulta
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

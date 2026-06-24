@@ -2,7 +2,7 @@ import { Link, router } from '@inertiajs/react';
 import { useState, useRef, useEffect } from 'react';
 
 const initials = (name) => (name || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
-const roleLabel = { admin: 'Administrador', doctor: 'Médico(a)', receptionist: 'Recepção' };
+const roleLabel = { admin: 'Administrador', doctor: 'Médico(a)', receptionist: 'Secretária' };
 const planLabel = { solo: 'Solo', pro: 'Pro', clinica: 'Clínica', enterprise: 'Enterprise' };
 
 export default function UserMenu({ user, role, tenant, isMaster, dark = false }) {

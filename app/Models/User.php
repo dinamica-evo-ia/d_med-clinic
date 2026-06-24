@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use Stancl\Tenancy\Database\Concerns\CentralConnection;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, CentralConnection;
 
     public $incrementing = false;
     protected $keyType = 'string';
@@ -62,5 +63,15 @@ class User extends Authenticatable
             ->withPivot('role', 'is_active')
             ->wherePivot('is_active', true)
             ->first();
+    }
+
+    /** Papel deste usuário no tenant ativo (admin/doctor/receptionist), ou null se não houver tenant. */
+    public function currentRole(): ?string
+    {
+        if (! tenant()) return null;
+
+        return $this->tenants()
+            ->where('tenant_id', tenant()->id)
+            ->first()?->pivot?->role;
     }
 }

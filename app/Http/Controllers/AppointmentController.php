@@ -130,6 +130,18 @@ class AppointmentController extends Controller
         return back()->with('success', 'Status da consulta atualizado.');
     }
 
+    public function destroy(Appointment $appointment)
+    {
+        if ($appointment->status !== 'cancelled') {
+            return back()->withErrors(['status' => 'Só é possível remover consultas canceladas.']);
+        }
+
+        $appointment->delete();
+
+        return redirect()->route('appointments.index')
+            ->with('success', 'Consulta removida.');
+    }
+
     public function calendar(Request $request)
     {
         $start = $request->get('start', now()->startOfMonth());

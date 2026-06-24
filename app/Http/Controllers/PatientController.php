@@ -85,6 +85,11 @@ class PatientController extends Controller
 
     public function show(Patient $patient)
     {
+        // Secretária só acessa o cadastro (editar dados + foto), não as abas clínicas.
+        if (auth()->user()->currentRole() === 'receptionist') {
+            return redirect()->route('patients.edit', $patient);
+        }
+
         $patient->load([
             'appointments' => fn ($q) => $q->latest('starts_at')->limit(12),
             'medicalRecords' => fn ($q) => $q->with('doctor:id,name')->latest()->limit(50),
@@ -160,6 +165,10 @@ class PatientController extends Controller
 
     public function destroy(Patient $patient)
     {
+        if (auth()->user()->currentRole() === 'receptionist') {
+            abort(403, 'Secretária não pode remover pacientes.');
+        }
+
         $patient->delete();
         return redirect()->route('patients.index')
             ->with('success', 'Paciente removido com sucesso.');

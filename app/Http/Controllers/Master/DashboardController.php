@@ -21,11 +21,11 @@ class DashboardController extends Controller
         $byPlan = array_fill_keys(array_keys($plans), 0);
 
         foreach ($tenants as $t) {
-            $status = $t->data['status'] ?? 'active';
+            $status = $t->status ?? 'active';
             if (isset($byStatus[$status])) {
                 $byStatus[$status]++;
             }
-            $plan = $t->data['plan'] ?? 'solo';
+            $plan = $t->plan ?? 'solo';
             if (isset($byPlan[$plan])) {
                 $byPlan[$plan]++;
             }

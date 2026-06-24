@@ -5,7 +5,7 @@ import UserFormModal from './Partials/UserFormModal';
 const ROLE_LABELS = {
     admin: 'Admin',
     doctor: 'Médico',
-    receptionist: 'Recepcionista',
+    receptionist: 'Secretária',
 };
 
 const ROLE_COLORS = {
