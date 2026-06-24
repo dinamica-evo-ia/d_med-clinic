@@ -35,8 +35,9 @@ export default function CsvImportPanel({
   const confirm = (e) => {
     e.preventDefault();
     if (!file) return;
-    const fd = new FormData(); fd.append('file', file);
-    submitForm.transform(() => fd).post(storeUrl, { forceFormData: true, preserveScroll: true,
+    // Deixa o Inertia montar o multipart sozinho (transform devolvendo um objeto comum
+    // com um File dentro) — passar uma FormData já pronta + forceFormData não disparava nada.
+    submitForm.transform(() => ({ file })).post(storeUrl, { preserveScroll: true,
       onSuccess: () => { setFile(null); setPreview(null); document.querySelector('input[type=file]').value = ''; },
     });
   };
