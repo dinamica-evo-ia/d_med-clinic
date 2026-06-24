@@ -21,7 +21,9 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
   const attachments = patient.attachments || [];
   const gallery = attachments.filter((x) => isImg(x.mime));
   const docs = attachments.filter((x) => !isImg(x.mime));
-  const [tab, setTab] = useState('resumo');
+  // Permite deep-link pra uma aba via ?tab= (usado pelos ícones da listagem: Prontuário, Anotações)
+  const initialTab = (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab')) || 'resumo';
+  const [tab, setTab] = useState(initialTab);
 
   const TABS = [
     ['resumo', 'Resumo'],

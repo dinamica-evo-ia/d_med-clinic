@@ -52,12 +52,34 @@ class PatientController extends Controller
             });
         }
 
+        // Status: por padrão só Ativos; 'inactive' ou 'all' via filtro.
+        $status = $request->get('status', 'active');
+        if (in_array($status, ['active', 'inactive'], true)) {
+            $query->where('status', $status);
+        }
+
+        // Ordem alfabética crescente por padrão; alterna pra decrescente na barra.
+        $direction = $request->get('direction') === 'desc' ? 'desc' : 'asc';
+        $query->orderBy('name', $direction);
+
         return Inertia::render('Patients/Index', [
-            'patients' => $query->orderBy('created_at', 'desc')
-                ->paginate(15)
-                ->withQueryString(),
-            'filters' => $request->only(['search']),
+            'patients' => $query->paginate(15)->withQueryString(),
+            'filters' => [
+                'search' => $request->get('search', ''),
+                'status' => $status,
+                'direction' => $direction,
+            ],
         ]);
+    }
+
+    public function updateStatus(Request $request, Patient $patient)
+    {
+        $data = $request->validate([
+            'status' => 'required|string|in:active,inactive',
+        ]);
+        $patient->update(['status' => $data['status']]);
+
+        return back()->with('success', $data['status'] === 'active' ? 'Paciente reativado.' : 'Paciente marcado como inativo.');
     }
 
     public function create()
