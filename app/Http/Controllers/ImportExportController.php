@@ -138,7 +138,7 @@ class ImportExportController extends Controller
             $msg .= ' Médico(s) criado(s) automaticamente: '.implode(', ', array_unique($createdDoctors)).'.';
         }
 
-        return back()->with('success', $msg)->with('importErrors', array_slice($errors, 0, 20));
+        return $this->importResponse($request, $ok, $skip, $errors, $msg);
     }
 
     // ---------- Receitas (prescriptions) ----------
@@ -220,7 +220,7 @@ class ImportExportController extends Controller
             $msg .= ' Médico(s) criado(s) automaticamente: '.implode(', ', array_unique($createdDoctors)).'.';
         }
 
-        return back()->with('success', $msg)->with('importErrors', array_slice($errors, 0, 20));
+        return $this->importResponse($request, $ok, $skip, $errors, $msg);
     }
 
     // ---------- helpers compartilhados ----------
@@ -237,6 +237,23 @@ class ImportExportController extends Controller
     }
 
     private array $doctorCache = [];
+
+    /**
+     * O front confirma via axios (XHR) — responde JSON nesse caso, igual ao import de Pacientes.
+     * Mantém o redirect Inertia como fallback se a chamada não for XHR.
+     */
+    private function importResponse(Request $request, int $imported, int $skipped, array $errors, string $msg)
+    {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'imported' => $imported,
+                'skipped' => $skipped,
+                'errors' => array_slice($errors, 0, 20),
+            ]);
+        }
+
+        return back()->with('success', $msg)->with('importErrors', array_slice($errors, 0, 20));
+    }
 
     private function resolveDoctorId(?string $name, array &$createdDoctors): string
     {

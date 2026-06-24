@@ -1,4 +1,4 @@
-import { Link, useForm, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 const COLUMN_LABELS = {
@@ -15,10 +15,11 @@ export default function Import({ existing }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
-  const submitForm = useForm({});
+  const [importing, setImporting] = useState(false);
+  const [result, setResult] = useState(null);
 
   const doPreview = async (f) => {
-    setLoading(true); setPreview(null);
+    setLoading(true); setPreview(null); setResult(null);
     const fd = new FormData(); fd.append('file', f);
     try {
       const { data } = await window.axios.post('/patients-import/preview', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -33,14 +34,24 @@ export default function Import({ existing }) {
     if (f) doPreview(f);
   };
 
-  const confirm = (e) => {
+  // Confirma usando o MESMO axios.post do preview (que comprovadamente funciona nesta
+  // página). O controller responde JSON quando a chamada é XHR. Nada de useForm/Inertia
+  // no meio — era isso que não disparava request nenhuma.
+  const confirm = async (e) => {
     e.preventDefault();
-    if (!file) return;
-    // Deixa o Inertia montar o multipart sozinho (transform devolvendo um objeto comum
-    // com um File dentro) — passar uma FormData já pronta + forceFormData não disparava nada.
-    submitForm.transform(() => ({ file })).post('/patients-import', { preserveScroll: true,
-      onSuccess: () => { setFile(null); setPreview(null); document.querySelector('input[type=file]').value = ''; },
-    });
+    if (!file || importing) return;
+    setImporting(true);
+    const fd = new FormData(); fd.append('file', file);
+    try {
+      const { data } = await window.axios.post('/patients-import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setResult(data);
+      setFile(null); setPreview(null);
+      const input = document.querySelector('input[type=file]'); if (input) input.value = '';
+    } catch (err) {
+      alert('Erro ao importar: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setImporting(false);
+    }
   };
 
   return (
@@ -53,10 +64,19 @@ export default function Import({ existing }) {
         </div>
       </div>
 
-      {flash?.success && (
+      {result && (
+        <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
+          <p className="font-semibold">Importação concluída: {result.imported} paciente(s) adicionado(s){result.skipped ? `, ${result.skipped} ignorado(s)` : ''}.</p>
+          {result.errors?.length > 0 && (
+            <ul className="list-disc pl-5 text-xs text-amber-700 mt-2">{result.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
+          )}
+          <Link href="/patients" className="inline-block mt-2 text-sm font-semibold text-blue-600 hover:text-blue-800">Ver pacientes →</Link>
+        </div>
+      )}
+      {flash?.success && !result && (
         <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">{flash.success}</div>
       )}
-      {importErrors && importErrors.length > 0 && (
+      {importErrors && importErrors.length > 0 && !result && (
         <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
           <p className="font-semibold mb-1">Alguns avisos:</p>
           <ul className="list-disc pl-5 text-xs">{importErrors.map((e, i) => <li key={i}>{e}</li>)}</ul>
@@ -89,9 +109,9 @@ export default function Import({ existing }) {
               <h2 className="text-lg font-semibold text-slate-900">Pré-visualização</h2>
               <p className="text-sm text-slate-500">{preview.total} linhas detectadas · colunas reconhecidas: <span className="font-mono text-xs">{preview.mapped_columns.join(', ')}</span></p>
             </div>
-            <button type="button" onClick={confirm} disabled={submitForm.processing || preview.total === 0}
+            <button type="button" onClick={confirm} disabled={importing || preview.total === 0}
               className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60">
-              {submitForm.processing ? 'Importando…' : `Confirmar e importar ${preview.total} paciente(s)`}
+              {importing ? 'Importando…' : `Confirmar e importar ${preview.total} paciente(s)`}
             </button>
           </div>
           {preview.errors?.length > 0 && (

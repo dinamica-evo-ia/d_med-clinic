@@ -126,6 +126,16 @@ class PatientImportController extends Controller
             $ok++;
         }
 
+        // O front confirma via axios (mesmo mecanismo do preview, que comprovadamente funciona),
+        // então respondemos JSON. Mantém o redirect Inertia como fallback se vier sem XHR.
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'imported' => $ok,
+                'skipped' => $skip,
+                'errors' => array_slice($errors, 0, 20),
+            ]);
+        }
+
         return back()->with('success', "Importação concluída: $ok pacientes adicionados, $skip ignorados.")
             ->with('importErrors', array_slice($errors, 0, 20));
     }
