@@ -51,7 +51,7 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
           <Section title="Configurações">
             <MItem href="/account/settings/doctor" onClick={() => setOpen(false)} label="Médico" icon="stethoscope" />
             <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
-            <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão do prontuário" icon="printer" />
+            <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />
             <MItem href="/account/settings/certificate" onClick={() => setOpen(false)} label="Certificado digital (assinatura)" icon="seal" />
           </Section>
 

@@ -55,7 +55,7 @@ export default function Print() {
     return (
       <div className="max-w-3xl mx-auto">
         <Link href="/account/settings/doctor" className="text-sm text-slate-500 hover:text-slate-800">← Voltar</Link>
-        <p className="mt-4 text-slate-600">Cadastre um médico para configurar a impressão do prontuário.</p>
+        <p className="mt-4 text-slate-600">Cadastre um médico para configurar a impressão da receita.</p>
       </div>
     );
   }
@@ -200,7 +200,7 @@ export default function Print() {
           </div>
 
           {/* Corpo (placeholder) */}
-          <div className="px-4 py-8 text-center text-xs text-slate-300 italic">— corpo do prontuário —</div>
+          <div className="px-4 py-8 text-center text-xs text-slate-300 italic">— corpo da receita —</div>
 
           {/* Assinatura */}
           <div className="px-4 pb-4">
@@ -266,7 +266,7 @@ function PreviewSheet({ s, doctorName, onClose }) {
         )}
 
         <div className="text-sm min-h-[280px] text-slate-400 italic">
-          (Conteúdo do prontuário aparece aqui na impressão real.)
+          (Conteúdo da receita aparece aqui na impressão real.)
         </div>
 
         {s.signature && (
