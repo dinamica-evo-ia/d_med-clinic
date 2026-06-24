@@ -196,7 +196,7 @@ export default function Form({ patient }) {
                 </h1>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-4xl">
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 w-full">
                 <PhotoUploader patient={patient} name={data.name} onStage={(file) => setData('photo', file)} onUnstage={() => setData('photo', null)} />
 
                 <Section title="Informações básicas">
