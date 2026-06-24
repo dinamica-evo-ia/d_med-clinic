@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenancy.by_user' => \App\Http\Middleware\InitializeTenancyByUser::class,
             'role' => \App\Http\Middleware\RoleMiddleware::class,
+            'permission' => \App\Http\Middleware\EnsurePermission::class,
             'ensure.master' => \App\Http\Middleware\EnsureMaster::class,
         ]);
 

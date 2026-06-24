@@ -1,12 +1,17 @@
 import { useState, useEffect } from 'react';
 import { router } from '@inertiajs/react';
 
-export default function UserFormModal({ show, onClose, user }) {
+const PERMISSION_LABELS = {
+    financeiro: 'Financeiro (contas a pagar/receber)',
+};
+
+export default function UserFormModal({ show, onClose, user, grantablePermissions = [] }) {
     const [form, setForm] = useState({
         name: '',
         email: '',
         password: '',
         role: 'doctor',
+        permissions: [],
     });
     const [saving, setSaving] = useState(false);
 
@@ -18,13 +23,23 @@ export default function UserFormModal({ show, onClose, user }) {
                     email: user.email || '',
                     password: '',
                     role: user.role || 'doctor',
+                    permissions: user.permissions || [],
                 });
             } else {
-                setForm({ name: '', email: '', password: '', role: 'doctor' });
+                setForm({ name: '', email: '', password: '', role: 'doctor', permissions: [] });
             }
             setSaving(false);
         }
     }, [show, user]);
+
+    const togglePermission = (key) => {
+        setForm(prev => ({
+            ...prev,
+            permissions: prev.permissions.includes(key)
+                ? prev.permissions.filter(p => p !== key)
+                : [...prev.permissions, key],
+        }));
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -34,6 +49,7 @@ export default function UserFormModal({ show, onClose, user }) {
             router.put(`/users/${user.id}`, {
                 role: form.role,
                 is_active: true,
+                permissions: form.permissions,
             }, {
                 onSuccess: () => onClose(),
                 onError: () => setSaving(false),
@@ -45,6 +61,7 @@ export default function UserFormModal({ show, onClose, user }) {
                 email: form.email,
                 password: form.password,
                 role: form.role,
+                permissions: form.permissions,
             }, {
                 onSuccess: () => onClose(),
                 onError: () => setSaving(false),
@@ -100,6 +117,22 @@ export default function UserFormModal({ show, onClose, user }) {
                             <option value="receptionist">Secretária</option>
                         </select>
                     </div>
+
+                    {form.role === 'receptionist' && grantablePermissions.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Acesso extra liberado pelo médico</label>
+                            <div className="space-y-1.5">
+                                {grantablePermissions.map((key) => (
+                                    <label key={key} className="flex items-center gap-2 text-sm text-gray-700">
+                                        <input type="checkbox" checked={form.permissions.includes(key)} onChange={() => togglePermission(key)}
+                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        {PERMISSION_LABELS[key] || key}
+                                    </label>
+                                ))}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">Por padrão, secretária não acessa essas áreas — marque pra liberar especificamente pra essa pessoa.</p>
+                        </div>
+                    )}
 
                     <div className="flex gap-3 pt-2">
                         <button type="submit" disabled={saving}

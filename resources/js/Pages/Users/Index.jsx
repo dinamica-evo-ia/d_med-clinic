@@ -14,7 +14,11 @@ const ROLE_COLORS = {
     receptionist: 'bg-green-100 text-green-700',
 };
 
-export default function Index({ users, flash }) {
+const PERMISSION_BADGE_LABELS = {
+    financeiro: 'Financeiro',
+};
+
+export default function Index({ users, flash, grantablePermissions = [] }) {
     const { auth } = usePage().props;
     const [showModal, setShowModal] = useState(false);
     const [editingUser, setEditingUser] = useState(null);
@@ -83,6 +87,11 @@ export default function Index({ users, flash }) {
                                         <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[user.role] || 'bg-gray-100 text-gray-700'}`}>
                                             {ROLE_LABELS[user.role] || user.role}
                                         </span>
+                                        {(user.permissions || []).map((p) => (
+                                            <span key={p} className="ml-1.5 inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                                + {PERMISSION_BADGE_LABELS[p] || p}
+                                            </span>
+                                        ))}
                                     </td>
                                     <td className="px-6 py-4">
                                         <span className={`inline-flex items-center gap-1.5 text-sm ${user.is_active ? 'text-green-600' : 'text-red-500'}`}>
@@ -133,6 +142,7 @@ export default function Index({ users, flash }) {
                 show={showModal}
                 onClose={() => setShowModal(false)}
                 user={editingUser}
+                grantablePermissions={grantablePermissions}
             />
         </div>
     );

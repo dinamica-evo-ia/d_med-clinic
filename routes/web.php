@@ -97,8 +97,9 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::delete('/users/{user}', [TenantUserController::class, 'destroy'])->name('users.destroy');
     });
 
-    // Financial module
-    Route::prefix('financeiro')->name('financeiro.')->group(function () {
+    // Financial module — admin/doctor sempre têm acesso; secretária só se o médico liberar
+    // (tenant_user.permissions) via Administração/Usuários.
+    Route::prefix('financeiro')->name('financeiro.')->middleware('permission:financeiro')->group(function () {
         Route::get('/', [FinancialReportController::class, 'dashboard'])->name('dashboard');
 
         // Receber

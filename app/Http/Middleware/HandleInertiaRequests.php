@@ -46,6 +46,16 @@ class HandleInertiaRequests extends Middleware
                     }
                     return null;
                 },
+                // Acessos extras liberados pra secretária (ex.: 'financeiro') — admin/doctor
+                // não precisam, já têm tudo por papel.
+                'permissions' => function () use ($user) {
+                    if (! $user || ! tenant()) return [];
+                    $pivot = $user->tenants()->where('tenant_id', tenant()->id)->first()?->pivot;
+                    if (! $pivot) return [];
+                    $perms = $pivot->permissions;
+                    if (is_string($perms)) $perms = json_decode($perms, true);
+                    return $perms ?? [];
+                },
             ],
             'impersonating' => (bool) $request->session()->get('master_impersonator_id'),
             'tenant' => function () {

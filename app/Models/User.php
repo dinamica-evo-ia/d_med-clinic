@@ -53,25 +53,47 @@ class User extends Authenticatable
     public function tenants()
     {
         return $this->belongsToMany(Tenant::class, 'tenant_user')
-            ->withPivot('role', 'is_active')
+            ->withPivot('role', 'is_active', 'permissions')
             ->withTimestamps();
     }
 
     public function currentTenant()
     {
         return $this->belongsToMany(Tenant::class, 'tenant_user')
-            ->withPivot('role', 'is_active')
+            ->withPivot('role', 'is_active', 'permissions')
             ->wherePivot('is_active', true)
             ->first();
     }
 
-    /** Papel deste usuário no tenant ativo (admin/doctor/receptionist), ou null se não houver tenant. */
-    public function currentRole(): ?string
+    /** Pivot (tenant_user) deste usuário no tenant ativo, ou null se não houver tenant. */
+    public function currentPivot(): ?object
     {
         if (! tenant()) return null;
 
         return $this->tenants()
             ->where('tenant_id', tenant()->id)
-            ->first()?->pivot?->role;
+            ->first()?->pivot;
+    }
+
+    /** Papel deste usuário no tenant ativo (admin/doctor/receptionist), ou null se não houver tenant. */
+    public function currentRole(): ?string
+    {
+        return $this->currentPivot()?->role;
+    }
+
+    /**
+     * Acesso extra liberado pelo médico/admin pra uma secretária (ex.: 'financeiro').
+     * Admin/doctor já têm acesso total por papel — a permissão só importa pra receptionist.
+     */
+    public function hasPermission(string $key): bool
+    {
+        $pivot = $this->currentPivot();
+        if (! $pivot) return false;
+        if (in_array($pivot->role, ['admin', 'doctor'], true)) return true;
+
+        $perms = $pivot->permissions;
+        if (is_string($perms)) $perms = json_decode($perms, true);
+
+        return in_array($key, $perms ?? [], true);
     }
 }

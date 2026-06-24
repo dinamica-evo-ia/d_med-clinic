@@ -35,7 +35,7 @@ const NAV = [
     { name: 'Médicos', href: '/doctors', icon: 'badge', roles: ['admin', 'doctor'] },
   ]},
   { section: 'Gestão', items: [
-    { name: 'Financeiro', href: '/financeiro', icon: 'finance', roles: ['admin', 'doctor'] },
+    { name: 'Financeiro', href: '/financeiro', icon: 'finance', roles: ['admin', 'doctor'], permission: 'financeiro' },
     { name: 'Relatórios', href: '/reports', icon: 'chart', roles: ['admin', 'doctor'] },
   ]},
   { section: 'Administração', items: [
@@ -67,6 +67,7 @@ export default function AppLayout({ children }) {
   const { auth, impersonating, tenant } = usePage().props;
   const url = usePage().url;
   const role = auth?.role;
+  const permissions = auth?.permissions || [];
   // Dashboard ("A Clínica Hoje") tem chrome próprio (hamburger + usermenu) embutido no hero azul
   const isDashboard = url === '/' || url.startsWith('/dashboard');
 
@@ -84,7 +85,7 @@ export default function AppLayout({ children }) {
           <div className="fixed inset-0 z-40 lg:hidden">
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setOpen(false)} />
             <div className="fixed inset-y-0 left-0 w-72 bg-white shadow-2xl">
-              <Sidebar url={url} role={role} onNav={() => setOpen(false)} collapsed={false} />
+              <Sidebar url={url} role={role} permissions={permissions} onNav={() => setOpen(false)} collapsed={false} />
             </div>
           </div>
         )}
@@ -93,7 +94,7 @@ export default function AppLayout({ children }) {
           onMouseEnter={() => setHovering(true)}
           onMouseLeave={() => setHovering(false)}
           className={`hidden lg:fixed lg:inset-y-0 lg:z-30 lg:flex lg:flex-col transition-[width] duration-200 ${visualCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
-          <Sidebar url={url} role={role} collapsed={visualCollapsed} onToggleCollapsed={toggleCollapsed} />
+          <Sidebar url={url} role={role} permissions={permissions} collapsed={visualCollapsed} onToggleCollapsed={toggleCollapsed} />
         </div>
 
         <div className={`transition-[padding] duration-200 ${collapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
@@ -123,10 +124,11 @@ export default function AppLayout({ children }) {
   );
 }
 
-function Sidebar({ url, role, onNav, collapsed, onToggleCollapsed }) {
+function Sidebar({ url, role, permissions = [], onNav, collapsed, onToggleCollapsed }) {
   const isActive = (href) => href === '/'
     ? (url === '/' || url.startsWith('/dashboard'))
     : url.startsWith(href);
+  const canSee = (item) => item.roles.includes(role) || (item.permission && permissions.includes(item.permission));
 
   return (
     <div className="relative flex h-full grow flex-col border-r border-slate-200 bg-white">
@@ -138,7 +140,7 @@ function Sidebar({ url, role, onNav, collapsed, onToggleCollapsed }) {
 
       <nav className={`flex-1 overflow-y-auto py-4 space-y-5 ${collapsed ? 'px-2' : 'px-3'}`}>
         {NAV.map((group) => {
-          const items = group.items.filter((i) => i.roles.includes(role));
+          const items = group.items.filter(canSee);
           if (!items.length) return null;
           return (
             <div key={group.section}>

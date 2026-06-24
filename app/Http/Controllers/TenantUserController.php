@@ -10,6 +10,9 @@ use Inertia\Inertia;
 
 class TenantUserController extends Controller
 {
+    /** Acessos extras que o médico/admin pode liberar pra uma secretária, além do papel padrão. */
+    private const GRANTABLE_PERMISSIONS = ['financeiro'];
+
     /**
      * tenant_user vive só no banco central — mas este controller roda com um tenant já
      * ativo (dentro de tenancy.by_user), onde a conexão padrão já foi trocada pra do
@@ -29,17 +32,25 @@ class TenantUserController extends Controller
             ->with(['tenants' => fn($q) => $q->where('tenant_id', $tenantId)])
             ->orderBy('name')
             ->paginate(15)
-            ->through(fn($user) => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role' => $user->tenants->first()?->pivot->role ?? 'doctor',
-                'is_active' => $user->tenants->first()?->pivot->is_active ?? true,
-            ]);
+            ->through(function ($user) {
+                $pivot = $user->tenants->first()?->pivot;
+                $permissions = $pivot?->permissions;
+                if (is_string($permissions)) $permissions = json_decode($permissions, true);
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'role' => $pivot?->role ?? 'doctor',
+                    'is_active' => $pivot?->is_active ?? true,
+                    'permissions' => $permissions ?? [],
+                ];
+            });
 
         return Inertia::render('Users/Index', [
             'users' => $users,
+            'grantablePermissions' => self::GRANTABLE_PERMISSIONS,
         ]);
     }
 
@@ -54,7 +65,11 @@ class TenantUserController extends Controller
             'email' => "required|email|max:255|unique:{$centralConnection}.users,email",
             'password' => 'required|string|min:6',
             'role' => ['required', Rule::in(['admin', 'doctor', 'receptionist'])],
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => [Rule::in(self::GRANTABLE_PERMISSIONS)],
         ]);
+        // só faz sentido pra secretária — admin/doctor já têm tudo por papel
+        $permissions = $validated['role'] === 'receptionist' ? ($validated['permissions'] ?? []) : [];
 
         // Limite por plano (medicos vs staff sao seats separados)
         $planKey = tenant()->plan ?? config('plans.default');
@@ -89,6 +104,7 @@ class TenantUserController extends Controller
             'tenant_id' => $tenantId,
             'user_id' => $user->id,
             'role' => $validated['role'],
+            'permissions' => json_encode($permissions),
             'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
@@ -105,7 +121,10 @@ class TenantUserController extends Controller
         $validated = $request->validate([
             'role' => ['required', Rule::in(['admin', 'doctor', 'receptionist'])],
             'is_active' => 'boolean',
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => [Rule::in(self::GRANTABLE_PERMISSIONS)],
         ]);
+        $permissions = $validated['role'] === 'receptionist' ? ($validated['permissions'] ?? []) : [];
 
         $exists = $this->tenantUserTable()
             ->where('tenant_id', $tenantId)
@@ -122,6 +141,7 @@ class TenantUserController extends Controller
             ->where('user_id', $user->id)
             ->update([
                 'role' => $validated['role'],
+                'permissions' => json_encode($permissions),
                 'is_active' => $validated['is_active'] ?? true,
                 'updated_at' => now(),
             ]);
