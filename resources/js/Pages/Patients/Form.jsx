@@ -1,5 +1,5 @@
 import { useForm, Link, router } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const UF = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
@@ -25,15 +25,71 @@ function Section({ title, children }) {
 }
 
 /*
+ * O atributo `capture` em <input type=file> só abre a câmera nativa em navegador MOBILE —
+ * no desktop (Mac/Windows) ele é ignorado e cai no seletor de arquivo comum. Por isso "Tirar
+ * foto" usa getUserMedia + <video>/<canvas> pra abrir a webcam de verdade em qualquer ambiente.
+ */
+function CameraModal({ onCapture, onClose }) {
+    const videoRef = useRef(null);
+    const streamRef = useRef(null);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        let active = true;
+        navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' } })
+            .then((stream) => {
+                if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+                streamRef.current = stream;
+                if (videoRef.current) videoRef.current.srcObject = stream;
+            })
+            .catch(() => setError('Não foi possível acessar a câmera. Verifique a permissão do navegador.'));
+        return () => {
+            active = false;
+            streamRef.current?.getTracks().forEach((t) => t.stop());
+        };
+    }, []);
+
+    const capture = () => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth) return;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        canvas.toBlob((blob) => {
+            if (blob) onCapture(new File([blob], 'foto.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.92);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-2xl p-4 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                {error ? (
+                    <p className="text-sm text-red-600">{error}</p>
+                ) : (
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full rounded-lg bg-slate-900 aspect-video object-cover" />
+                )}
+                <div className="mt-4 flex justify-end gap-2">
+                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200">Cancelar</button>
+                    {!error && (
+                        <button type="button" onClick={capture} className="px-4 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700">Capturar</button>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/*
  * Editando paciente existente: upload é imediato (POST/DELETE dedicados), já tem ID pra anexar.
  * Criando paciente novo: ainda não existe ID, então a foto fica "presa" no form (data.photo)
  * com preview local e só sobe pro servidor junto com o resto do cadastro, no submit.
  */
 function PhotoUploader({ patient, name, stagedFile, onStage, onUnstage }) {
     const fileRef = useRef(null);
-    const cameraRef = useRef(null);
     const [uploading, setUploading] = useState(false);
     const [previewUrl, setPreviewUrl] = useState(null);
+    const [showCamera, setShowCamera] = useState(false);
     const initials = (name || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
     const isEditing = !!patient;
 
@@ -67,7 +123,7 @@ function PhotoUploader({ patient, name, stagedFile, onStage, onUnstage }) {
                 {currentUrl ? <img src={currentUrl} alt={name} className="w-full h-full object-cover" /> : initials}
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
-                <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()}
+                <button type="button" disabled={uploading} onClick={() => setShowCamera(true)}
                     className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50">Tirar foto</button>
                 <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()}
                     className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50">Escolher foto</button>
@@ -75,8 +131,13 @@ function PhotoUploader({ patient, name, stagedFile, onStage, onUnstage }) {
                     <button type="button" onClick={removePhoto} className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg">Remover foto</button>
                 )}
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
-                <input ref={cameraRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
             </div>
+            {showCamera && (
+                <CameraModal
+                    onClose={() => setShowCamera(false)}
+                    onCapture={(file) => { setShowCamera(false); upload(file); }}
+                />
+            )}
         </div>
     );
 }
