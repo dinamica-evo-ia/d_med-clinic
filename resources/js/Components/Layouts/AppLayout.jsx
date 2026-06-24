@@ -2,6 +2,8 @@ import { Link, usePage, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import { AppChromeContext } from './AppChrome';
 import UserMenu from './UserMenu';
+import logoHorizontal from '@/assets/logo-horizontal.png';
+import logoIcon from '@/assets/logo-icon.png';
 
 const ICONS = {
   home: 'M2.25 12l8.954-8.955a1.5 1.5 0 012.122 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75',
@@ -101,7 +103,7 @@ export default function AppLayout({ children }) {
                 <button className="lg:hidden -ml-1 p-2 text-slate-500 hover:text-slate-800" onClick={() => setOpen(true)} aria-label="Menu">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path strokeLinecap="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" /></svg>
                 </button>
-                <div className="lg:hidden font-bold text-slate-900">D_Med <span className="text-blue-600">Clinic</span></div>
+                <img src={logoHorizontal} alt="D_Med Clinic" className="lg:hidden h-6 w-auto" />
                 <div className="ml-auto flex items-center gap-3">
                   {auth?.isMaster && !impersonating && (
                     <Link href="/master" className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100">
@@ -128,11 +130,10 @@ function Sidebar({ url, role, onNav, collapsed, onToggleCollapsed }) {
 
   return (
     <div className="relative flex h-full grow flex-col border-r border-slate-200 bg-white">
-      <div className={`flex items-center gap-2.5 h-16 border-b border-slate-100 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/25">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 7v10M7 12h10" /></svg>
-        </span>
-        {!collapsed && <span className="text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap">D_Med <span className="text-blue-600">Clinic</span></span>}
+      <div className={`flex items-center h-16 border-b border-slate-100 ${collapsed ? 'justify-center px-0' : 'px-5'}`}>
+        {collapsed
+          ? <img src={logoIcon} alt="D_Med Clinic" className="h-8 w-8 shrink-0" />
+          : <img src={logoHorizontal} alt="D_Med Clinic" className="h-8 w-auto" />}
       </div>
 
       <nav className={`flex-1 overflow-y-auto py-4 space-y-5 ${collapsed ? 'px-2' : 'px-3'}`}>

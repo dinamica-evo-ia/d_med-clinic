@@ -1,4 +1,5 @@
 import { Link, usePage, router } from '@inertiajs/react';
+import logoHorizontal from '@/assets/logo-horizontal.png';
 
 export default function TenantSelect({ tenants }) {
     const { auth } = usePage().props;
@@ -8,7 +9,7 @@ export default function TenantSelect({ tenants }) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-md w-full text-center space-y-4">
-                    <h1 className="text-2xl font-bold text-slate-900">D_Med <span className="text-blue-600">Clinic</span></h1>
+                    <img src={logoHorizontal} alt="D_Med Clinic" className="h-9 w-auto mx-auto" />
                     {isMaster ? (
                         <>
                             <p className="text-slate-600">Você é <strong>Master</strong> (admin do produto), não está vinculado a nenhuma clínica.</p>
@@ -34,7 +35,7 @@ export default function TenantSelect({ tenants }) {
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
             <div className="bg-white p-8 rounded-2xl shadow-md border border-slate-200 max-w-md w-full">
                 <div className="text-center mb-6">
-                    <h1 className="text-2xl font-bold text-slate-900 mb-1">D_Med <span className="text-blue-600">Clinic</span></h1>
+                    <img src={logoHorizontal} alt="D_Med Clinic" className="h-9 w-auto mx-auto mb-2" />
                     <p className="text-slate-500 text-sm">Selecione a clínica para acessar</p>
                 </div>
 
