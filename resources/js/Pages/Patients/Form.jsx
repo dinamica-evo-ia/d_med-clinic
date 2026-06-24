@@ -1,22 +1,104 @@
-import { useForm, Link } from '@inertiajs/react';
+import { useForm, Link, router } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+
+const UF = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+
+function Field({ label, error, children, className = '' }) {
+    return (
+        <div className={className}>
+            {label && <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>}
+            {children}
+            {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
+        </div>
+    );
+}
+
+const inputCls = "w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none";
+
+function Section({ title, children }) {
+    return (
+        <div className="border-t border-slate-100 pt-6 mt-6 first:border-t-0 first:pt-0 first:mt-0">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-4">{title}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{children}</div>
+        </div>
+    );
+}
+
+function PhotoUploader({ patient }) {
+    const fileRef = useRef(null);
+    const cameraRef = useRef(null);
+    const [uploading, setUploading] = useState(false);
+    const initials = (patient.name || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+
+    const upload = (file) => {
+        if (!file) return;
+        setUploading(true);
+        const fd = new FormData();
+        fd.append('photo', file);
+        router.post(`/patients/${patient.id}/photo`, fd, { forceFormData: true, preserveScroll: true, onFinish: () => setUploading(false) });
+    };
+
+    const removePhoto = () => {
+        router.delete(`/patients/${patient.id}/photo`, { preserveScroll: true });
+    };
+
+    return (
+        <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white grid place-items-center text-xl font-bold shrink-0 overflow-hidden">
+                {patient.photo_url ? <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" /> : initials}
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+                <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()}
+                    className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50">Tirar foto</button>
+                <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()}
+                    className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50">Escolher foto</button>
+                {patient.photo_url && (
+                    <button type="button" onClick={removePhoto} className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg">Remover foto</button>
+                )}
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+                <input ref={cameraRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
+            </div>
+        </div>
+    );
+}
 
 export default function Form({ patient }) {
     const isEditing = !!patient;
-    const { data, setData, post, put, processing, errors } = useForm({
+    const { data, setData, post, put, transform, processing, errors } = useForm({
         name: patient?.name || '',
+        social_name: patient?.social_name || '',
         email: patient?.email || '',
         phone: patient?.phone || '',
+        whatsapp: patient?.whatsapp || '',
         document: patient?.document || '',
+        is_foreign: patient?.is_foreign || false,
+        rg: patient?.rg || '',
+        rg_issuer: patient?.rg_issuer || '',
+        rg_state: patient?.rg_state || '',
+        rg_issued_at: patient?.rg_issued_at || '',
         birth_date: patient?.birth_date || '',
         gender: patient?.gender || '',
+        marital_status: patient?.marital_status || '',
+        mother_name: patient?.mother_name || '',
+        father_name: patient?.father_name || '',
+        spouse_name: patient?.spouse_name || '',
         notes: patient?.notes || '',
-        address: patient?.address || null,
-        insurance: patient?.insurance || null,
-        emergency_contact: patient?.emergency_contact || null,
+        address: patient?.address || {},
+        hasInsurance: !!patient?.insurance,
+        insurance: patient?.insurance || {},
+        emergency_contact: patient?.emergency_contact || {},
     });
+
+    const setAddr = (key, value) => setData('address', { ...data.address, [key]: value });
+    const setInsurance = (key, value) => setData('insurance', { ...data.insurance, [key]: value });
+    const setEmergency = (key, value) => setData('emergency_contact', { ...data.emergency_contact, [key]: value });
 
     const handleSubmit = (e) => {
         e.preventDefault();
+        transform((formData) => {
+            const { hasInsurance, ...rest } = formData;
+            return { ...rest, insurance: hasInsurance ? formData.insurance : null };
+        });
         if (isEditing) {
             put(`/patients/${patient.id}`);
         } else {
@@ -28,72 +110,163 @@ export default function Form({ patient }) {
         <div>
             <div className="mb-6">
                 <Link href="/patients" className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">← Voltar</Link>
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold text-slate-900">
                     {isEditing ? 'Editar Paciente' : 'Novo Paciente'}
                 </h1>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-                        <input type="text" value={data.name} onChange={e => setData('name', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-                        {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-                    </div>
+            <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-4xl">
+                {isEditing && <PhotoUploader patient={patient} />}
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <input type="email" value={data.email} onChange={e => setData('email', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-                        {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                        <input type="text" value={data.phone} onChange={e => setData('phone', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-                        {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">CPF</label>
-                        <input type="text" value={data.document} onChange={e => setData('document', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-                        {errors.document && <p className="text-red-500 text-xs mt-1">{errors.document}</p>}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
-                        <input type="date" value={data.birth_date} onChange={e => setData('birth_date', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
-                        {errors.birth_date && <p className="text-red-500 text-xs mt-1">{errors.birth_date}</p>}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Gênero</label>
-                        <select value={data.gender} onChange={e => setData('gender', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                <Section title="Informações básicas">
+                    <Field label="Nome *" error={errors.name} className="md:col-span-2">
+                        <input type="text" value={data.name} onChange={e => setData('name', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Nome social" error={errors.social_name}>
+                        <input type="text" value={data.social_name} onChange={e => setData('social_name', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Data de nascimento" error={errors.birth_date}>
+                        <input type="date" value={data.birth_date} onChange={e => setData('birth_date', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Sexo" error={errors.gender}>
+                        <select value={data.gender} onChange={e => setData('gender', e.target.value)} className={inputCls}>
                             <option value="">Selecione</option>
                             <option value="male">Masculino</option>
                             <option value="female">Feminino</option>
                             <option value="other">Outro</option>
                         </select>
-                    </div>
+                    </Field>
+                    <Field label="Estado civil" error={errors.marital_status}>
+                        <select value={data.marital_status} onChange={e => setData('marital_status', e.target.value)} className={inputCls}>
+                            <option value="">Selecione</option>
+                            <option value="solteiro">Solteiro(a)</option>
+                            <option value="casado">Casado(a)</option>
+                            <option value="divorciado">Divorciado(a)</option>
+                            <option value="viuvo">Viúvo(a)</option>
+                            <option value="uniao_estavel">União estável</option>
+                        </select>
+                    </Field>
+                    <Field label="Nome da mãe" error={errors.mother_name}>
+                        <input type="text" value={data.mother_name} onChange={e => setData('mother_name', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Nome do pai" error={errors.father_name}>
+                        <input type="text" value={data.father_name} onChange={e => setData('father_name', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Cônjuge" error={errors.spouse_name}>
+                        <input type="text" value={data.spouse_name} onChange={e => setData('spouse_name', e.target.value)} className={inputCls} />
+                    </Field>
+                </Section>
 
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                        <textarea value={data.notes} onChange={e => setData('notes', e.target.value)} rows={3}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" />
+                <Section title="Documentação e identidade">
+                    <Field label="CPF" error={errors.document}>
+                        <input type="text" value={data.document} onChange={e => setData('document', e.target.value)} className={inputCls} />
+                    </Field>
+                    <div className="flex items-end pb-2">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" checked={data.is_foreign} onChange={e => setData('is_foreign', e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                            Paciente estrangeiro
+                        </label>
                     </div>
-                </div>
+                    <div />
+                    <Field label="RG" error={errors.rg}>
+                        <input type="text" value={data.rg} onChange={e => setData('rg', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Órgão expedidor" error={errors.rg_issuer}>
+                        <input type="text" value={data.rg_issuer} onChange={e => setData('rg_issuer', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Estado (RG)" error={errors.rg_state}>
+                        <select value={data.rg_state} onChange={e => setData('rg_state', e.target.value)} className={inputCls}>
+                            <option value="">Selecione</option>
+                            {UF.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                        </select>
+                    </Field>
+                    <Field label="Data de emissão" error={errors.rg_issued_at}>
+                        <input type="date" value={data.rg_issued_at} onChange={e => setData('rg_issued_at', e.target.value)} className={inputCls} />
+                    </Field>
+                </Section>
+
+                <Section title="Contato">
+                    <Field label="Telefone" error={errors.phone}>
+                        <input type="text" value={data.phone} onChange={e => setData('phone', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="WhatsApp" error={errors.whatsapp}>
+                        <input type="text" value={data.whatsapp} onChange={e => setData('whatsapp', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="E-mail" error={errors.email}>
+                        <input type="email" value={data.email} onChange={e => setData('email', e.target.value)} className={inputCls} />
+                    </Field>
+                </Section>
+
+                <Section title="Endereço">
+                    <Field label="CEP">
+                        <input type="text" value={data.address.zip || ''} onChange={e => setAddr('zip', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Estado">
+                        <select value={data.address.state || ''} onChange={e => setAddr('state', e.target.value)} className={inputCls}>
+                            <option value="">Selecione</option>
+                            {UF.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
+                        </select>
+                    </Field>
+                    <Field label="Cidade">
+                        <input type="text" value={data.address.city || ''} onChange={e => setAddr('city', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Bairro">
+                        <input type="text" value={data.address.neighborhood || ''} onChange={e => setAddr('neighborhood', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Endereço" className="md:col-span-2">
+                        <input type="text" value={data.address.street || ''} onChange={e => setAddr('street', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Número">
+                        <input type="text" value={data.address.number || ''} onChange={e => setAddr('number', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Complemento">
+                        <input type="text" value={data.address.complement || ''} onChange={e => setAddr('complement', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Referência">
+                        <input type="text" value={data.address.reference || ''} onChange={e => setAddr('reference', e.target.value)} className={inputCls} />
+                    </Field>
+                </Section>
+
+                <Section title="Convênio">
+                    <div className="md:col-span-3 -mt-2 mb-1">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" checked={data.hasInsurance} onChange={e => setData('hasInsurance', e.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                            Tem plano de saúde
+                        </label>
+                    </div>
+                    {data.hasInsurance && (
+                        <>
+                            <Field label="Convênio">
+                                <input type="text" value={data.insurance.name || ''} onChange={e => setInsurance('name', e.target.value)} className={inputCls} />
+                            </Field>
+                            <Field label="Nº da carteirinha">
+                                <input type="text" value={data.insurance.number || ''} onChange={e => setInsurance('number', e.target.value)} className={inputCls} />
+                            </Field>
+                        </>
+                    )}
+                </Section>
+
+                <Section title="Contato de emergência">
+                    <Field label="Nome">
+                        <input type="text" value={data.emergency_contact.name || ''} onChange={e => setEmergency('name', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Telefone">
+                        <input type="text" value={data.emergency_contact.phone || ''} onChange={e => setEmergency('phone', e.target.value)} className={inputCls} />
+                    </Field>
+                </Section>
+
+                <Section title="Observações">
+                    <Field className="md:col-span-3">
+                        <textarea value={data.notes} onChange={e => setData('notes', e.target.value)} rows={3} className={inputCls} />
+                    </Field>
+                </Section>
 
                 <div className="mt-6 flex gap-3">
                     <button type="submit" disabled={processing}
                         className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
                         {processing ? 'Salvando...' : 'Salvar'}
                     </button>
-                    <Link href="/patients" className="px-6 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200">
+                    <Link href="/patients" className="px-6 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200">
                         Cancelar
                     </Link>
                 </div>

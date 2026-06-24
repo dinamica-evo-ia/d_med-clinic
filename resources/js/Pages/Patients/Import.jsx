@@ -2,11 +2,12 @@ import { Link, useForm, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 
 const COLUMN_LABELS = {
-  name: 'Nome', email: 'E-mail', phone: 'Telefone', document: 'CPF', birth_date: 'Nascimento', gender: 'Sexo',
+  name: 'Nome', social_name: 'Nome social', email: 'E-mail', phone: 'Telefone', whatsapp: 'WhatsApp', document: 'CPF',
+  rg: 'RG', birth_date: 'Nascimento', gender: 'Sexo', marital_status: 'Estado civil',
+  mother_name: 'Mãe', father_name: 'Pai', spouse_name: 'Cônjuge',
   addr_zip: 'CEP', addr_neighborhood: 'Bairro', addr_street: 'Endereço', addr_number: 'Número', addr_complement: 'Complemento', addr_city: 'Cidade',
   ins_name: 'Convênio', ins_number: 'Nº plano',
-  note_rg: 'RG', note_marital_status: 'Estado civil', note_occupation: 'Profissão', note_mother: 'Mãe', note_father: 'Pai',
-  note_spouse: 'Cônjuge', note_doctor_name: 'Profissional', note_legacy_notes: 'Observações', note_status: 'Status',
+  note_occupation: 'Profissão', note_doctor_name: 'Profissional', note_legacy_notes: 'Observações', note_status: 'Status',
 };
 
 export default function Import({ existing }) {

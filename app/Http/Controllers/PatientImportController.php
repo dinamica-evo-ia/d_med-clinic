@@ -18,20 +18,21 @@ use Inertia\Inertia;
  * UTF-8 ou ISO-8859-1, detectado automaticamente): name, email, phone, document, birth_date, gender.
  * Também reconhece o layout de export de sistemas legados (ex.: "Clientes.csv"): CEP/Bairro/
  * Endereço/Número/Complemento → address (JSON); Plano de saúde/Número do plano → insurance
- * (JSON); RG/Estado civil/Profissão/Mãe/Pai/Cônjuge/Profissional/Observações → anexados ao
- * campo notes (texto livre, são apenas informativos no model atual).
+ * (JSON); RG/Estado civil/Mãe/Pai/Cônjuge/WhatsApp → campos próprios do cadastro completo.
+ * Profissão/Profissional/Observações/Status não têm coluna própria → ficam anexados a notes.
  */
 class PatientImportController extends Controller
 {
     private const HEADER_ALIASES = [
         'nome' => 'name',
         'name' => 'name',
+        'nome social' => 'social_name',
         'e-mail' => 'email',
         'email' => 'email',
         'telefone' => 'phone',
         'celular' => 'phone',
-        'whatsapp' => 'phone',
         'phone' => 'phone',
+        'whatsapp' => 'whatsapp',
         'cpf' => 'document',
         'documento' => 'document',
         'document' => 'document',
@@ -43,6 +44,13 @@ class PatientImportController extends Controller
         'gênero' => 'gender',
         'sexo' => 'gender',
         'gender' => 'gender',
+        'estado civil' => 'marital_status',
+        'rg' => 'rg',
+        'mãe' => 'mother_name',
+        'mae' => 'mother_name',
+        'pai' => 'father_name',
+        'cônjuge' => 'spouse_name',
+        'conjuge' => 'spouse_name',
         // endereço → vira JSON em address
         'cep' => 'addr_zip',
         'bairro' => 'addr_neighborhood',
@@ -58,15 +66,8 @@ class PatientImportController extends Controller
         'número do plano' => 'ins_number',
         'numero do plano' => 'ins_number',
         // informativo → anexado a notes (sem coluna própria no model hoje)
-        'rg' => 'note_rg',
-        'estado civil' => 'note_marital_status',
         'profissão' => 'note_occupation',
         'profissao' => 'note_occupation',
-        'mãe' => 'note_mother',
-        'mae' => 'note_mother',
-        'pai' => 'note_father',
-        'cônjuge' => 'note_spouse',
-        'conjuge' => 'note_spouse',
         'profissional' => 'note_doctor_name',
         'observações' => 'note_legacy_notes',
         'observacoes' => 'note_legacy_notes',
@@ -149,22 +150,24 @@ class PatientImportController extends Controller
         $extraNotes = array_filter([
             $row['note_doctor_name'] ?? null ? "Profissional (sistema anterior): {$row['note_doctor_name']}" : null,
             $row['note_occupation'] ?? null ? "Profissão: {$row['note_occupation']}" : null,
-            $row['note_marital_status'] ?? null ? "Estado civil: {$row['note_marital_status']}" : null,
-            $row['note_rg'] ?? null ? "RG: {$row['note_rg']}" : null,
-            $row['note_mother'] ?? null ? "Mãe: {$row['note_mother']}" : null,
-            $row['note_father'] ?? null ? "Pai: {$row['note_father']}" : null,
-            $row['note_spouse'] ?? null ? "Cônjuge: {$row['note_spouse']}" : null,
             $row['note_status'] ?? null ? "Status (sistema anterior): {$row['note_status']}" : null,
             $row['note_legacy_notes'] ?? null,
         ]);
 
         return [
             'name' => $row['name'] ?? null,
+            'social_name' => $row['social_name'] ?? null,
             'email' => $row['email'] ?? null,
             'phone' => $row['phone'] ?? null,
+            'whatsapp' => $row['whatsapp'] ?? null,
             'document' => $row['document'] ?? null,
+            'rg' => $row['rg'] ?? null,
             'birth_date' => $row['birth_date'] ?? null,
             'gender' => $row['gender'] ?? null,
+            'marital_status' => $row['marital_status'] ?? null,
+            'mother_name' => $row['mother_name'] ?? null,
+            'father_name' => $row['father_name'] ?? null,
+            'spouse_name' => $row['spouse_name'] ?? null,
             'address' => $address ?: null,
             'insurance' => $insurance ?: null,
             'notes' => $extraNotes ? implode("\n", $extraNotes) : null,

@@ -45,14 +45,18 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white grid place-items-center text-xl font-bold shrink-0">{initials(patient.name)}</div>
+          <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white grid place-items-center text-xl font-bold shrink-0 overflow-hidden">
+            {patient.photo_url ? <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" /> : initials(patient.name)}
+          </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">{patient.name}</h1>
+            {patient.social_name && <p className="text-sm text-slate-500">Nome social: {patient.social_name}</p>}
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-500">
               {a !== null && <span>{a} anos</span>}
               <span>{genderLabel(patient.gender)}</span>
               {patient.document && <span>CPF {patient.document}</span>}
               {patient.phone && <span>📞 {patient.phone}</span>}
+              {patient.whatsapp && <span>💬 {patient.whatsapp}</span>}
               {patient.email && <span>✉ {patient.email}</span>}
             </div>
           </div>
@@ -96,8 +100,14 @@ function Card({ children, className = '' }) {
   return <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-6 ${className}`}>{children}</div>;
 }
 
+const MARITAL_LABELS = { solteiro: 'Solteiro(a)', casado: 'Casado(a)', divorciado: 'Divorciado(a)', viuvo: 'Viúvo(a)', uniao_estavel: 'União estável' };
+
 function Resumo({ patient, a }) {
   const appts = patient.appointments || [];
+  const addr = asObj(patient.address);
+  const emerg = asObj(patient.emergency_contact);
+  const addrLine = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city && addr.state ? `${addr.city}/${addr.state}` : addr.city, addr.zip].filter(Boolean).join(', ');
+  const rgLine = [patient.rg, patient.rg_issuer, patient.rg_state].filter(Boolean).join(' ');
   const Field = ({ l, v }) => <div><p className="text-xs text-slate-400 uppercase tracking-wide">{l}</p><p className="text-sm text-slate-900">{v || '—'}</p></div>;
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -106,10 +116,25 @@ function Resumo({ patient, a }) {
         <div className="grid grid-cols-2 gap-4">
           <Field l="Nascimento" v={patient.birth_date ? `${dt(patient.birth_date)}${a !== null ? ` (${a} anos)` : ''}` : '—'} />
           <Field l="Gênero" v={genderLabel(patient.gender)} />
-          <Field l="CPF" v={patient.document} />
+          <Field l="Estado civil" v={MARITAL_LABELS[patient.marital_status]} />
+          <Field l="CPF" v={patient.is_foreign ? `${patient.document || '—'} (estrangeiro)` : patient.document} />
+          <Field l="RG" v={rgLine} />
           <Field l="Telefone" v={patient.phone} />
+          <Field l="WhatsApp" v={patient.whatsapp} />
           <Field l="E-mail" v={patient.email} />
           <Field l="Convênio" v={typeof patient.insurance === 'string' ? patient.insurance : (patient.insurance?.name || '—')} />
+          <Field l="Nome da mãe" v={patient.mother_name} />
+          <Field l="Nome do pai" v={patient.father_name} />
+          <Field l="Cônjuge" v={patient.spouse_name} />
+        </div>
+      </Card>
+      <Card>
+        <h2 className="text-lg font-semibold text-slate-900 mb-4">Endereço e contato de emergência</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <Field l="Endereço" v={addrLine} />
+          <Field l="Referência" v={addr.reference} />
+          <Field l="Contato de emergência" v={emerg.name} />
+          <Field l="Telefone de emergência" v={emerg.phone} />
         </div>
       </Card>
       <Card>
