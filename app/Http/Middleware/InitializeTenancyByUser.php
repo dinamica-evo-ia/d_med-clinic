@@ -37,6 +37,9 @@ class InitializeTenancyByUser
         }
 
         if ($tenant) {
+            if ($this->isBlocked($tenant) && ! auth()->user()->is_master) {
+                return redirect()->route('account.blocked');
+            }
             tenancy()->initialize($tenant);
             return $next($request);
         }
@@ -48,5 +51,17 @@ class InitializeTenancyByUser
         }
 
         return redirect()->route('select.tenant');
+    }
+
+    /** Trial vencido ou clínica suspensa/cancelada pelo Master — bloqueia o uso do CRM (não apaga nada). */
+    private function isBlocked(Tenant $tenant): bool
+    {
+        if (in_array($tenant->status, ['suspended', 'cancelled'], true)) {
+            return true;
+        }
+        if ($tenant->status === 'trial' && $tenant->trial_ends_at && now()->toDateString() > $tenant->trial_ends_at) {
+            return true;
+        }
+        return false;
     }
 }

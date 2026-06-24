@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Doctor;
+use App\Models\Tenant;
 use App\Support\DoctorSchedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -101,5 +102,15 @@ class AccountController extends Controller
     }
 
     public function suggestions() { return Inertia::render('Account/Suggestions'); }
+
+    /** Clínica com trial vencido ou suspensa/cancelada pelo Master — não inicializa tenancy, só informa. */
+    public function blocked()
+    {
+        $tenant = Tenant::where('data->slug', session('tenant_slug'))->first();
+
+        return Inertia::render('Account/Blocked', [
+            'tenant' => $tenant ? ['name' => $tenant->name, 'status' => $tenant->status, 'trial_ends_at' => $tenant->trial_ends_at] : null,
+        ]);
+    }
     public function referral()    { return Inertia::render('Account/Referral'); }
 }

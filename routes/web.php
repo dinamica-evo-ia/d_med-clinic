@@ -185,6 +185,8 @@ Route::middleware(['auth', 'web'])->group(function () {
         }
         return redirect()->route('select.tenant');
     })->name('tenant.use');
+
+    Route::get('/account/blocked', [\App\Http\Controllers\AccountController::class, 'blocked'])->name('account.blocked');
 });
 
 // Painel master (super-admin do produto)
