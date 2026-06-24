@@ -16,13 +16,14 @@ class Doctor extends Model
 
     protected $fillable = [
         'name', 'email', 'phone', 'specialty', 'license_number',
-        'document', 'bio', 'schedule', 'is_active',
+        'document', 'bio', 'schedule', 'print_settings', 'is_active',
     ];
 
     protected function casts(): array
     {
         return [
             'schedule' => 'array',
+            'print_settings' => 'array',
             'is_active' => 'boolean',
             'id' => 'string',
         ];

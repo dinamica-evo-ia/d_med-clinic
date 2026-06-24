@@ -155,6 +155,9 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'settingsSchedule'])->name('settings.schedule');
         Route::put('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'scheduleUpdate'])->name('settings.schedule.update');
         Route::get('/settings/print', [\App\Http\Controllers\AccountController::class, 'settingsPrint'])->name('settings.print');
+        Route::put('/settings/print', [\App\Http\Controllers\AccountController::class, 'printUpdate'])->name('settings.print.update');
+        Route::post('/settings/print/logo', [\App\Http\Controllers\AccountController::class, 'printLogo'])->name('settings.print.logo');
+        Route::delete('/settings/print/logo', [\App\Http\Controllers\AccountController::class, 'printLogoDestroy'])->name('settings.print.logo.destroy');
         Route::get('/settings/certificate', [\App\Http\Controllers\AccountController::class, 'settingsCertificate'])->name('settings.certificate');
 
         // Importar & Exportar (substitui "Logins ativos")

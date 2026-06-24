@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\Doctor;
 use App\Models\Tenant;
 use App\Support\DoctorSchedule;
+use App\Support\PrintSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
@@ -42,8 +44,84 @@ class AccountController extends Controller
     }
 
     public function settingsDoctor()     { return Inertia::render('Account/Settings/Doctor'); }
-    public function settingsPrint()      { return Inertia::render('Account/Settings/Print'); }
     public function settingsCertificate(){ return Inertia::render('Account/Settings/Certificate'); }
+
+    public function settingsPrint(Request $request)
+    {
+        $doctors = Doctor::where('is_active', true)->orderBy('name')->get();
+        $selectedId = $request->get('doctor_id') ?: optional($doctors->first())->id;
+        $selected   = $doctors->firstWhere('id', $selectedId);
+
+        $settings = $selected ? PrintSettings::forDoctor($selected) : PrintSettings::defaults();
+        $settings['header']['logo_url'] = ! empty($settings['header']['logo_path'])
+            ? Storage::disk('public')->url($settings['header']['logo_path'])
+            : null;
+
+        return Inertia::render('Account/Settings/Print', [
+            'doctors'  => $doctors->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])->values(),
+            'doctor'   => $selected ? ['id' => $selected->id, 'name' => $selected->name] : null,
+            'settings' => $settings,
+        ]);
+    }
+
+    public function printUpdate(Request $request)
+    {
+        $data = $request->validate([
+            'doctor_id'  => ['required', 'exists:doctors,id'],
+            'settings'   => ['required', 'array'],
+        ]);
+
+        $doctor = Doctor::findOrFail($data['doctor_id']);
+        $normalized = PrintSettings::normalize($data['settings']);
+        // preserva a logo já enviada (não vem no submit do form de config)
+        $normalized['header']['logo_path'] = $doctor->print_settings['header']['logo_path'] ?? null;
+        $doctor->print_settings = $normalized;
+        $doctor->save();
+
+        return back()->with('success', 'Configuração de impressão salva.');
+    }
+
+    public function printLogo(Request $request)
+    {
+        $data = $request->validate([
+            'doctor_id' => ['required', 'exists:doctors,id'],
+            'logo'      => ['required', 'image', 'max:5120'],
+        ]);
+
+        $doctor = Doctor::findOrFail($data['doctor_id']);
+        $settings = PrintSettings::forDoctor($doctor);
+
+        if (! empty($settings['header']['logo_path'])) {
+            Storage::disk('public')->delete($settings['header']['logo_path']);
+        }
+
+        $path = $request->file('logo')->storeAs(
+            'print-logos',
+            $doctor->id.'_'.time().'.'.$request->file('logo')->extension(),
+            'public'
+        );
+        $settings['header']['logo_path'] = $path;
+        $doctor->print_settings = $settings;
+        $doctor->save();
+
+        return back()->with('success', 'Logo atualizada.');
+    }
+
+    public function printLogoDestroy(Request $request)
+    {
+        $data = $request->validate(['doctor_id' => ['required', 'exists:doctors,id']]);
+        $doctor = Doctor::findOrFail($data['doctor_id']);
+        $settings = PrintSettings::forDoctor($doctor);
+
+        if (! empty($settings['header']['logo_path'])) {
+            Storage::disk('public')->delete($settings['header']['logo_path']);
+            $settings['header']['logo_path'] = null;
+            $doctor->print_settings = $settings;
+            $doctor->save();
+        }
+
+        return back()->with('success', 'Logo removida.');
+    }
 
     public function settingsSchedule(Request $request)
     {
