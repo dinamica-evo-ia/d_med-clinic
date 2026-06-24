@@ -69,9 +69,15 @@ class PatientController extends Controller
 
     public function store(Request $request)
     {
-        $validated = $request->validate($this->rules());
+        $validated = $request->validate($this->rules() + ['photo' => 'nullable|image|max:4096']);
+        $photo = $request->file('photo');
+        unset($validated['photo']);
 
-        Patient::create($validated);
+        $patient = Patient::create($validated);
+
+        if ($photo) {
+            $patient->update(['photo_path' => $this->storePhotoFile($patient, $photo)]);
+        }
 
         return redirect()->route('patients.index')
             ->with('success', 'Paciente cadastrado com sucesso.');
@@ -138,7 +144,13 @@ class PatientController extends Controller
 
     public function update(Request $request, Patient $patient)
     {
-        $validated = $request->validate($this->rules($patient));
+        $validated = $request->validate($this->rules($patient) + ['photo' => 'nullable|image|max:4096']);
+        $photo = $request->file('photo');
+        unset($validated['photo']);
+
+        if ($photo) {
+            $validated['photo_path'] = $this->storePhotoFile($patient, $photo);
+        }
 
         $patient->update($validated);
 
@@ -157,14 +169,18 @@ class PatientController extends Controller
     {
         $request->validate(['photo' => 'required|image|max:4096']);
 
+        $patient->update(['photo_path' => $this->storePhotoFile($patient, $request->file('photo'))]);
+
+        return back()->with('success', 'Foto atualizada.');
+    }
+
+    private function storePhotoFile(Patient $patient, $file): string
+    {
         if ($patient->photo_path) {
             Storage::disk('public')->delete($patient->photo_path);
         }
 
-        $path = $request->file('photo')->storeAs('patients', $patient->id.'_'.time().'.'.$request->file('photo')->extension(), 'public');
-        $patient->update(['photo_path' => $path]);
-
-        return back()->with('success', 'Foto atualizada.');
+        return $file->storeAs('patients', $patient->id.'_'.time().'.'.$file->extension(), 'public');
     }
 
     public function destroyPhoto(Patient $patient)

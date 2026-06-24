@@ -24,35 +24,54 @@ function Section({ title, children }) {
     );
 }
 
-function PhotoUploader({ patient }) {
+/*
+ * Editando paciente existente: upload é imediato (POST/DELETE dedicados), já tem ID pra anexar.
+ * Criando paciente novo: ainda não existe ID, então a foto fica "presa" no form (data.photo)
+ * com preview local e só sobe pro servidor junto com o resto do cadastro, no submit.
+ */
+function PhotoUploader({ patient, name, stagedFile, onStage, onUnstage }) {
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
     const [uploading, setUploading] = useState(false);
-    const initials = (patient.name || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+    const [previewUrl, setPreviewUrl] = useState(null);
+    const initials = (name || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
+    const isEditing = !!patient;
 
     const upload = (file) => {
         if (!file) return;
-        setUploading(true);
-        const fd = new FormData();
-        fd.append('photo', file);
-        router.post(`/patients/${patient.id}/photo`, fd, { forceFormData: true, preserveScroll: true, onFinish: () => setUploading(false) });
+        if (isEditing) {
+            setUploading(true);
+            const fd = new FormData();
+            fd.append('photo', file);
+            router.post(`/patients/${patient.id}/photo`, fd, { forceFormData: true, preserveScroll: true, onFinish: () => setUploading(false) });
+        } else {
+            setPreviewUrl(URL.createObjectURL(file));
+            onStage(file);
+        }
     };
 
     const removePhoto = () => {
-        router.delete(`/patients/${patient.id}/photo`, { preserveScroll: true });
+        if (isEditing) {
+            router.delete(`/patients/${patient.id}/photo`, { preserveScroll: true });
+        } else {
+            setPreviewUrl(null);
+            onUnstage();
+        }
     };
+
+    const currentUrl = isEditing ? patient.photo_url : previewUrl;
 
     return (
         <div className="flex items-center gap-4 mb-6">
             <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white grid place-items-center text-xl font-bold shrink-0 overflow-hidden">
-                {patient.photo_url ? <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" /> : initials}
+                {currentUrl ? <img src={currentUrl} alt={name} className="w-full h-full object-cover" /> : initials}
             </div>
             <div className="flex flex-wrap gap-2 text-sm">
                 <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()}
                     className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50">Tirar foto</button>
                 <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()}
                     className="px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 disabled:opacity-50">Escolher foto</button>
-                {patient.photo_url && (
+                {currentUrl && (
                     <button type="button" onClick={removePhoto} className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg">Remover foto</button>
                 )}
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files?.[0])} />
@@ -87,6 +106,7 @@ export default function Form({ patient }) {
         hasInsurance: !!patient?.insurance,
         insurance: patient?.insurance || {},
         emergency_contact: patient?.emergency_contact || {},
+        photo: null,
     });
 
     const setAddr = (key, value) => setData('address', { ...data.address, [key]: value });
@@ -116,7 +136,7 @@ export default function Form({ patient }) {
             </div>
 
             <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-w-4xl">
-                {isEditing && <PhotoUploader patient={patient} />}
+                <PhotoUploader patient={patient} name={data.name} onStage={(file) => setData('photo', file)} onUnstage={() => setData('photo', null)} />
 
                 <Section title="Informações básicas">
                     <Field label="Nome *" error={errors.name} className="md:col-span-2">
