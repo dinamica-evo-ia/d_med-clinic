@@ -24,6 +24,8 @@ const MARKS = {
 const ADS = [
     {
         kind: 'house', mark: 'studio', brand: 'Studio Med', brandTag: 'by D_Med', accent: 'cyan',
+        bgStyle: 'linear-gradient(135deg, #0a1c38, #0e2a54 55%, #081428)',
+        blobs: ['rgba(59,130,246,0.28)', 'rgba(34,211,238,0.16)'],
         eyebrow: 'Inteligência clínica',
         title: ['Termine a consulta ', 'sem prontuário', ' pra fazer depois.'],
         sub: 'A IA do Studio Med escuta a consulta e devolve o prontuário já escrito. Mais tempo com o paciente, menos digitação.',
@@ -31,6 +33,8 @@ const ADS = [
     },
     {
         kind: 'ad', mark: 'lab', brand: 'DiagLab', brandTag: 'Análises Clínicas', accent: 'teal',
+        bgStyle: 'linear-gradient(135deg, #04231f, #075247 55%, #03201c)',
+        blobs: ['rgba(45,212,191,0.30)', 'rgba(52,211,153,0.16)'],
         eyebrow: 'Laboratório parceiro',
         title: ['Resultados de exames em ', 'até 24h', ', direto no sistema.'],
         sub: 'Parceria DiagLab: coleta agendada e laudos integrados ao prontuário do seu paciente.',
@@ -38,6 +42,8 @@ const ADS = [
     },
     {
         kind: 'ad', mark: 'med', brand: 'NeoVita', brandTag: 'D3', accent: 'amber',
+        bgStyle: 'linear-gradient(135deg, #1c1140, #2e1c5c 55%, #130a2c)',
+        blobs: ['rgba(139,92,246,0.30)', 'rgba(251,191,36,0.16)'],
         eyebrow: 'Medicamento',
         title: ['NeoVita D3 — vitamina D com ', '1 dose semanal', '.'],
         sub: 'Reposição prática, na dose certa para o seu paciente. Bula, estudos e amostras sob solicitação.',
@@ -52,10 +58,10 @@ export default function GuestLayout({ children }) {
     return (
         <div className="min-h-screen bg-white lg:flex">
             {/* ---- Painel publicitário (esquerda) ---- */}
-            <aside className="relative hidden overflow-hidden bg-gradient-to-br from-[#0a1c38] via-[#0e2a54] to-[#081428] text-white lg:flex lg:w-[56%]">
+            <aside className="relative hidden overflow-hidden text-white lg:flex lg:w-[56%]" style={{ background: ad.bgStyle }}>
                 <div aria-hidden className="absolute inset-0">
-                    <div className="absolute -left-28 -top-28 h-96 w-96 rounded-full bg-blue-500/25 blur-3xl" />
-                    <div className="absolute -bottom-24 right-0 h-[30rem] w-[30rem] rounded-full bg-cyan-400/15 blur-3xl" />
+                    <div className="absolute -left-28 -top-28 h-96 w-96 rounded-full blur-3xl" style={{ background: ad.blobs[0] }} />
+                    <div className="absolute -bottom-24 right-0 h-[30rem] w-[30rem] rounded-full blur-3xl" style={{ background: ad.blobs[1] }} />
                     <div className="absolute inset-0 opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #fff 1px, transparent 0)', backgroundSize: '28px 28px' }} />
                 </div>
 
