@@ -16,9 +16,9 @@ export default function Show({ prescription }) {
                     <div className="flex gap-2">
                         <Link
                             href={`/prescriptions/${prescription.id}/print`}
-                            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition"
+                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition"
                         >
-                            Imprimir
+                            Imprimir / Compartilhar
                         </Link>
                         <Link
                             href="/prescriptions"

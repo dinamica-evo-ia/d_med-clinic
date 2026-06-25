@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Models\Prescription;
+use App\Support\PrintSettings;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class PrescriptionController extends Controller
@@ -78,8 +80,17 @@ class PrescriptionController extends Controller
     {
         $prescription->load(['patient', 'doctor']);
 
+        // Template configurado em Conta → Configurações → Impressão da receita (por médico).
+        $settings = $prescription->doctor
+            ? PrintSettings::forDoctor($prescription->doctor)
+            : PrintSettings::defaults();
+        $settings['header']['logo_url'] = ! empty($settings['header']['logo_path'])
+            ? Storage::disk('public')->url($settings['header']['logo_path'])
+            : null;
+
         return Inertia::render('Prescriptions/Print', [
             'prescription' => $prescription,
+            'settings' => $settings,
         ]);
     }
 
