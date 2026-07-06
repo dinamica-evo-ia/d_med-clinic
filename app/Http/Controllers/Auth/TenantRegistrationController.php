@@ -32,7 +32,7 @@ class TenantRegistrationController extends Controller
 
     public function create(Request $request): Response
     {
-        $plans = config('plans.plans');
+        $plans = \App\Support\Plans::all();
         $requested = $request->get('plan');
 
         return Inertia::render('Auth/Register', [
@@ -48,7 +48,7 @@ class TenantRegistrationController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'plan' => ['required', Rule::in(array_keys(config('plans.plans')))],
+            'plan' => ['required', Rule::in(\App\Support\Plans::keys())],
         ]);
 
         $createDoctor = $data['plan'] === 'solo';

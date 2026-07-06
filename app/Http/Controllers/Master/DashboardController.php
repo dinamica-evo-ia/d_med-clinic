@@ -12,7 +12,7 @@ class DashboardController extends Controller
 {
     public function index()
     {
-        $plans = config('plans.plans');
+        $plans = \App\Support\Plans::all();
 
         $tenants = Tenant::all();
         $byStatus = [

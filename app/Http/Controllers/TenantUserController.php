@@ -73,7 +73,7 @@ class TenantUserController extends Controller
 
         // Limite por plano (medicos vs staff sao seats separados)
         $planKey = tenant()->plan ?? config('plans.default');
-        $plan = config("plans.plans.$planKey");
+        $plan = \App\Support\Plans::get($planKey);
         if ($plan) {
             $isDoctor = $validated['role'] === 'doctor';
             $limitKey = $isDoctor ? 'doctors' : 'staff';

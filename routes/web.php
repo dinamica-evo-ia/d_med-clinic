@@ -220,6 +220,8 @@ Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('mas
     Route::post('/clinicas/{clinica}/reactivate', [\App\Http\Controllers\Master\ClinicaController::class, 'reactivate'])->name('clinicas.reactivate');
     Route::delete('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'destroy'])->name('clinicas.destroy');
     Route::post('/impersonate/{clinica}', [\App\Http\Controllers\Master\ImpersonationController::class, 'start'])->name('impersonate.start');
+    Route::get('/planos', [\App\Http\Controllers\Master\PlanController::class, 'index'])->name('planos.index');
+    Route::put('/planos/{plan}', [\App\Http\Controllers\Master\PlanController::class, 'update'])->name('planos.update');
 });
 
 // Sair da impersonacao (qualquer auth user com flag de impersonacao)

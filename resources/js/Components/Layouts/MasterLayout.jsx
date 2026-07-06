@@ -3,6 +3,7 @@ import { Link, usePage, router } from '@inertiajs/react';
 const NAV = [
   { name: 'Visão geral', href: '/master', match: (u) => u === '/master' || u === '/master/' },
   { name: 'Clínicas', href: '/master/clinicas', match: (u) => u.startsWith('/master/clinicas') },
+  { name: 'Planos', href: '/master/planos', match: (u) => u.startsWith('/master/planos') },
 ];
 
 const initials = (n) => (n || '?').split(' ').filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase();

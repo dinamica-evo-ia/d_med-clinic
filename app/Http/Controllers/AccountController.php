@@ -39,7 +39,7 @@ class AccountController extends Controller
     public function plan()
     {
         return Inertia::render('Account/Plan', [
-            'plans' => config('plans.plans'),
+            'plans' => \App\Support\Plans::all(),
         ]);
     }
 

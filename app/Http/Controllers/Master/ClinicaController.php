@@ -52,7 +52,7 @@ class ClinicaController extends Controller
         return Inertia::render('Master/Clinicas/Index', [
             'tenants' => $tenants,
             'filters' => ['search' => $search, 'status' => $status],
-            'plans' => config('plans.plans'),
+            'plans' => \App\Support\Plans::all(),
             'statuses' => config('plans.statuses'),
         ]);
     }
@@ -61,7 +61,7 @@ class ClinicaController extends Controller
     {
         return Inertia::render('Master/Clinicas/Form', [
             'tenant' => null,
-            'plans' => config('plans.plans'),
+            'plans' => \App\Support\Plans::all(),
             'statuses' => config('plans.statuses'),
         ]);
     }
@@ -74,7 +74,7 @@ class ClinicaController extends Controller
             'email' => 'nullable|email|max:255',
             'document' => 'nullable|string|max:32',
             'phone' => 'nullable|string|max:32',
-            'plan' => ['required', Rule::in(array_keys(config('plans.plans')))],
+            'plan' => ['required', Rule::in(\App\Support\Plans::keys())],
             'status' => ['required', Rule::in(array_keys(config('plans.statuses')))],
             'admin_name' => 'required|string|max:255',
             'admin_email' => 'required|email|max:255',
@@ -179,7 +179,7 @@ class ClinicaController extends Controller
             'email' => 'nullable|email|max:255',
             'document' => 'nullable|string|max:32',
             'phone' => 'nullable|string|max:32',
-            'plan' => ['required', Rule::in(array_keys(config('plans.plans')))],
+            'plan' => ['required', Rule::in(\App\Support\Plans::keys())],
             'status' => ['required', Rule::in(array_keys(config('plans.statuses')))],
         ]);
 
