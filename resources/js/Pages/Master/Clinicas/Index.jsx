@@ -9,6 +9,14 @@ const STATUS_COLORS = {
   cancelled: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
 };
 
+const daysLeft = (end) => {
+  if (!end) return null;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const e = new Date(end + 'T00:00:00');
+  return Math.round((e - t) / 86400000);
+};
+const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '';
+
 export default function Index({ tenants, filters, plans, statuses }) {
   const { flash } = usePage().props;
   const [search, setSearch] = useState(filters?.search || '');
@@ -26,6 +34,15 @@ export default function Index({ tenants, filters, plans, statuses }) {
     if (confirm(`Cancelar a clínica "${t.name}"? (não apaga dados; pode reativar mudando status)`)) {
       router.delete(`/master/clinicas/${t.id}`, { preserveScroll: true });
     }
+  };
+  const reactivate = (t) => {
+    if (confirm(`Reativar a clínica "${t.name}"? (status volta pra Ativo)`)) {
+      router.post(`/master/clinicas/${t.id}/reactivate`, {}, { preserveScroll: true });
+    }
+  };
+  const extendTrial = (t) => {
+    const days = parseInt(window.prompt(`Estender o trial de "${t.name}" por quantos dias?`, '7') || '', 10);
+    if (days > 0) router.post(`/master/clinicas/${t.id}/extend-trial`, { days }, { preserveScroll: true });
   };
 
   return (
@@ -87,11 +104,19 @@ export default function Index({ tenants, filters, plans, statuses }) {
                   </td>
                   <td className="px-3 py-3">
                     <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${STATUS_COLORS[t.status] || 'bg-slate-700/30 text-slate-300 border-slate-600/30'}`}>{statuses[t.status] || t.status}</span>
+                    {t.status === 'trial' && t.trial_ends_at && (() => {
+                      const d = daysLeft(t.trial_ends_at);
+                      const tone = d < 0 ? 'text-rose-300' : d <= 3 ? 'text-amber-300' : 'text-slate-400';
+                      const txt = d < 0 ? `vencido há ${-d}d` : d === 0 ? 'vence hoje' : `vence em ${d}d`;
+                      return <div className={`mt-1 text-[11px] ${tone}`}>{txt} · {fmtDate(t.trial_ends_at)}</div>;
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="inline-flex gap-3 text-xs">
+                    <div className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1 text-xs">
                       <button onClick={() => setEditing(t)} className="text-slate-300 hover:text-amber-300">Editar</button>
                       <button onClick={() => impersonate(t)} className="text-sky-300 hover:text-sky-200">Entrar</button>
+                      {t.status === 'trial' && <button onClick={() => extendTrial(t)} className="text-indigo-300 hover:text-indigo-200">Estender</button>}
+                      {t.status !== 'active' && t.status !== 'cancelled' && <button onClick={() => reactivate(t)} className="text-emerald-300 hover:text-emerald-200">Reativar</button>}
                       {t.status !== 'cancelled' && <button onClick={() => cancel(t)} className="text-rose-300 hover:text-rose-200">Cancelar</button>}
                     </div>
                   </td>

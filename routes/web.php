@@ -63,6 +63,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('patients/{patient}/records/create', [MedicalRecordController::class, 'create'])->name('patients.records.create');
         Route::post('patients/{patient}/records', [MedicalRecordController::class, 'store'])->name('patients.records.store');
         Route::get('patients/{patient}/records/{record}', [MedicalRecordController::class, 'show'])->name('patients.records.show');
+        Route::get('patients/{patient}/records/{record}/patient-summary', [MedicalRecordController::class, 'patientSummary'])->name('patients.records.patient-summary');
         Route::get('patients/{patient}/records/{record}/edit', [MedicalRecordController::class, 'edit'])->name('patients.records.edit');
         Route::put('patients/{patient}/records/{record}', [MedicalRecordController::class, 'update'])->name('patients.records.update');
 
@@ -160,6 +161,13 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::delete('/settings/print/logo', [\App\Http\Controllers\AccountController::class, 'printLogoDestroy'])->name('settings.print.logo.destroy');
         Route::get('/settings/certificate', [\App\Http\Controllers\AccountController::class, 'settingsCertificate'])->name('settings.certificate');
 
+        // Modelos de anamnese (por médico) — usados pelo Studio Med do EVO
+        Route::get('/settings/anamnese-templates', [\App\Http\Controllers\AnamneseTemplateController::class, 'index'])->name('settings.anamnese-templates');
+        Route::post('/settings/anamnese-templates', [\App\Http\Controllers\AnamneseTemplateController::class, 'store'])->name('settings.anamnese-templates.store');
+        Route::put('/settings/anamnese-templates/{anamneseTemplate}', [\App\Http\Controllers\AnamneseTemplateController::class, 'update'])->name('settings.anamnese-templates.update');
+        Route::delete('/settings/anamnese-templates/{anamneseTemplate}', [\App\Http\Controllers\AnamneseTemplateController::class, 'destroy'])->name('settings.anamnese-templates.destroy');
+        Route::post('/settings/anamnese-templates/{anamneseTemplate}/default', [\App\Http\Controllers\AnamneseTemplateController::class, 'setDefault'])->name('settings.anamnese-templates.default');
+
         // Importar & Exportar (substitui "Logins ativos")
         Route::get('/settings/import-export', [\App\Http\Controllers\ImportExportController::class, 'index'])->name('settings.import-export');
         Route::get('/settings/import-export/medical-records', [\App\Http\Controllers\ImportExportController::class, 'medicalRecordsForm'])->name('settings.import-export.medical-records');
@@ -208,6 +216,8 @@ Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('mas
     Route::get('/clinicas/create', [\App\Http\Controllers\Master\ClinicaController::class, 'create'])->name('clinicas.create');
     Route::post('/clinicas', [\App\Http\Controllers\Master\ClinicaController::class, 'store'])->name('clinicas.store');
     Route::put('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'update'])->name('clinicas.update');
+    Route::post('/clinicas/{clinica}/extend-trial', [\App\Http\Controllers\Master\ClinicaController::class, 'extendTrial'])->name('clinicas.extend-trial');
+    Route::post('/clinicas/{clinica}/reactivate', [\App\Http\Controllers\Master\ClinicaController::class, 'reactivate'])->name('clinicas.reactivate');
     Route::delete('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'destroy'])->name('clinicas.destroy');
     Route::post('/impersonate/{clinica}', [\App\Http\Controllers\Master\ImpersonationController::class, 'start'])->name('impersonate.start');
 });

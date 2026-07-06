@@ -40,6 +40,7 @@ class ClinicaController extends Controller
                     'document' => $t->document ?? null,
                     'plan' => $t->plan ?? 'solo',
                     'status' => $t->status ?? 'active',
+                    'trial_ends_at' => $t->trial_ends_at ?? null,
                     'doctors' => $doctors,
                     'staff' => $staff,
                     'users' => $userIds->count(),
@@ -193,5 +194,30 @@ class ClinicaController extends Controller
         $clinica->update(['status' => 'cancelled']);
 
         return back()->with('success', 'Clínica cancelada.');
+    }
+
+    /** Estende o trial em N dias (a partir do vencimento atual se ainda futuro, senão de hoje) e volta o status pra trial. */
+    public function extendTrial(Request $request, Tenant $clinica)
+    {
+        $data = $request->validate(['days' => 'required|integer|min:1|max:365']);
+        $days = (int) $data['days'];
+
+        $base = ($clinica->trial_ends_at && $clinica->trial_ends_at >= now()->toDateString())
+            ? \Carbon\Carbon::parse($clinica->trial_ends_at)
+            : now();
+
+        $clinica->trial_ends_at = $base->addDays($days)->toDateString();
+        $clinica->status = 'trial';
+        $clinica->save();
+
+        return back()->with('success', "Trial estendido por {$data['days']} dias. Novo vencimento: ".\Carbon\Carbon::parse($clinica->trial_ends_at)->format('d/m/Y').'.');
+    }
+
+    /** Reativa (status = active). Reativação rápida sem abrir o modal. */
+    public function reactivate(Tenant $clinica)
+    {
+        $clinica->update(['status' => 'active']);
+
+        return back()->with('success', 'Clínica reativada (status: Ativo).');
     }
 }
