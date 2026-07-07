@@ -30,8 +30,8 @@ return new class extends Migration
 
         $now = now();
         $rows = [
-            ['key' => 'solo', 'name' => 'Solo', 'description' => 'Profissional autônomo', 'price' => 149.00, 'doctors' => 1, 'staff' => 1, 'sort' => 1,
-             'features' => ['Agenda inteligente', 'Prontuário eletrônico completo', 'Studio Med · 40h de gravação/mês', 'Prescrição digital + CIDs', 'Dados isolados por clínica']],
+            ['key' => 'solo', 'name' => 'Solo', 'description' => 'Profissional autônomo', 'price' => 149.00, 'doctors' => 1, 'staff' => 2, 'sort' => 1,
+             'features' => ['Agenda inteligente', 'Você + 1 secretária', 'Prontuário eletrônico completo', 'Studio Med · 40h de gravação/mês', 'Prescrição digital + CIDs', 'Dados isolados por clínica']],
             ['key' => 'pro', 'name' => 'Pro', 'description' => 'Pequena clínica', 'price' => 349.00, 'doctors' => 3, 'staff' => 2, 'sort' => 2,
              'features' => ['Tudo do Solo', 'Studio Med ilimitado', 'Financeiro integrado', 'Confirmação por WhatsApp', 'Relatórios clínicos e operacionais']],
             ['key' => 'clinica', 'name' => 'Clínica', 'description' => 'Clínica média', 'price' => 899.00, 'doctors' => 10, 'staff' => 5, 'sort' => 3,
