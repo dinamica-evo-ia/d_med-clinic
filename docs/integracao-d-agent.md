@@ -1,6 +1,6 @@
 # Integração D_Agent Atende ↔ D_Med Clinic (Agenda)
 
-> **Status:** **Fase 1 (lado D_Med) IMPLEMENTADA e testada E2E** em 2026-07-07 (commit `fd6bdff`). Falta o lado D_Agent (re-apontar as 2 funções) e as Fases 2–3.
+> **Status:** **Fase 1 completa e PUBLICADA nos dois lados** (2026-07-08). D_Med no ar/testado; adapter do D_Agent commitado no repo `dinamica-evo-ia/d-agent-atende` (commit `516644d`) → Lovable faz o deploy. A IA agenda sozinha (guardada). **Falta ATIVAR:** aplicar migration `dmed_links` no Supabase (Lovable costuma aplicar sozinha no deploy) + conectar a clínica na card (D_Agent → Configurações) + testar ao vivo. Fase 2b (webhook de cancelamento → avisa paciente) pendente.
 > **Regra de ouro:** a agenda do **D_Med Clinic é a fonte única da verdade**. O D_Agent Atende **lê disponibilidade** e **grava a marcação** nela. Não há "duas agendas sincronizadas".
 > **Data da revisão:** 2026-07-07
 
