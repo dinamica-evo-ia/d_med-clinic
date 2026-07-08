@@ -1,0 +1,67 @@
+# Módulo D_Med Atende — atendente de WhatsApp com IA
+
+> **Status:** Fases 1–3 implementadas e testadas (2026-07-08). Falta ATIVAR (credenciais) + Fase 4 (inbox).
+
+## O que é
+Atendente virtual de WhatsApp, **embutido no próprio D_Med** (não é app à parte, não usa Supabase).
+Conversa com o paciente, **reconhece quem já é cadastrado** (pelo telefone), oferece **horários reais**
+da agenda e **marca a consulta** — tudo lendo/gravando direto no banco do tenant que o CRM já usa.
+
+### Por que módulo (e não o D_Agent separado)
+O D_Med já tem pacientes, agenda, disponibilidade (`DoctorSchedule::freeSlots`) e marcação com porteiro
+(expediente + conflito). O atendente de paciente é só **WhatsApp + IA** por cima disso. Fazer dentro do
+D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supabase) fica para o caso
+"atendente universal para outros CRMs" — não é o caso da clínica.
+
+## Discrição (CRM continua clean p/ o médico)
+- **Médico não vê nada**: nav "Atendente" só aparece p/ **admin + secretária**; rotas `role:admin,receptionist`
+  (médico → 403). O médico só vê as consultas caindo na agenda normal.
+- Ligável por clínica (`attendant_settings.enabled`).
+
+## Arquitetura / arquivos
+**Dados (tenant DB)** — migrations `2026_07_08_130000` (tabelas) e `2026_07_08_140000` (WhatsApp):
+- `attendant_settings` — config do bot + credenciais WADuck + `webhook_token` + autonomia (singleton por clínica, `AttendantSetting::current()`).
+- `attendant_conversations` / `attendant_messages` — conversas e mensagens (in/out).
+- `attendant_knowledge` — FAQ/base de conhecimento que a IA usa.
+
+**Backend**
+- `App\Http\Controllers\AttendantController` — painel (index/update), conectar/desconectar/testar WhatsApp, e o **webhook público** de entrada.
+- `App\Support\Waduck` — envio (`sendText`, `POST {base}/v1/message/sendText/{instance}`, header `apikey`) e parse de entrada (`messages.upsert`). Mesmo formato do D_Agent.
+- `App\Support\Claude` — cliente fino da Messages API da Anthropic (tool-use).
+- `App\Support\AttendantAI` — **o cérebro**: system prompt (persona/FAQ/paciente), histórico, loop de ferramentas, envio. Ferramentas: `listar_medicos`, `consultar_horarios` (horários reais), `agendar_consulta` (reusa porteiro do `AgentController`).
+
+**Rotas**
+- `routes/web.php` (grupo `role:admin,receptionist`): `GET/PUT /atendente`, `POST /atendente/whatsapp/{connect,disconnect,test}`.
+- `routes/api.php` (público, isento de CSRF, fora do token do agent): `POST /api/whatsapp/webhook/{tenant}` — valida `webhook_token`, inicializa o tenant pela URL, grava a mensagem e dispara a IA.
+
+**Frontend**
+- `resources/js/Pages/Attendant/Index.jsx` — liga/desliga, config do bot, card de conexão do WhatsApp (conectar/testar/URL do webhook/desconectar), contador de conversas.
+- Nav em `Components/Layouts/AppLayout.jsx` (seção "Atendimento").
+- `HandleInertiaRequests` passou a compartilhar `flash` (success/error).
+
+## Autonomia (até onde a IA vai)
+- `suggest` — a IA **não responde** sozinha (humano assume; útil na Fase 4).
+- `auto_reply` — responde dúvidas e informa horários, **não marca**.
+- `auto_schedule` — faz tudo, **inclusive marcar** na agenda.
+
+## Fluxo end-to-end
+1. Paciente manda WhatsApp → WADuck chama `POST /api/whatsapp/webhook/{tenant}?token=...`.
+2. Controller valida token, inicializa tenant, cria/atualiza conversa, **reconhece paciente por telefone**, grava a mensagem (dedup por `external_id`).
+3. `AttendantAI::maybeRespond` (se ligado + conectado + autonomia + chave): Claude lê histórico + config + ferramentas → responde e, se `auto_schedule`, **marca** (mesmo porteiro da recepção: `source='atende'`).
+4. Resposta volta ao paciente via WADuck; consulta aparece na **agenda do CRM**.
+
+## Como ATIVAR (o que falta — credenciais)
+1. **WADuck** (linha de WhatsApp): criar instância em [waduck.pro](https://waduck.pro), parear o número (QR). Em **Atendente → Conexão do WhatsApp**: colar instância + API key; copiar a **URL do webhook** e colar no WADuck (evento `messages.upsert`); "Enviar teste".
+2. **Anthropic** (cérebro): `ANTHROPIC_API_KEY=sk-ant-...` no `/opt/dmedclinic/.env.runtime` (opcional `ATTENDANT_AI_MODEL`), depois `optimize:clear`. Sem a chave, o bot só grava as mensagens (skip gracioso).
+3. Ligar o atendente + escolher autonomia na página.
+
+## Testado (2026-07-08)
+- Migrations em todos os tenants; médico barrado (403) e sem item no nav.
+- Conectar grava + gera webhook_url; webhook de entrada cria conversa+mensagem (reconhece paciente por telefone); token errado → 401.
+- Ferramentas da IA rodam de verdade (lista médico + horários reais com rótulo). Skip gracioso sem a chave.
+- **Falta:** teste ponta a ponta com WADuck + chave reais (conversa real gerando resposta + marcação).
+
+## Pendências
+- **Fase 4 — Inbox:** tela p/ a secretária acompanhar conversas, ver sugestões da IA e **assumir** (responder manual). Hoje o card "Conversas" só mostra a contagem.
+- **Webhook de volta:** recepção cancela/remarca no CRM → avisar o paciente no WhatsApp.
+- Reconhecimento de paciente hoje casa por telefone em dígitos (igual `AgentController`); pacientes cadastrados com telefone formatado no CRM podem não casar — normalizar se virar problema.
