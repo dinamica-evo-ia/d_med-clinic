@@ -104,7 +104,7 @@ class PatientImportController extends Controller
         // Reimportar a mesma lista não duplica — mesmo sem CPF, ou com CPF formatado diferente.
         $seen = [];
         foreach (Patient::get(['name', 'document', 'birth_date', 'phone']) as $p) {
-            $seen[$this->dedupeKey($p->name, $p->document, $p->birth_date?->toDateString(), $p->phone)] = true;
+            $seen[Patient::dedupeKey($p->name, $p->document, $p->birth_date?->toDateString(), $p->phone)] = true;
         }
 
         foreach ($parsed['rows'] as $i => $row) {
@@ -125,7 +125,7 @@ class PatientImportController extends Controller
             }
 
             // Já existe (na clínica ou repetido no próprio arquivo)? Pula em vez de duplicar.
-            $key = $this->dedupeKey($patientData['name'], $patientData['document'], $patientData['birth_date'], $patientData['phone']);
+            $key = Patient::dedupeKey($patientData['name'], $patientData['document'], $patientData['birth_date'], $patientData['phone']);
             if (isset($seen[$key])) {
                 $dup++;
                 continue;
@@ -149,25 +149,6 @@ class PatientImportController extends Controller
 
         return back()->with('success', "Importação: $ok novo(s), $dup já existente(s) ignorado(s), $skip com erro.")
             ->with('importErrors', array_slice($errors, 0, 20));
-    }
-
-    /**
-     * Chave estável de deduplicação de paciente. Prioriza CPF (só dígitos); sem CPF,
-     * usa nome+nascimento; depois nome+telefone; por último só nome. Como é estável
-     * entre importações, reimportar a mesma lista não cria duplicados.
-     */
-    private function dedupeKey(?string $name, ?string $document, ?string $birthDate, ?string $phone): string
-    {
-        $doc = preg_replace('/\D/', '', (string) $document);
-        if ($doc !== '') return 'doc:'.$doc;
-
-        $nm = Str::lower(Str::squish((string) $name));
-        if (! empty($birthDate)) return 'nmdob:'.$nm.'|'.$birthDate;
-
-        $ph = preg_replace('/\D/', '', (string) $phone);
-        if ($ph !== '') return 'nmph:'.$nm.'|'.$ph;
-
-        return 'nm:'.$nm;
     }
 
     /** Monta os campos reais do model Patient a partir da linha já mapeada (junta endereço/convênio/notas extras em JSON/texto). */

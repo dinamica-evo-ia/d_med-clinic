@@ -51,6 +51,24 @@ class Patient extends Model
         });
     }
 
+    /**
+     * Chave estável de deduplicação: CPF (só dígitos) > nome+nascimento > nome+telefone > nome.
+     * Fonte única usada tanto na importação (evitar duplicar) quanto na limpeza (patients:dedupe).
+     */
+    public static function dedupeKey(?string $name, ?string $document, ?string $birthDate, ?string $phone): string
+    {
+        $doc = preg_replace('/\D/', '', (string) $document);
+        if ($doc !== '') return 'doc:'.$doc;
+
+        $nm = Str::lower(Str::squish((string) $name));
+        if (! empty($birthDate)) return 'nmdob:'.$nm.'|'.$birthDate;
+
+        $ph = preg_replace('/\D/', '', (string) $phone);
+        if ($ph !== '') return 'nmph:'.$nm.'|'.$ph;
+
+        return 'nm:'.$nm;
+    }
+
     public function appointments()
     {
         return $this->hasMany(Appointment::class);
