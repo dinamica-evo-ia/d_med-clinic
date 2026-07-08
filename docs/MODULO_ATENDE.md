@@ -1,6 +1,6 @@
 # Módulo D_Med Atende — atendente de WhatsApp com IA
 
-> **Status:** Fases 1–3 implementadas e testadas (2026-07-08). Falta ATIVAR (credenciais) + Fase 4 (inbox).
+> **Status:** Fases 1–4 implementadas e testadas (2026-07-08). Falta só ATIVAR (créditos Anthropic + instância WADuck) e o teste ponta a ponta real.
 
 ## O que é
 Atendente virtual de WhatsApp, **embutido no próprio D_Med** (não é app à parte, não usa Supabase).
@@ -35,9 +35,12 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 - `routes/api.php` (público, isento de CSRF, fora do token do agent): `POST /api/whatsapp/webhook/{tenant}` — valida `webhook_token`, inicializa o tenant pela URL, grava a mensagem e dispara a IA.
 
 **Frontend**
-- `resources/js/Pages/Attendant/Index.jsx` — liga/desliga, config do bot, card de conexão do WhatsApp (conectar/testar/URL do webhook/desconectar), contador de conversas.
-- Nav em `Components/Layouts/AppLayout.jsx` (seção "Atendimento").
+- `resources/js/Pages/Attendant/Index.jsx` — liga/desliga, config do bot, card de conexão do WhatsApp (conectar/testar/URL do webhook/desconectar).
+- `resources/js/Pages/Attendant/Inbox.jsx` (Fase 4) — 2 painéis (lista + thread com bolhas paciente/IA/humano), responder manual, assumir/devolver ao bot/resolver, polling 6s.
+- Nav em `Components/Layouts/AppLayout.jsx` (seção "Atendimento": Atendente + Conversas); realce por correspondência mais longa.
 - `HandleInertiaRequests` passou a compartilhar `flash` (success/error).
+
+**Inbox / handoff (Fase 4)** — `AttendantController::{conversations,reply,conversationStatus}`. Quando a secretária responde manual, a conversa vira `handoff` (a IA para de responder, via guard no `AttendantAI::maybeRespond`). "Devolver ao bot" volta pra `open`; "Resolver" = `closed`.
 
 ## Autonomia (até onde a IA vai)
 - `suggest` — a IA **não responde** sozinha (humano assume; útil na Fase 4).
@@ -62,6 +65,7 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 - **Falta:** teste ponta a ponta com WADuck + chave reais (conversa real gerando resposta + marcação).
 
 ## Pendências
-- **Fase 4 — Inbox:** tela p/ a secretária acompanhar conversas, ver sugestões da IA e **assumir** (responder manual). Hoje o card "Conversas" só mostra a contagem.
+- **Ativar:** créditos na Anthropic (conta zerada — erro 400) + instância WADuck, e o **teste ponta a ponta real**.
 - **Webhook de volta:** recepção cancela/remarca no CRM → avisar o paciente no WhatsApp.
 - Reconhecimento de paciente hoje casa por telefone em dígitos (igual `AgentController`); pacientes cadastrados com telefone formatado no CRM podem não casar — normalizar se virar problema.
+- Inbox usa **polling (6s)**, não websocket. Suficiente por ora; migrar pra tempo-real se precisar.

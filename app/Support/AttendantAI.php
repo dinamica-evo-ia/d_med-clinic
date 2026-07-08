@@ -29,6 +29,11 @@ class AttendantAI
     /** Responde se as condições permitirem (ligado, conectado, autonomia, chave configurada). */
     public static function maybeRespond(AttendantConversation $conv): void
     {
+        // Humano assumiu (handoff) ou conversa fechada → a IA não responde.
+        if (in_array($conv->status, ['handoff', 'closed'], true)) {
+            return;
+        }
+
         $s = AttendantSetting::current();
         if (! $s->enabled || ! $s->isWhatsappConnected() || $s->autonomy === 'suggest' || ! Claude::configured()) {
             return; // suggest = humano responde; sem chave/desligado = não faz nada

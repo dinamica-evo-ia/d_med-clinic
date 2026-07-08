@@ -82,6 +82,92 @@ class AttendantController extends Controller
         return back()->with('success', 'Configurações do atendente salvas.');
     }
 
+    // ---------- Inbox (Fase 4): secretária acompanha e assume conversas ----------
+
+    /** Lista de conversas + (opcional) a conversa selecionada com suas mensagens. */
+    public function conversations(Request $request)
+    {
+        \Carbon\Carbon::setLocale('pt_BR');
+
+        $conversations = AttendantConversation::query()
+            ->orderByDesc('last_message_at')->orderByDesc('id')
+            ->limit(100)->get()
+            ->map(fn ($c) => [
+                'id' => $c->id,
+                'name' => $c->contact_name ?: $c->contact_phone,
+                'phone' => $c->contact_phone,
+                'patient_id' => $c->patient_id,
+                'status' => $c->status,
+                'last_at' => $c->last_message_at?->diffForHumans(),
+                'preview' => \Illuminate\Support\Str::limit((string) optional($c->messages()->latest('id')->first())->body, 60),
+            ]);
+
+        $selected = null;
+        $messages = [];
+        $conv = $request->query('c') ? AttendantConversation::find($request->query('c')) : null;
+        if ($conv) {
+            $selected = [
+                'id' => $conv->id,
+                'name' => $conv->contact_name ?: $conv->contact_phone,
+                'phone' => $conv->contact_phone,
+                'patient_id' => $conv->patient_id,
+                'status' => $conv->status,
+            ];
+            $messages = $conv->messages()->orderBy('id')->get()->map(fn ($m) => [
+                'id' => $m->id,
+                'direction' => $m->direction,
+                'author' => $m->author_type,
+                'body' => $m->body,
+                'at' => $m->created_at?->format('d/m H:i'),
+            ]);
+        }
+
+        return Inertia::render('Attendant/Inbox', [
+            'conversations' => $conversations,
+            'selected' => $selected,
+            'messages' => $messages,
+        ]);
+    }
+
+    /** A secretária responde manualmente (assume a conversa → handoff, a IA para). */
+    public function reply(Request $request, AttendantConversation $conversation)
+    {
+        $data = $request->validate(['text' => 'required|string|max:2000']);
+
+        try {
+            Waduck::sendText(AttendantSetting::current(), $conversation->contact_phone, $data['text']);
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Falha ao enviar: '.$e->getMessage());
+        }
+
+        AttendantMessage::create([
+            'conversation_id' => $conversation->id,
+            'direction' => 'out',
+            'author_type' => 'human',
+            'body' => $data['text'],
+        ]);
+        $conversation->update([
+            'status' => 'handoff',
+            'assigned_to' => (string) $request->user()->id,
+            'last_message_at' => now(),
+        ]);
+
+        return back();
+    }
+
+    /** Muda o status da conversa: assumir (handoff), devolver ao bot (open) ou resolver (closed). */
+    public function conversationStatus(Request $request, AttendantConversation $conversation)
+    {
+        $data = $request->validate(['status' => 'required|in:open,handoff,closed']);
+
+        $conversation->update([
+            'status' => $data['status'],
+            'assigned_to' => $data['status'] === 'handoff' ? (string) $request->user()->id : null,
+        ]);
+
+        return back();
+    }
+
     /** Conectar o número de WhatsApp (credenciais WADuck). Gera o webhook_token na 1ª vez. */
     public function connectWhatsapp(Request $request)
     {
