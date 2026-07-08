@@ -126,6 +126,69 @@ class DoctorSchedule
         return null;
     }
 
+    /**
+     * Enumera os horários LIVRES de um médico a partir de $from, por $days dias.
+     * Respeita expediente, almoço, antecedência mínima/máxima e subtrai as consultas
+     * já ocupadas ($busy = lista de ['start'=>..., 'end'=>...], Carbon ou string ISO).
+     * Devolve [ ['start'=>ISO8601, 'end'=>ISO8601], ... ] no fuso de $from.
+     * Não toca no banco (puro) — quem consulta as consultas ocupadas é o controller.
+     */
+    public static function freeSlots(Doctor $doctor, CarbonInterface $from, int $days, array $busy = []): array
+    {
+        $cfg     = self::normalize($doctor->schedule);
+        $slotMin = max(5, (int) $cfg['slot_minutes']);
+        $tz      = $from->getTimezone();
+        $now     = Carbon::now($tz);
+        $earliest = $now->copy()->addMinutes($cfg['min_lead_minutes']);
+        $latest   = $cfg['max_lead_days'] > 0 ? $now->copy()->addDays($cfg['max_lead_days']) : null;
+
+        $busyIntervals = array_map(fn ($b) => [
+            'start' => $b['start'] instanceof CarbonInterface ? $b['start'] : Carbon::parse($b['start'], $tz),
+            'end'   => $b['end']   instanceof CarbonInterface ? $b['end']   : Carbon::parse($b['end'], $tz),
+        ], $busy);
+
+        $slots = [];
+        $startDay = $from->copy()->startOfDay();
+
+        for ($i = 0; $i < $days; $i++) {
+            $day  = $startDay->copy()->addDays($i);
+            $conf = $cfg['days'][self::DAYS[$day->dayOfWeekIso - 1]] ?? null;
+            if (! $conf || empty($conf['active'])) continue;
+
+            $open  = self::timeOn($day, $conf['open']);
+            $close = self::timeOn($day, $conf['close']);
+            $lunch = (! empty($conf['lunch']['start']) && ! empty($conf['lunch']['end']))
+                ? ['start' => self::timeOn($day, $conf['lunch']['start']), 'end' => self::timeOn($day, $conf['lunch']['end'])]
+                : null;
+
+            $cursor = $open->copy();
+            while ($cursor->copy()->addMinutes($slotMin)->lessThanOrEqualTo($close)) {
+                $slotStart = $cursor->copy();
+                $slotEnd   = $cursor->copy()->addMinutes($slotMin);
+
+                $free = $slotStart->greaterThanOrEqualTo($earliest)
+                    && (! $latest || $slotStart->lessThanOrEqualTo($latest))
+                    && ! ($lunch && $slotStart->lessThan($lunch['end']) && $slotEnd->greaterThan($lunch['start']));
+
+                if ($free) {
+                    foreach ($busyIntervals as $b) {
+                        if ($slotStart->lessThan($b['end']) && $slotEnd->greaterThan($b['start'])) {
+                            $free = false;
+                            break;
+                        }
+                    }
+                }
+
+                if ($free) {
+                    $slots[] = ['start' => $slotStart->toIso8601String(), 'end' => $slotEnd->toIso8601String()];
+                }
+                $cursor->addMinutes($slotMin);
+            }
+        }
+
+        return $slots;
+    }
+
     private static function timeOn(CarbonInterface $day, string $hhmm): CarbonInterface
     {
         [$h, $m] = array_map('intval', explode(':', $hhmm));

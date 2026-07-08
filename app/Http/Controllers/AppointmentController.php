@@ -60,13 +60,13 @@ class AppointmentController extends Controller
             return back()->withErrors(['starts_at' => $violation])->withInput();
         }
 
-        // Check for time conflicts
+        // Conflito — sobreposição REAL (começa antes do fim do outro E termina depois do início).
+        // A checagem antiga com whereBetween não pegava uma consulta que "englobava" a nova e
+        // ainda dava falso-positivo em horários encostados (fim == início do próximo).
         $conflict = Appointment::where('doctor_id', $validated['doctor_id'])
             ->where('status', '!=', 'cancelled')
-            ->where(function ($q) use ($validated) {
-                $q->whereBetween('starts_at', [$validated['starts_at'], $validated['ends_at']])
-                  ->orWhereBetween('ends_at', [$validated['starts_at'], $validated['ends_at']]);
-            })
+            ->where('starts_at', '<', $validated['ends_at'])
+            ->where('ends_at', '>', $validated['starts_at'])
             ->exists();
 
         if ($conflict) {
