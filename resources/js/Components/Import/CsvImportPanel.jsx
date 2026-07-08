@@ -60,7 +60,11 @@ export default function CsvImportPanel({
 
       {result && (
         <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
-          <p className="font-semibold">Importação concluída: {result.imported} registro(s) adicionado(s){result.skipped ? `, ${result.skipped} ignorado(s)` : ''}.</p>
+          <p className="font-semibold">
+            Importação concluída: {result.imported} novo(s)
+            {result.duplicates ? `, ${result.duplicates} já existente(s) ignorado(s)` : ''}
+            {result.skipped ? `, ${result.skipped} com erro` : ''}.
+          </p>
           {result.errors?.length > 0 && (
             <ul className="list-disc pl-5 text-xs text-amber-700 mt-2">{result.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
           )}
