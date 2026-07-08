@@ -63,7 +63,7 @@ class AttendantAI
 
             $content = $resp['content'] ?? [];
             if (($resp['stop_reason'] ?? 'end_turn') === 'tool_use') {
-                $messages[] = ['role' => 'assistant', 'content' => $content];
+                $messages[] = ['role' => 'assistant', 'content' => $this->fixToolInputs($content)];
                 $results = [];
                 foreach ($content as $block) {
                     if (($block['type'] ?? null) === 'tool_use') {
@@ -96,6 +96,21 @@ class AttendantAI
             ]);
             $this->conv->update(['last_message_at' => now()]);
         }
+    }
+
+    /**
+     * Ao devolver os blocos tool_use pro Claude, um input vazio `{}` que o PHP decodificou
+     * como `[]` re-serializa como array JSON e a API recusa ("Input should be an object").
+     * Força objeto nos inputs vazios.
+     */
+    private function fixToolInputs(array $content): array
+    {
+        return array_map(function ($b) {
+            if (($b['type'] ?? null) === 'tool_use' && empty($b['input'])) {
+                $b['input'] = (object) [];
+            }
+            return $b;
+        }, $content);
     }
 
     // ---------- prompt ----------
