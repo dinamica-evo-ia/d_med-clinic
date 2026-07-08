@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AgentController;
+use App\Http\Controllers\AttendantController;
 use App\Http\Middleware\InitializeTenancyByApiToken;
 use Illuminate\Support\Facades\Route;
 
@@ -20,3 +21,10 @@ Route::middleware(InitializeTenancyByApiToken::class)
         Route::post('pacientes', [AgentController::class, 'pacientes']);
         Route::post('agendamentos', [AgentController::class, 'agendamentos']);
     });
+
+/*
+ * Webhook de ENTRADA do WhatsApp (WADuck chama). Sem auth de sessão: o tenant vem na URL
+ * e a validação é pelo webhook_token da clínica (query ?token= ou header x-webhook-token).
+ * Fica no prefixo /api (isento de CSRF) e FORA do grupo de token do agent.
+ */
+Route::post('whatsapp/webhook/{tenant}', [AttendantController::class, 'webhook']);

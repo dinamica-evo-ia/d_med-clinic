@@ -57,6 +57,10 @@ class HandleInertiaRequests extends Middleware
                     return $perms ?? [];
                 },
             ],
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
+            ],
             'impersonating' => (bool) $request->session()->get('master_impersonator_id'),
             'tenant' => function () {
                 $t = tenant();
