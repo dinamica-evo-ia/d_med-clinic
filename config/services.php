@@ -46,4 +46,10 @@ return [
         'studio_url' => env('DMED_STUDIO_URL', 'https://app.dmedevo.com.br'),
     ],
 
+    // Cérebro do "D_Med Atende" (atendente WhatsApp). Chave é do produto (uma só, central).
+    'anthropic' => [
+        'key'   => env('ANTHROPIC_API_KEY'),
+        'model' => env('ATTENDANT_AI_MODEL', 'claude-haiku-4-5-20251001'),
+    ],
+
 ];

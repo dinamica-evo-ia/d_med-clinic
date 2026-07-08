@@ -7,6 +7,7 @@ use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
 use App\Models\Patient;
 use App\Models\Tenant;
+use App\Support\AttendantAI;
 use App\Support\Waduck;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -193,6 +194,12 @@ class AttendantController extends Controller
     /** Grava mensagem de entrada: reconhece o paciente por telefone e mantém a conversa. */
     private function storeInbound(array $p): void
     {
+        // Idempotência: retry do WADuck com a mesma mensagem → ignora (não duplica nem re-responde).
+        if (! empty($p['external_id'])
+            && AttendantMessage::where('external_id', $p['external_id'])->where('direction', 'in')->exists()) {
+            return;
+        }
+
         // Reconhece paciente pelo telefone (dígitos) — mesma regra do AgentController.
         $patient = Patient::where('phone', $p['phone'])
             ->orWhere('whatsapp', $p['phone'])
@@ -228,6 +235,7 @@ class AttendantController extends Controller
             'meta' => ['push_name' => $p['push_name']],
         ]);
 
-        // Fase 3: aqui a IA (Claude) vai ler o histórico e responder/agendar.
+        // A IA (Claude) lê o histórico e responde/agenda — se ligado, conectado e autonomia permitir.
+        AttendantAI::maybeRespond($conv);
     }
 }
