@@ -52,6 +52,13 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('patients-import', [\App\Http\Controllers\PatientImportController::class, 'form'])->name('patients.import.form');
     Route::post('patients-import/preview', [\App\Http\Controllers\PatientImportController::class, 'preview'])->name('patients.import.preview');
     Route::post('patients-import', [\App\Http\Controllers\PatientImportController::class, 'store'])->name('patients.import.store');
+
+    // D_Med Atende — atendente WhatsApp (admin + secretária; médico NÃO acessa, pra CRM clean)
+    Route::middleware('role:admin,receptionist')->group(function () {
+        Route::get('atendente', [\App\Http\Controllers\AttendantController::class, 'index'])->name('attendant.index');
+        Route::put('atendente', [\App\Http\Controllers\AttendantController::class, 'update'])->name('attendant.update');
+    });
+
     // Dados clínicos — secretária não acessa (só cadastro do paciente + agenda)
     Route::middleware('role:admin,doctor')->group(function () {
         Route::post('patients/{patient}/allergies', [\App\Http\Controllers\AllergyController::class, 'store'])->name('allergies.store');
