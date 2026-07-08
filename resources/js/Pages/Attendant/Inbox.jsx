@@ -115,15 +115,18 @@ export default function Inbox({ conversations, selected, messages }) {
 function Bubble({ m }) {
   const mine = m.direction === 'out';
   const isAi = m.author === 'ai';
+  const isSystem = m.author === 'system';
   const tone = !mine ? 'bg-white border border-slate-200 text-slate-800'
+    : isSystem ? 'bg-slate-200 text-slate-700'
     : isAi ? 'bg-blue-600 text-white' : 'bg-emerald-600 text-white';
-  const who = !mine ? null : (isAi ? 'IA' : 'Você');
+  const who = !mine ? null : isSystem ? 'Aviso automático' : isAi ? 'IA' : 'Você';
+  const whoColor = isSystem ? 'text-slate-500' : isAi ? 'text-blue-100' : 'text-emerald-100';
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${tone}`}>
-        {who && <div className={`text-[10px] font-semibold mb-0.5 ${isAi ? 'text-blue-100' : 'text-emerald-100'}`}>{who}</div>}
+        {who && <div className={`text-[10px] font-semibold mb-0.5 ${whoColor}`}>{who}</div>}
         <div className="text-sm whitespace-pre-wrap break-words">{m.body}</div>
-        <div className={`text-[10px] mt-1 ${mine ? 'text-white/70' : 'text-slate-400'}`}>{m.at}</div>
+        <div className={`text-[10px] mt-1 ${mine && !isSystem ? 'text-white/70' : 'text-slate-400'}`}>{m.at}</div>
       </div>
     </div>
   );

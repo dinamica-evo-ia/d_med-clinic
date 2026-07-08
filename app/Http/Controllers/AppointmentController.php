@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\Patient;
+use App\Support\AttendantNotifier;
 use App\Support\DoctorSchedule;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -105,7 +106,13 @@ class AppointmentController extends Controller
             return back()->withErrors(['starts_at' => $violation])->withInput();
         }
 
+        $oldStart = $appointment->getOriginal('starts_at');
         $appointment->update($validated);
+
+        // Se o horário mudou, avisa o paciente no WhatsApp (D_Med Atende).
+        if (! $oldStart || \Carbon\Carbon::parse($oldStart)->notEqualTo($appointment->starts_at)) {
+            AttendantNotifier::rescheduled($appointment, $oldStart);
+        }
 
         return redirect()->route('appointments.index')
             ->with('success', 'Consulta atualizada com sucesso.');
@@ -126,6 +133,11 @@ class AppointmentController extends Controller
         }
 
         $appointment->update($data);
+
+        // Cancelamento pela recepção → avisa o paciente no WhatsApp (D_Med Atende).
+        if ($validated['status'] === 'cancelled') {
+            AttendantNotifier::cancelled($appointment);
+        }
 
         return back()->with('success', 'Status da consulta atualizado.');
     }
@@ -190,10 +202,14 @@ class AppointmentController extends Controller
             return response()->json(['ok' => false, 'message' => $violation], 422);
         }
 
+        $oldStart = $appointment->getOriginal('starts_at');
         $appointment->update([
             'starts_at' => $start,
             'ends_at' => $end,
         ]);
+
+        // Remarcação (drag-and-drop) → avisa o paciente no WhatsApp (D_Med Atende).
+        AttendantNotifier::rescheduled($appointment, $oldStart);
 
         return response()->json(['ok' => true]);
     }

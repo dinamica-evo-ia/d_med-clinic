@@ -1,6 +1,6 @@
 # Módulo D_Med Atende — atendente de WhatsApp com IA
 
-> **Status:** Fases 1–4 implementadas e testadas (2026-07-08). Falta só ATIVAR (créditos Anthropic + instância WADuck) e o teste ponta a ponta real.
+> **Status:** Fases 1–5 implementadas e testadas (2026-07-08). O cérebro (Claude) foi validado com créditos reais — entende, consulta horários reais e **marca de verdade** na agenda. Falta só conectar uma instância WADuck pro teste do transporte WhatsApp ao vivo.
 
 ## O que é
 Atendente virtual de WhatsApp, **embutido no próprio D_Med** (não é app à parte, não usa Supabase).
@@ -42,6 +42,8 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 
 **Inbox / handoff (Fase 4)** — `AttendantController::{conversations,reply,conversationStatus}`. Quando a secretária responde manual, a conversa vira `handoff` (a IA para de responder, via guard no `AttendantAI::maybeRespond`). "Devolver ao bot" volta pra `open`; "Resolver" = `closed`.
 
+**Avisos de mudança (Fase 5)** — `App\Support\AttendantNotifier` (`cancelled`/`rescheduled`). Ganchos em `AppointmentController::{updateStatus,reschedule,update}`: quando a recepção cancela ou remarca, o paciente é avisado no WhatsApp. Só avisa quem já se relaciona por WhatsApp (consulta `source='atende'` OU conversa existente) — evita mensagem-surpresa. Nunca quebra a ação do CRM (try/catch). O aviso aparece no inbox como bolha `author_type='system'` ("Aviso automático").
+
 ## Autonomia (até onde a IA vai)
 - `suggest` — a IA **não responde** sozinha (humano assume; útil na Fase 4).
 - `auto_reply` — responde dúvidas e informa horários, **não marca**.
@@ -65,7 +67,7 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 - **Falta:** teste ponta a ponta com WADuck + chave reais (conversa real gerando resposta + marcação).
 
 ## Pendências
-- **Ativar:** créditos na Anthropic (conta zerada — erro 400) + instância WADuck, e o **teste ponta a ponta real**.
-- **Webhook de volta:** recepção cancela/remarca no CRM → avisar o paciente no WhatsApp.
+- **Ativar:** conectar uma **instância WADuck** e fazer o **teste do transporte WhatsApp ao vivo** (receber msg real → bot responde/marca → e cancelar/remarcar avisando o paciente). Créditos Anthropic ✅ e cérebro ✅ já validados.
 - Reconhecimento de paciente hoje casa por telefone em dígitos (igual `AgentController`); pacientes cadastrados com telefone formatado no CRM podem não casar — normalizar se virar problema.
 - Inbox usa **polling (6s)**, não websocket. Suficiente por ora; migrar pra tempo-real se precisar.
+- Avisos (Fase 5) rodam **inline** no request do CRM (envio síncrono ao WADuck). Se ficar lento, mover pra fila.
