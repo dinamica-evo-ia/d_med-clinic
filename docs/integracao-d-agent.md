@@ -1,8 +1,15 @@
 # Integração D_Agent Atende ↔ D_Med Clinic (Agenda)
 
-> **Status:** documento de arquitetura — *revisão concluída, nada implementado ainda.*
+> **Status:** **Fase 1 (lado D_Med) IMPLEMENTADA e testada E2E** em 2026-07-07 (commit `fd6bdff`). Falta o lado D_Agent (re-apontar as 2 funções) e as Fases 2–3.
 > **Regra de ouro:** a agenda do **D_Med Clinic é a fonte única da verdade**. O D_Agent Atende **lê disponibilidade** e **grava a marcação** nela. Não há "duas agendas sincronizadas".
 > **Data da revisão:** 2026-07-07
+
+> ### ✅ O que já está no ar no D_Med (Fase 1, lado CRM)
+> API `/api/agent/*` autenticada por token por clínica (`dmk_…`), tenant resolvido pelo token:
+> - `GET /api/agent/medicos` · `GET /api/agent/disponibilidade` · `POST /api/agent/pacientes` (upsert CPF/tel) · `POST /api/agent/agendamentos` (expediente + conflito atômico, grava `source='d_agent'`).
+> - Gerar token: `php artisan tenant:api-key <slug|id>` (mostra o token uma vez).
+> - Smoke test E2E validado: 401 sem token, listagem, 68 slots, upsert, agendamento, e **409 em conflito**.
+> - **Falta pra fechar a Fase 1 ponta-a-ponta:** re-apontar `availability.functions.ts` e `agenda.ts` no D_Agent pra chamar essa API (lado Lovable — combinar antes de mexer).
 
 ---
 
@@ -229,16 +236,17 @@ Quando a **recepção** cancela/remarca no D_Med, o paciente que marcou pelo Wha
 
 ## 10. Trabalho por lado (checklist file-level)
 
-### 10.1 D_Med Clinic — **criar** (nada disso existe hoje)
-- [ ] `routes/api.php` + registrar no `bootstrap/app.php` (`withRouting(api: …)`). *(O `shouldRenderJsonWhen(api/*)` já existe lá — meio caminho andado.)*
-- [ ] Migration central: `tenant_api_keys` (id, tenant_id, name, prefix, token_hash, scopes JSON, last_used_at, is_active, expires_at).
-- [ ] Middleware `InitializeTenancyByApiToken` (resolve token → `tenancy()->initialize`, **antes** do SubstituteBindings).
-- [ ] `App\Http\Controllers\Api\AgentController` → `medicos`, `disponibilidade`, `pacientes`, `agendamentos`.
-- [ ] `DoctorSchedule::freeSlots(...)` (enumeração de horários livres) — código novo.
-- [ ] Migration tenant: coluna `appointments.source` (default `'crm'`) + `appointments.external_ref` (nullable).
-- [ ] Corrigir a checagem de conflito (query de sobreposição) — reusar no store da UI também.
-- [ ] Webhook OUT (job) em cancel/reschedule quando `source='d_agent'`.
-- [ ] UI no Painel Master (ou Account) pra **gerar/rotacionar** a API-key da clínica.
+### 10.1 D_Med Clinic — **criar**
+- [x] `routes/api.php` + registrado no `bootstrap/app.php` (`withRouting(api: …)`).
+- [x] Migration central: `tenant_api_keys` + Model `TenantApiKey` (CentralConnection).
+- [x] Middleware `InitializeTenancyByApiToken` (token → `tenancy()->initialize`, no `prependToPriorityList`).
+- [x] `App\Http\Controllers\Api\AgentController` → `medicos`, `disponibilidade`, `pacientes`, `agendamentos`.
+- [x] `DoctorSchedule::freeSlots(...)` (enumeração de horários livres).
+- [x] Migration tenant: `appointments.source` (default `'crm'`) + `appointments.external_ref`.
+- [x] Corrigir a checagem de conflito (sobreposição real) — aplicado na API **e** no `AppointmentController@store` da recepção.
+- [x] Geração de token via `php artisan tenant:api-key`.
+- [ ] Webhook OUT (job) em cancel/reschedule quando `source='d_agent'`. *(Fase 2)*
+- [ ] UI no Painel Master pra gerar/rotacionar a API-key (hoje só via artisan). *(polish)*
 
 ### 10.2 D_Agent Atende — **re-apontar** (reusa o que já existe)
 - [ ] `integration_settings` provider `'dmed_clinic'` + tela de conectar (colar `base_url`+`api_key`).
