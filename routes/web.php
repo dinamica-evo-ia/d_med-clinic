@@ -219,6 +219,9 @@ Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('mas
     Route::post('/clinicas/{clinica}/extend-trial', [\App\Http\Controllers\Master\ClinicaController::class, 'extendTrial'])->name('clinicas.extend-trial');
     Route::post('/clinicas/{clinica}/reactivate', [\App\Http\Controllers\Master\ClinicaController::class, 'reactivate'])->name('clinicas.reactivate');
     Route::delete('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'destroy'])->name('clinicas.destroy');
+    Route::get('/clinicas/{clinica}/api-keys', [\App\Http\Controllers\Master\ApiKeyController::class, 'index'])->name('clinicas.api-keys.index');
+    Route::post('/clinicas/{clinica}/api-keys', [\App\Http\Controllers\Master\ApiKeyController::class, 'store'])->name('clinicas.api-keys.store');
+    Route::delete('/clinicas/{clinica}/api-keys/{apiKey}', [\App\Http\Controllers\Master\ApiKeyController::class, 'destroy'])->name('clinicas.api-keys.destroy');
     Route::post('/impersonate/{clinica}', [\App\Http\Controllers\Master\ImpersonationController::class, 'start'])->name('impersonate.start');
     Route::get('/planos', [\App\Http\Controllers\Master\PlanController::class, 'index'])->name('planos.index');
     Route::put('/planos/{plan}', [\App\Http\Controllers\Master\PlanController::class, 'update'])->name('planos.update');

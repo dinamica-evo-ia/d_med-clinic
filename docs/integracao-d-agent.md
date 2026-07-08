@@ -7,9 +7,10 @@
 > ### ✅ O que já está no ar no D_Med (Fase 1, lado CRM)
 > API `/api/agent/*` autenticada por token por clínica (`dmk_…`), tenant resolvido pelo token:
 > - `GET /api/agent/medicos` · `GET /api/agent/disponibilidade` · `POST /api/agent/pacientes` (upsert CPF/tel) · `POST /api/agent/agendamentos` (expediente + conflito atômico, grava `source='d_agent'`).
-> - Gerar token: `php artisan tenant:api-key <slug|id>` (mostra o token uma vez).
-> - Smoke test E2E validado: 401 sem token, listagem, 68 slots, upsert, agendamento, e **409 em conflito**.
-> - **Falta pra fechar a Fase 1 ponta-a-ponta:** re-apontar `availability.functions.ts` e `agenda.ts` no D_Agent pra chamar essa API (lado Lovable — combinar antes de mexer).
+> - **Gerar token: Painel Master → Clínicas → botão "API"** (gerar/revogar, token mostrado 1×). Ou `php artisan tenant:api-key <slug|id>`.
+> - Smoke test E2E validado: 401 sem token, listagem, 68 slots, upsert, agendamento, e **409 em conflito**. UI de token também validada (gera → token vale na API → revoga).
+> - **Adapter do D_Agent JÁ ESCRITO** (local, sem push pro Lovable): re-aponta `availability.functions.ts` + booking pra esta API, com card de conexão. Ver `docs/integracao-d-med.md` no repo do D_Agent. Falta publicar (Lovable) + aplicar a migration + conectar a clínica.
+> - **Domínio do D_Agent:** `atende.dmedclinic.com.br` (roda na Lovable Cloud/Cloudflare, não no nosso VPS — CNAME → Lovable + SSL na Lovable).
 
 ---
 
@@ -245,8 +246,8 @@ Quando a **recepção** cancela/remarca no D_Med, o paciente que marcou pelo Wha
 - [x] Migration tenant: `appointments.source` (default `'crm'`) + `appointments.external_ref`.
 - [x] Corrigir a checagem de conflito (sobreposição real) — aplicado na API **e** no `AppointmentController@store` da recepção.
 - [x] Geração de token via `php artisan tenant:api-key`.
+- [x] UI no Painel Master pra gerar/rotacionar a API-key — Clínicas → botão **API** (gera/revoga, token 1×).
 - [ ] Webhook OUT (job) em cancel/reschedule quando `source='d_agent'`. *(Fase 2)*
-- [ ] UI no Painel Master pra gerar/rotacionar a API-key (hoje só via artisan). *(polish)*
 
 ### 10.2 D_Agent Atende — **re-apontar** (reusa o que já existe)
 - [ ] `integration_settings` provider `'dmed_clinic'` + tela de conectar (colar `base_url`+`api_key`).

@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const STATUS_COLORS = {
   trial: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
@@ -22,6 +22,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
   const [search, setSearch] = useState(filters?.search || '');
   const [status, setStatus] = useState(filters?.status || '');
   const [editing, setEditing] = useState(null);
+  const [apiKeysFor, setApiKeysFor] = useState(null);
 
   const apply = () => router.get('/master/clinicas', { search: search || undefined, status: status || undefined }, { preserveState: true, replace: true });
 
@@ -114,6 +115,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1 text-xs">
                       <button onClick={() => setEditing(t)} className="text-slate-300 hover:text-amber-300">Editar</button>
+                      <button onClick={() => setApiKeysFor(t)} className="text-teal-300 hover:text-teal-200">API</button>
                       <button onClick={() => impersonate(t)} className="text-sky-300 hover:text-sky-200">Entrar</button>
                       {t.status === 'trial' && <button onClick={() => extendTrial(t)} className="text-indigo-300 hover:text-indigo-200">Estender</button>}
                       {t.status !== 'active' && t.status !== 'cancelled' && <button onClick={() => reactivate(t)} className="text-emerald-300 hover:text-emerald-200">Reativar</button>}
@@ -128,6 +130,74 @@ export default function Index({ tenants, filters, plans, statuses }) {
       </div>
 
       {editing && <EditModal tenant={editing} plans={plans} statuses={statuses} onClose={() => setEditing(null)} />}
+      {apiKeysFor && <ApiKeysModal tenant={apiKeysFor} onClose={() => setApiKeysFor(null)} />}
+    </div>
+  );
+}
+
+function ApiKeysModal({ tenant, onClose }) {
+  const [keys, setKeys] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [token, setToken] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const base = `/master/clinicas/${tenant.id}/api-keys`;
+  const fmt = (d) => d ? new Date(d).toLocaleString('pt-BR') : '—';
+
+  useEffect(() => {
+    window.axios.get(base).then(({ data }) => setKeys(data.keys)).catch(() => setKeys([]));
+  }, [tenant.id]);
+
+  const generate = () => {
+    setBusy(true); setToken('');
+    window.axios.post(base, { name: 'D_Agent Atende' })
+      .then(({ data }) => { setToken(data.token); setKeys(data.keys); })
+      .catch((e) => alert(e?.response?.data?.error || 'Erro ao gerar a chave.'))
+      .finally(() => setBusy(false));
+  };
+  const revoke = (id) => {
+    if (!confirm('Revogar esta chave? Integrações que a usam param de funcionar na hora.')) return;
+    window.axios.delete(`${base}/${id}`).then(({ data }) => setKeys(data.keys));
+  };
+  const copy = () => { navigator.clipboard?.writeText(token); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4 text-slate-100 max-h-[90vh] overflow-y-auto">
+        <div>
+          <h2 className="text-lg font-bold">Chaves de API · {tenant.name}</h2>
+          <p className="text-xs text-slate-400 mt-1">Usadas por integrações externas (ex.: D_Agent Atende) pra ler a agenda e marcar consultas nesta clínica.</p>
+        </div>
+
+        {token && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+            <div className="text-xs text-amber-200 font-semibold">Copie agora — o token não será mostrado de novo:</div>
+            <div className="flex gap-2">
+              <code className="flex-1 break-all text-xs bg-slate-950/60 rounded px-2 py-1.5 text-amber-100">{token}</code>
+              <button onClick={copy} className="px-2.5 py-1 bg-amber-500 text-slate-900 text-xs font-semibold rounded hover:bg-amber-400 whitespace-nowrap">{copied ? 'Copiado!' : 'Copiar'}</button>
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          {keys === null && <div className="text-sm text-slate-400">Carregando…</div>}
+          {keys?.length === 0 && <div className="text-sm text-slate-500">Nenhuma chave ainda.</div>}
+          {keys?.map((k) => (
+            <div key={k.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-800/60 border border-slate-700/60 px-3 py-2">
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{k.name} <span className="text-slate-500 font-normal">· {k.prefix}…</span></div>
+                <div className="text-[11px] text-slate-500">último uso: {fmt(k.last_used_at)} · criada: {fmt(k.created_at)}</div>
+              </div>
+              <button onClick={() => revoke(k.id)} className="text-rose-300 hover:text-rose-200 text-xs whitespace-nowrap">Revogar</button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-between items-center pt-2">
+          <button onClick={generate} disabled={busy} className="px-4 py-2 bg-amber-500 text-slate-900 text-sm font-semibold rounded-lg hover:bg-amber-400 disabled:opacity-50">{busy ? 'Gerando…' : '+ Gerar nova chave'}</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Fechar</button>
+        </div>
+      </div>
     </div>
   );
 }
