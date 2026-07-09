@@ -39,10 +39,41 @@ class AttendantAI
             return; // suggest = humano responde; sem chave/desligado = não faz nada
         }
 
+        // Fora do horário de atendimento → manda a mensagem de fora-do-horário (com anti-spam) e não aciona a IA.
+        if (! $s->isWithinBusinessHours()) {
+            self::sendOffHours($s, $conv);
+            return;
+        }
+
         try {
             (new self($s, $conv))->respond();
         } catch (\Throwable $e) {
             Log::warning('AttendantAI falhou: '.$e->getMessage());
+        }
+    }
+
+    /** Envia a mensagem de fora-do-horário, no máx. 1x a cada 30 min por conversa. */
+    private static function sendOffHours(AttendantSetting $s, AttendantConversation $conv): void
+    {
+        $msg = trim((string) $s->offhours_message);
+        if ($msg === '') {
+            return;
+        }
+        $recent = $conv->messages()
+            ->where('direction', 'out')->where('author_type', 'system')
+            ->where('body', $msg)->where('created_at', '>=', now()->subMinutes(30))->exists();
+        if ($recent) {
+            return;
+        }
+        try {
+            Waduck::sendText($s, $conv->contact_phone, $msg);
+            AttendantMessage::create([
+                'conversation_id' => $conv->id, 'direction' => 'out',
+                'author_type' => 'system', 'body' => $msg,
+            ]);
+            $conv->update(['last_message_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::warning('AttendantAI off-hours falhou: '.$e->getMessage());
         }
     }
 
@@ -137,6 +168,9 @@ class AttendantAI
 
         $persona = $this->s->persona ? "\n\nInstruções da clínica:\n{$this->s->persona}" : '';
         $tone = $this->s->tone ? " Tom: {$this->s->tone}." : '';
+        $welcome = trim((string) $this->s->welcome_message) !== ''
+            ? "\n\nSaudação de apresentação (use no primeiro contato, ou algo no mesmo espírito): \"".trim($this->s->welcome_message).'"'
+            : '';
 
         return <<<TXT
 Você é {$bot}, atendente virtual de {$clinic} no WhatsApp. Fale em português do Brasil, curto e natural (é WhatsApp, sem textão).{$tone}
@@ -150,7 +184,8 @@ Regras:
 - Nunca invente horários, médicos nem informações; use as ferramentas.
 - Ao oferecer horários, dê poucas opções claras (dia + hora).
 - Não peça dados que já tem. Se precisar cadastrar, peça só o nome.
-- Se não souber algo, seja honesto e ofereça falar com a secretária.{$persona}{$faqBlock}
+- Mensagens entre colchetes como [Áudio recebido] ou [Imagem recebida] significam que o paciente mandou uma mídia que você NÃO consegue ver/ouvir — peça gentilmente que ele escreva em texto.
+- Se não souber algo, seja honesto e ofereça falar com a secretária.{$welcome}{$persona}{$faqBlock}
 TXT;
     }
 
@@ -216,6 +251,32 @@ TXT;
                     'required' => ['medico_id', 'inicio'],
                 ],
             ];
+            $tools[] = [
+                'name' => 'minhas_consultas',
+                'description' => 'Lista as próximas consultas do paciente da conversa (id, quando, médico). Use antes de cancelar ou remarcar.',
+                'input_schema' => ['type' => 'object', 'properties' => (object) []],
+            ];
+            $tools[] = [
+                'name' => 'cancelar_consulta',
+                'description' => 'Cancela uma consulta do paciente. Confirme com ele antes. Passe o consulta_id obtido em minhas_consultas.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => ['consulta_id' => ['type' => 'string']],
+                    'required' => ['consulta_id'],
+                ],
+            ];
+            $tools[] = [
+                'name' => 'remarcar_consulta',
+                'description' => 'Remarca uma consulta do paciente para um novo horário. Confirme o novo horário antes. consulta_id de minhas_consultas + novo início.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'consulta_id' => ['type' => 'string'],
+                        'novo_inicio' => ['type' => 'string', 'description' => 'Novo início em ISO 8601.'],
+                    ],
+                    'required' => ['consulta_id', 'novo_inicio'],
+                ],
+            ];
         }
 
         return $tools;
@@ -227,8 +288,101 @@ TXT;
             'listar_medicos' => $this->toolListarMedicos(),
             'consultar_horarios' => $this->toolConsultarHorarios($input),
             'agendar_consulta' => $this->toolAgendarConsulta($input),
+            'minhas_consultas' => $this->toolMinhasConsultas(),
+            'cancelar_consulta' => $this->toolCancelarConsulta($input),
+            'remarcar_consulta' => $this->toolRemarcarConsulta($input),
             default => ['erro' => "Ferramenta desconhecida: {$name}"],
         };
+    }
+
+    /** Paciente da conversa (vinculado ou achado por telefone). */
+    private function resolvePatient(): ?Patient
+    {
+        if ($this->conv->patient_id) {
+            return Patient::find($this->conv->patient_id);
+        }
+        $phone = $this->conv->contact_phone;
+
+        return Patient::where('phone', $phone)->orWhere('whatsapp', $phone)->first();
+    }
+
+    private function toolMinhasConsultas(): array
+    {
+        Carbon::setLocale('pt_BR');
+        $patient = $this->resolvePatient();
+        if (! $patient) {
+            return ['erro' => 'Não encontrei seu cadastro pelo telefone.'];
+        }
+
+        $appts = Appointment::where('patient_id', $patient->id)
+            ->where('status', '!=', 'cancelled')
+            ->where('starts_at', '>=', Carbon::now(self::TZ))
+            ->orderBy('starts_at')->with('doctor')->limit(10)->get();
+
+        return ['consultas' => $appts->map(fn ($a) => [
+            'id' => $a->id,
+            'quando' => Carbon::parse($a->starts_at)->setTimezone(self::TZ)->isoFormat('ddd D/MM [às] HH:mm'),
+            'medico' => $a->doctor?->name,
+        ])->all()];
+    }
+
+    private function toolCancelarConsulta(array $input): array
+    {
+        $patient = $this->resolvePatient();
+        $appt = $patient ? Appointment::where('id', $input['consulta_id'] ?? '')
+            ->where('patient_id', $patient->id)->where('status', '!=', 'cancelled')->first() : null;
+        if (! $appt) {
+            return ['erro' => 'Consulta não encontrada ou já cancelada.'];
+        }
+
+        $appt->update([
+            'status' => 'cancelled',
+            'cancelled_at' => now(),
+            'cancellation_reason' => 'Cancelado pelo paciente via WhatsApp',
+        ]);
+
+        return ['ok' => true, 'cancelada' => [
+            'quando' => Carbon::parse($appt->starts_at)->setTimezone(self::TZ)->isoFormat('dddd, D [de] MMMM [às] HH:mm'),
+        ]];
+    }
+
+    private function toolRemarcarConsulta(array $input): array
+    {
+        Carbon::setLocale('pt_BR');
+        $patient = $this->resolvePatient();
+        $appt = $patient ? Appointment::where('id', $input['consulta_id'] ?? '')
+            ->where('patient_id', $patient->id)->where('status', '!=', 'cancelled')->first() : null;
+        if (! $appt) {
+            return ['erro' => 'Consulta não encontrada.'];
+        }
+        if (empty($input['novo_inicio'])) {
+            return ['erro' => 'Informe o novo horário.'];
+        }
+
+        try {
+            $start = Carbon::parse($input['novo_inicio'], self::TZ);
+        } catch (\Throwable $e) {
+            return ['erro' => 'Data/hora inválida.'];
+        }
+        $dur = max(5, Carbon::parse($appt->starts_at)->diffInMinutes(Carbon::parse($appt->ends_at)) ?: 30);
+        $end = $start->copy()->addMinutes($dur);
+
+        $doctor = Doctor::find($appt->doctor_id);
+        if ($doctor && ($violation = DoctorSchedule::violation($doctor, $start, $end))) {
+            return ['erro' => $violation];
+        }
+        $conflict = Appointment::where('doctor_id', $appt->doctor_id)
+            ->where('id', '!=', $appt->id)->where('status', '!=', 'cancelled')
+            ->where('starts_at', '<', $end)->where('ends_at', '>', $start)->exists();
+        if ($conflict) {
+            return ['erro' => 'Esse horário já está ocupado. Ofereça outro.'];
+        }
+
+        $appt->update(['starts_at' => $start, 'ends_at' => $end]);
+
+        return ['ok' => true, 'remarcada' => [
+            'quando' => $start->isoFormat('dddd, D [de] MMMM [às] HH:mm'),
+        ]];
     }
 
     private function toolListarMedicos(): array

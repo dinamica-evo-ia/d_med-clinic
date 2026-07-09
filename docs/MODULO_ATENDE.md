@@ -44,6 +44,13 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 
 **Avisos de mudança (Fase 5)** — `App\Support\AttendantNotifier` (`cancelled`/`rescheduled`). Ganchos em `AppointmentController::{updateStatus,reschedule,update}`: quando a recepção cancela ou remarca, o paciente é avisado no WhatsApp. Só avisa quem já se relaciona por WhatsApp (consulta `source='atende'` OU conversa existente) — evita mensagem-surpresa. Nunca quebra a ação do CRM (try/catch). O aviso aparece no inbox como bolha `author_type='system'` ("Aviso automático").
 
+**Polimento (2026-07-08)** — fechados 5 gaps da auditoria:
+- **A) Horário de atendimento** (`business_hours` open/close + fim de semana): fora do horário o bot envia `offhours_message` (anti-spam 30min) e não aciona a IA. `welcome_message` entra no system prompt. `AttendantSetting::isWithinBusinessHours()`.
+- **B) Base de conhecimento (FAQ)**: CRUD em `AttendantController::{storeKnowledge,updateKnowledge,destroyKnowledge}` + seção na página de config. O bot já usava no prompt; agora a clínica edita.
+- **C) Fallback de mídia**: `Waduck::parseInbound` detecta tipo; áudio/foto sem legenda viram `[Áudio recebido]`, e o prompt instrui a IA a pedir texto.
+- **D) Paciente cancela/remarca pelo bot**: tools `minhas_consultas`, `cancelar_consulta`, `remarcar_consulta` (auto_schedule) — remarcar passa pelo mesmo porteiro (expediente+conflito).
+- **E) Status real do WhatsApp**: `Waduck::connectionState` + `GET /atendente/whatsapp/status` + botão "Verificar conexão" (open/close/connecting). Endpoint exato do WADuck a confirmar no teste real.
+
 ## Autonomia (até onde a IA vai)
 - `suggest` — a IA **não responde** sozinha (humano assume; útil na Fase 4).
 - `auto_reply` — responde dúvidas e informa horários, **não marca**.

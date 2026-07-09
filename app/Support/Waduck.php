@@ -54,12 +54,49 @@ class Waduck
             ?? data_get($m, 'message.documentMessage.caption')
             ?? $m['body'] ?? $m['text'] ?? null;
 
+        // Tipo (pra tratar mídia sem legenda com um fallback amigável).
+        $type = 'text';
+        if (data_get($m, 'message.audioMessage')) {
+            $type = 'audio';
+        } elseif (data_get($m, 'message.imageMessage')) {
+            $type = 'image';
+        } elseif (data_get($m, 'message.videoMessage')) {
+            $type = 'video';
+        } elseif (data_get($m, 'message.documentMessage')) {
+            $type = 'document';
+        } elseif (data_get($m, 'message.stickerMessage') || data_get($m, 'message.locationMessage')) {
+            $type = 'other';
+        }
+
         return [
             'from_me' => (bool) (data_get($m, 'key.fromMe') ?? $m['fromMe'] ?? false),
             'phone' => $phone,
             'text' => $text,
+            'type' => $type,
             'push_name' => $m['pushName'] ?? $m['notifyName'] ?? null,
             'external_id' => data_get($m, 'key.id') ?? $m['id'] ?? null,
         ];
+    }
+
+    /** Estado real da instância no provedor (open/close/connecting). Best-effort. */
+    public static function connectionState(AttendantSetting $s): array
+    {
+        if (empty($s->waduck_instance) || empty($s->waduck_api_key)) {
+            return ['ok' => false, 'state' => 'disconnected'];
+        }
+
+        try {
+            $res = Http::withHeaders(['apikey' => $s->waduck_api_key])->acceptJson()->timeout(15)
+                ->get($s->apiBaseUrl().'/v1/instance/connectionState/'.rawurlencode($s->waduck_instance));
+
+            if ($res->failed()) {
+                return ['ok' => false, 'state' => 'unknown', 'error' => 'HTTP '.$res->status()];
+            }
+            $j = $res->json() ?? [];
+
+            return ['ok' => true, 'state' => data_get($j, 'instance.state') ?? data_get($j, 'state') ?? 'unknown'];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'state' => 'unknown', 'error' => substr($e->getMessage(), 0, 120)];
+        }
     }
 }

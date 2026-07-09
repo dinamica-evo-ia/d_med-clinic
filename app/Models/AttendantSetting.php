@@ -45,4 +45,23 @@ class AttendantSetting extends Model
     {
         return ! empty($this->waduck_instance) && ! empty($this->waduck_api_key);
     }
+
+    /**
+     * Está dentro do horário de atendimento do bot? Sem horário configurado = sempre aberto.
+     * business_hours = ['open'=>'08:00','close'=>'18:00','weekends'=>false].
+     */
+    public function isWithinBusinessHours(?\Carbon\CarbonInterface $now = null): bool
+    {
+        $bh = $this->business_hours;
+        if (! is_array($bh) || empty($bh['open']) || empty($bh['close'])) {
+            return true;
+        }
+        $now = $now ?: \Carbon\Carbon::now('America/Sao_Paulo');
+        if ($now->isWeekend() && empty($bh['weekends'])) {
+            return false;
+        }
+        $t = $now->format('H:i');
+
+        return $t >= $bh['open'] && $t <= $bh['close'];
+    }
 }

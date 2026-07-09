@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttendantConversation;
+use App\Models\AttendantKnowledge;
 use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
 use App\Models\Patient;
@@ -39,6 +40,7 @@ class AttendantController extends Controller
                 'tone' => $s->tone,
                 'welcome_message' => $s->welcome_message,
                 'offhours_message' => $s->offhours_message,
+                'business_hours' => is_array($s->business_hours) ? $s->business_hours : ['open' => '', 'close' => '', 'weekends' => false],
                 'autonomy' => $s->autonomy,
             ],
             'whatsapp' => [
@@ -50,6 +52,7 @@ class AttendantController extends Controller
                 'webhook_url' => $webhookUrl,
                 'connected_at' => $s->connected_at?->toDateTimeString(),
             ],
+            'knowledge' => AttendantKnowledge::orderByDesc('id')->get(['id', 'title', 'content', 'is_active']),
             'stats' => [
                 'conversations' => AttendantConversation::count(),
             ],
@@ -65,8 +68,17 @@ class AttendantController extends Controller
             'tone' => 'nullable|string|max:120',
             'welcome_message' => 'nullable|string|max:1000',
             'offhours_message' => 'nullable|string|max:1000',
+            'business_hours' => 'nullable|array',
+            'business_hours.open' => 'nullable|date_format:H:i',
+            'business_hours.close' => 'nullable|date_format:H:i',
+            'business_hours.weekends' => 'nullable|boolean',
             'autonomy' => 'nullable|in:suggest,auto_reply,auto_schedule',
         ]);
+
+        $bh = $data['business_hours'] ?? null;
+        $bh = (! empty($bh['open']) && ! empty($bh['close']))
+            ? ['open' => $bh['open'], 'close' => $bh['close'], 'weekends' => (bool) ($bh['weekends'] ?? false)]
+            : null;
 
         $s = AttendantSetting::current();
         $s->update([
@@ -76,10 +88,50 @@ class AttendantController extends Controller
             'tone' => $data['tone'] ?? null,
             'welcome_message' => $data['welcome_message'] ?? null,
             'offhours_message' => $data['offhours_message'] ?? null,
+            'business_hours' => $bh,
             'autonomy' => $data['autonomy'] ?? $s->autonomy,
         ]);
 
         return back()->with('success', 'Configurações do atendente salvas.');
+    }
+
+    // ---------- FAQ / base de conhecimento (B) ----------
+
+    public function storeKnowledge(Request $request)
+    {
+        $data = $request->validate([
+            'title' => 'required|string|max:150',
+            'content' => 'required|string|max:2000',
+        ]);
+        AttendantKnowledge::create($data + ['is_active' => true]);
+
+        return back()->with('success', 'Item adicionado à base de conhecimento.');
+    }
+
+    public function updateKnowledge(Request $request, AttendantKnowledge $knowledge)
+    {
+        $data = $request->validate([
+            'title' => 'sometimes|required|string|max:150',
+            'content' => 'sometimes|required|string|max:2000',
+            'is_active' => 'sometimes|boolean',
+        ]);
+        $knowledge->update($data);
+
+        return back()->with('success', 'Item atualizado.');
+    }
+
+    public function destroyKnowledge(AttendantKnowledge $knowledge)
+    {
+        $knowledge->delete();
+
+        return back()->with('success', 'Item removido.');
+    }
+
+    // ---------- Status real do WhatsApp (E) ----------
+
+    public function whatsappStatus()
+    {
+        return response()->json(Waduck::connectionState(AttendantSetting::current()));
     }
 
     // ---------- Inbox (Fase 4): secretária acompanha e assume conversas ----------
@@ -312,13 +364,22 @@ class AttendantController extends Controller
         $conv->last_message_at = now();
         $conv->save();
 
+        // Mídia sem texto (áudio/foto/etc.) → placeholder legível (o bot pede pra escrever).
+        $body = $p['text'];
+        if (($body === null || $body === '') && ($p['type'] ?? 'text') !== 'text') {
+            $body = [
+                'audio' => '[Áudio recebido]', 'image' => '[Imagem recebida]',
+                'video' => '[Vídeo recebido]', 'document' => '[Documento recebido]',
+            ][$p['type']] ?? '[Mensagem de mídia recebida]';
+        }
+
         AttendantMessage::create([
             'conversation_id' => $conv->id,
             'direction' => 'in',
             'author_type' => 'patient',
-            'body' => $p['text'],
+            'body' => $body,
             'external_id' => $p['external_id'],
-            'meta' => ['push_name' => $p['push_name']],
+            'meta' => ['push_name' => $p['push_name'], 'type' => $p['type'] ?? 'text'],
         ]);
 
         // A IA (Claude) lê o histórico e responde/agenda — se ligado, conectado e autonomia permitir.

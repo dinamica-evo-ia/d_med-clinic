@@ -64,6 +64,12 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('atendente/conversas', [\App\Http\Controllers\AttendantController::class, 'conversations'])->name('attendant.conversations');
         Route::post('atendente/conversas/{conversation}/reply', [\App\Http\Controllers\AttendantController::class, 'reply'])->name('attendant.reply');
         Route::post('atendente/conversas/{conversation}/status', [\App\Http\Controllers\AttendantController::class, 'conversationStatus'])->name('attendant.conversation.status');
+        // FAQ / base de conhecimento
+        Route::post('atendente/knowledge', [\App\Http\Controllers\AttendantController::class, 'storeKnowledge'])->name('attendant.knowledge.store');
+        Route::put('atendente/knowledge/{knowledge}', [\App\Http\Controllers\AttendantController::class, 'updateKnowledge'])->name('attendant.knowledge.update');
+        Route::delete('atendente/knowledge/{knowledge}', [\App\Http\Controllers\AttendantController::class, 'destroyKnowledge'])->name('attendant.knowledge.destroy');
+        // Status real da conexão WhatsApp
+        Route::get('atendente/whatsapp/status', [\App\Http\Controllers\AttendantController::class, 'whatsappStatus'])->name('attendant.whatsapp.status');
     });
 
     // Dados clínicos — secretária não acessa (só cadastro do paciente + agenda)

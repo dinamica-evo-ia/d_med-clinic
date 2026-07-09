@@ -1,4 +1,4 @@
-import { useForm, usePage, router } from '@inertiajs/react';
+import { useForm, usePage, router, Link } from '@inertiajs/react';
 import { useState } from 'react';
 
 const AUTONOMY = [
@@ -9,8 +9,14 @@ const AUTONOMY = [
 
 const field = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500';
 
-export default function Index({ settings, whatsapp, stats }) {
+const STATE_LABEL = {
+  open: 'Online ✓', close: 'Desconectado — reparear o número', connecting: 'Conectando…',
+  disconnected: 'Sem credenciais', unknown: 'Não foi possível verificar', erro: 'Erro ao verificar',
+};
+
+export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
   const { flash } = usePage().props;
+  const bh = settings.business_hours || {};
 
   const cfg = useForm({
     enabled: settings.enabled,
@@ -19,8 +25,10 @@ export default function Index({ settings, whatsapp, stats }) {
     persona: settings.persona || '',
     welcome_message: settings.welcome_message || '',
     offhours_message: settings.offhours_message || '',
+    business_hours: { open: bh.open || '', close: bh.close || '', weekends: !!bh.weekends },
     autonomy: settings.autonomy || 'suggest',
   });
+  const setBh = (k, v) => cfg.setData('business_hours', { ...cfg.data.business_hours, [k]: v });
   const saveCfg = (e) => { e.preventDefault(); cfg.put('/atendente', { preserveScroll: true }); };
 
   return (
@@ -88,6 +96,16 @@ export default function Index({ settings, whatsapp, stats }) {
         </div>
 
         <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Horário de atendimento do bot</label>
+          <p className="text-xs text-slate-500 mb-2">Fora desse horário o bot envia a mensagem de "Fora do horário" e não responde. Deixe em branco para atender 24h.</p>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="text-xs text-slate-600">Abre <input type="time" value={cfg.data.business_hours.open} onChange={(e) => setBh('open', e.target.value)} className="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600">Fecha <input type="time" value={cfg.data.business_hours.close} onChange={(e) => setBh('close', e.target.value)} className="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-sm" /></label>
+            <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={cfg.data.business_hours.weekends} onChange={(e) => setBh('weekends', e.target.checked)} /> atende fim de semana</label>
+          </div>
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Até onde a IA pode ir</label>
           <div className="grid gap-2 sm:grid-cols-3">
             {AUTONOMY.map((a) => (
@@ -108,18 +126,73 @@ export default function Index({ settings, whatsapp, stats }) {
         </div>
       </form>
 
+      {/* Base de conhecimento (FAQ) */}
+      <KnowledgeSection knowledge={knowledge} />
+
       {/* Conversas */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <Link href="/atendente/conversas" className="block bg-white rounded-2xl border border-slate-200 p-6 hover:border-blue-300 transition">
         <h2 className="text-sm font-semibold text-slate-900">Conversas</h2>
         <p className="text-3xl font-bold text-slate-800 mt-1">{stats?.conversations ?? 0}</p>
-        <p className="text-xs text-slate-500 mt-1">Total de conversas recebidas. <span className="text-slate-400">Tela de acompanhamento: em breve.</span></p>
+        <p className="text-xs text-slate-500 mt-1">Total de conversas recebidas. <span className="text-blue-600 font-medium">Abrir inbox →</span></p>
+      </Link>
+    </div>
+  );
+}
+
+function KnowledgeSection({ knowledge }) {
+  const add = useForm({ title: '', content: '' });
+  const submit = (e) => { e.preventDefault(); add.post('/atendente/knowledge', { preserveScroll: true, onSuccess: () => add.reset() }); };
+  const toggle = (k) => router.put(`/atendente/knowledge/${k.id}`, { is_active: !k.is_active }, { preserveScroll: true });
+  const remove = (k) => { if (confirm('Remover este item da base de conhecimento?')) router.delete(`/atendente/knowledge/${k.id}`, { preserveScroll: true }); };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-900">Base de conhecimento (o que o bot sabe)</h2>
+        <p className="text-xs text-slate-500 mt-0.5">Ensine o bot sobre a clínica: endereço, convênios, preços, preparo de exames, estacionamento… Ele usa isso para responder.</p>
       </div>
+
+      <form onSubmit={submit} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto] items-start">
+        <input value={add.data.title} onChange={(e) => add.setData('title', e.target.value)} placeholder="Tópico (ex.: Convênios)" className={field} />
+        <input value={add.data.content} onChange={(e) => add.setData('content', e.target.value)} placeholder="Resposta (ex.: Atendemos Unimed, Bradesco e particular)" className={field} />
+        <button type="submit" disabled={add.processing || !add.data.title.trim() || !add.data.content.trim()}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">Adicionar</button>
+      </form>
+
+      {knowledge.length === 0 ? (
+        <p className="text-xs text-slate-400">Nenhum item ainda. Adicione ao menos endereço, convênios e horários de funcionamento.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {knowledge.map((k) => (
+            <li key={k.id} className="py-2.5 flex items-start justify-between gap-3">
+              <div className={`min-w-0 ${k.is_active ? '' : 'opacity-50'}`}>
+                <div className="text-sm font-semibold text-slate-800">{k.title}</div>
+                <div className="text-xs text-slate-500 break-words">{k.content}</div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={() => toggle(k)} className="text-[11px] font-semibold text-slate-500 hover:text-slate-700">{k.is_active ? 'Desativar' : 'Ativar'}</button>
+                <button onClick={() => remove(k)} className="text-[11px] font-semibold text-red-600 hover:text-red-700">Remover</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
 function WhatsappCard({ whatsapp }) {
   const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const checkStatus = async () => {
+    setChecking(true);
+    try {
+      const r = await fetch('/atendente/whatsapp/status', { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } });
+      setStatus(await r.json());
+    } catch { setStatus({ ok: false, state: 'erro' }); }
+    setChecking(false);
+  };
   const conn = useForm({ waduck_instance: whatsapp.instance || '', waduck_api_key: '', waduck_phone: whatsapp.phone || '', waduck_api_url: whatsapp.api_url || '' });
   const test = useForm({ to: '', text: '' });
 
@@ -172,6 +245,18 @@ function WhatsappCard({ whatsapp }) {
           <div className="text-xs text-slate-600">
             Instância <b>{whatsapp.instance}</b>{whatsapp.phone ? <> · número <b>{whatsapp.phone}</b></> : null}
             {whatsapp.connected_at ? <> · desde {whatsapp.connected_at}</> : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={checkStatus} disabled={checking}
+              className="text-xs font-semibold px-2.5 py-1 rounded-md border border-slate-300 hover:bg-slate-50 disabled:opacity-50">
+              {checking ? 'Verificando…' : 'Verificar conexão'}
+            </button>
+            {status && (
+              <span className={`text-xs font-medium ${status.state === 'open' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {STATE_LABEL[status.state] || status.state}
+              </span>
+            )}
           </div>
 
           {/* URL do webhook pra colar no WADuck */}
