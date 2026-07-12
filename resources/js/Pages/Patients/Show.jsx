@@ -50,8 +50,10 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-          <div className="w-16 h-16 rounded-2xl bg-blue-600 text-white grid place-items-center text-xl font-bold shrink-0 overflow-hidden">
-            {patient.photo_url ? <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" /> : initials(patient.name)}
+          <div className="w-16 h-16 rounded-2xl grid place-items-center shrink-0 overflow-hidden bg-slate-100 border border-slate-200">
+            {patient.photo_url
+              ? <img src={patient.photo_url} alt={patient.name} className="w-full h-full object-cover" />
+              : <svg className="w-9 h-9 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" /></svg>}
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-slate-900">{patient.name}</h1>
