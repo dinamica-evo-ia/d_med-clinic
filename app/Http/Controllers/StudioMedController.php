@@ -121,6 +121,8 @@ class StudioMedController extends Controller
             'anamnese'         => ['required', 'array'],
             'transcricao'      => ['nullable', 'array'],
             'templateSnapshot' => ['nullable', 'array'],
+            'templateId'       => ['nullable', 'string'],
+            'templateName'     => ['nullable', 'string', 'max:150'],
             'acompanhanteSnapshot' => ['nullable', 'array'],
             'acompanhanteSnapshot.nome' => ['nullable', 'string', 'max:120'],
             'acompanhanteSnapshot.vinculo' => ['nullable', 'string', 'max:60'],
@@ -140,6 +142,15 @@ class StudioMedController extends Controller
 
         $a = $d['anamnese'];
         $snapshot = $d['templateSnapshot'] ?? null;
+
+        // Robustez: se o front não mandou o snapshot mas mandou o templateId,
+        // reconstrói o snapshot a partir do template (nunca fica sem saber o modelo).
+        if ((! is_array($snapshot) || count($snapshot) === 0) && ! empty($d['templateId'])) {
+            $tpl = AnamneseTemplate::find($d['templateId']);
+            if ($tpl && is_array($tpl->fields)) {
+                $snapshot = array_map(fn ($f) => array_intersect_key($f, array_flip(['key', 'label', 'hint'])), $tpl->fields);
+            }
+        }
 
         // Resolve doctor_id — match by email ou primeiro médico ativo
         $doctor = Doctor::where('email', auth()->user()->email)->first()
@@ -171,6 +182,11 @@ class StudioMedController extends Controller
                 'habitos_de_vida'         => $a['habitos_de_vida'] ?? '',
                 'revisao_de_sistemas'     => $a['revisao_de_sistemas'] ?? '',
             ]);
+        }
+
+        // Nome do modelo usado — pro prontuário mostrar "Modelo: X" (meta, não é campo clínico).
+        if (! empty($d['templateName'])) {
+            $anamnesis['_template_nome'] = $d['templateName'];
         }
 
         // Camada 5: alerta se EVO detectou 3+ vozes sem acompanhante informado
