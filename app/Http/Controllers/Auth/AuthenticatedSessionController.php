@@ -27,13 +27,18 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
+    public function store(LoginRequest $request): \Symfony\Component\HttpFoundation\Response
     {
         $request->authenticate();
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('home', absolute: false));
+        // Força CARGA CHEIA no destino pós-login (Inertia::location → 409 + window.location),
+        // em vez da transição SPA do Inertia após o redirect duplo (/login → / → dashboard/master),
+        // que estava deixando a página em branco (só o refresh manual carregava).
+        $target = redirect()->intended(route('home', absolute: false))->getTargetUrl();
+
+        return Inertia::location($target);
     }
 
     /**
