@@ -186,6 +186,16 @@ function RowActions({ patient, isReceptionist }) {
         router.patch(`/patients/${patient.id}/status`, { status: next }, { preserveScroll: true });
     };
 
+    const photoRef = useRef(null);
+    const uploadPhoto = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        router.post(`/patients/${patient.id}/photo`, { photo: file }, {
+            forceFormData: true, preserveScroll: true, preserveState: true,
+            onFinish: () => { if (photoRef.current) photoRef.current.value = ''; },
+        });
+    };
+
     return (
         <div className="inline-flex items-center justify-end gap-1" ref={ref}>
             {/* Prontuário — clínico, oculto pra secretária */}
@@ -216,6 +226,9 @@ function RowActions({ patient, isReceptionist }) {
                 {open && (
                     <div className="absolute right-0 mt-1 w-48 rounded-xl bg-white border border-slate-200 shadow-xl py-1 z-20 text-left">
                         <MItem href={`/patients/${patient.id}/edit`} onClick={() => setOpen(false)} label="Editar" />
+                        <button onClick={() => { setOpen(false); photoRef.current?.click(); }} className="flex w-full items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left">
+                            {patient.photo_url ? 'Trocar foto' : 'Adicionar foto'}
+                        </button>
                         <button onClick={toggleStatus} className="flex w-full items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 text-left">
                             {patient.status === 'inactive' ? 'Reativar paciente' : 'Marcar como inativo'}
                         </button>
@@ -224,6 +237,7 @@ function RowActions({ patient, isReceptionist }) {
                     </div>
                 )}
             </div>
+            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={uploadPhoto} />
         </div>
     );
 }
