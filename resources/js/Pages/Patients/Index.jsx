@@ -16,6 +16,16 @@ export default function Index({ patients, filters }) {
     const toggleDirection = () => go({ direction: direction === 'asc' ? 'desc' : 'asc' });
     const setStatus = (s) => go({ status: s });
 
+    // Busca automática enquanto digita (debounce ~350ms; não dispara no 1º render)
+    const firstSearch = useRef(true);
+    useEffect(() => {
+        if (firstSearch.current) { firstSearch.current = false; return; }
+        const t = setTimeout(() => {
+            router.get('/patients', { search, status, direction }, { preserveState: true, replace: true, preserveScroll: true });
+        }, 350);
+        return () => clearTimeout(t);
+    }, [search]);
+
     const rows = patients.data || [];
 
     return (
@@ -77,7 +87,10 @@ export default function Index({ patients, filters }) {
                         ) : rows.map((p) => (
                             <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                    <Link href={`/patients/${p.id}`} className="text-blue-600 hover:text-blue-800 font-medium">{p.name}</Link>
+                                    <div className="flex items-center gap-3">
+                                        <PatientAvatar patient={p} />
+                                        <Link href={`/patients/${p.id}`} className="text-blue-600 hover:text-blue-800 font-medium">{p.name}</Link>
+                                    </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{p.phone || p.whatsapp || '—'}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -105,6 +118,37 @@ export default function Index({ patients, filters }) {
                 )}
             </div>
         </div>
+    );
+}
+
+function PatientAvatar({ patient }) {
+    const inputRef = useRef(null);
+    const [busy, setBusy] = useState(false);
+    const pick = (e) => { e.preventDefault(); e.stopPropagation(); inputRef.current?.click(); };
+    const upload = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setBusy(true);
+        router.post(`/patients/${patient.id}/photo`, { photo: file }, {
+            forceFormData: true, preserveScroll: true, preserveState: true,
+            onFinish: () => { setBusy(false); if (inputRef.current) inputRef.current.value = ''; },
+        });
+    };
+    return (
+        <button type="button" onClick={pick} title={patient.photo_url ? 'Trocar foto' : 'Adicionar / tirar foto'}
+            className="relative group w-9 h-9 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 grid place-items-center">
+            {patient.photo_url
+                ? <img src={patient.photo_url} alt="" className="w-full h-full object-cover" />
+                : <svg className="w-5 h-5 text-slate-400" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" /></svg>}
+            <span className="absolute inset-0 hidden group-hover:grid place-items-center bg-black/40 rounded-full">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.5 7l1-1.5A2 2 0 019.2 4.5h5.6a2 2 0 011.7 1L17.5 7H20a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1h2.5z" />
+                    <circle cx="12" cy="13" r="3.2" />
+                </svg>
+            </span>
+            {busy && <span className="absolute inset-0 grid place-items-center bg-white/70"><span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" /></span>}
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={upload} />
+        </button>
     );
 }
 
