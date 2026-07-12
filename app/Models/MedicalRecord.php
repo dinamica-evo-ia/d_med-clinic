@@ -19,7 +19,7 @@ class MedicalRecord extends Model
         'chief_complaint',
         'anamnesis', 'transcricao', 'physical_exam', 'diagnosis',
         'prescriptions', 'exam_requests', 'certificates',
-        'notes', 'origem',
+        'notes', 'origem', 'type', 'anamnese_template_snapshot', 'acompanhante_snapshot',
     ];
 
     protected function casts(): array
@@ -32,6 +32,8 @@ class MedicalRecord extends Model
             'prescriptions' => 'array',
             'exam_requests' => 'array',
             'certificates' => 'array',
+            'anamnese_template_snapshot' => 'array',
+            'acompanhante_snapshot' => 'array',
             'id' => 'string',
         ];
     }

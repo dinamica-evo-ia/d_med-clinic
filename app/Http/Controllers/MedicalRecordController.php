@@ -22,14 +22,16 @@ class MedicalRecordController extends Controller
         ]);
     }
 
-    public function create(Patient $patient)
+    public function create(Request $request, Patient $patient)
     {
         $doctors = \App\Models\Doctor::where('is_active', true)->get(['id', 'name']);
+        $type = $request->query('type') === 'anamnese' ? 'anamnese' : 'evolucao';
 
         return Inertia::render('MedicalRecords/Form', [
             'patient' => $patient->only(['id', 'name']),
             'record' => null,
             'doctors' => $doctors,
+            'type' => $type,
         ]);
     }
 
@@ -57,9 +59,11 @@ class MedicalRecordController extends Controller
             'exam_requests' => 'nullable|array',
             'certificates' => 'nullable|array',
             'notes' => 'nullable|string',
+            'type' => 'nullable|in:anamnese,evolucao',
         ]);
 
         $validated['patient_id'] = $patient->id;
+        $validated['type'] = $validated['type'] ?? 'evolucao';
 
         // If doctor_id not set, use the logged user's doctor profile
         if (empty($validated['doctor_id'])) {
@@ -86,6 +90,21 @@ class MedicalRecordController extends Controller
         return Inertia::render('MedicalRecords/Show', [
             'patient' => $patient->only(['id', 'name']),
             'record' => $record,
+        ]);
+    }
+
+    // Página imprimível de "Resumo para o paciente" — o médico entrega no final da consulta
+    // pra o paciente levar pra casa/mostrar aos familiares. Sem dados clínicos técnicos.
+    public function patientSummary(Patient $patient, MedicalRecord $record)
+    {
+        $record->load(['doctor:id,name', 'appointment:id,starts_at']);
+        $tenant = tenant();
+        return Inertia::render('MedicalRecords/PatientSummary', [
+            'patient' => $patient->only(['id', 'name', 'birth_date']),
+            'record' => $record,
+            'clinic' => [
+                'name' => $tenant?->name,
+            ],
         ]);
     }
 

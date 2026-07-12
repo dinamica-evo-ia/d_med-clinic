@@ -18,6 +18,8 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
   const pid = patient.id;
   const a = ageOf(patient.birth_date);
   const records = patient.medical_records || patient.medicalRecords || [];
+  const anamneses = records.filter((r) => r.type === 'anamnese');
+  const evolucoes = records.filter((r) => r.type !== 'anamnese');
   const attachments = patient.attachments || [];
   const gallery = attachments.filter((x) => isImg(x.mime));
   const docs = attachments.filter((x) => !isImg(x.mime));
@@ -27,7 +29,8 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
 
   const TABS = [
     ['resumo', 'Resumo'],
-    ['evolucoes', `Evoluções${counts.records ? ` (${counts.records})` : ''}`],
+    ['anamnese', `Anamnese${anamneses.length ? ` (${anamneses.length})` : ''}`],
+    ['evolucoes', `Evoluções${evolucoes.length ? ` (${evolucoes.length})` : ''}`],
     ['alergias', `Alergias${(patient.allergies || []).length ? ` (${patient.allergies.length})` : ''}`],
     ['composicao', 'Composição Corporal'],
     ['exames', `Exames${counts.exams ? ` (${counts.exams})` : ''}`],
@@ -83,7 +86,8 @@ export default function Show({ patient, prescriptions = [], exams = [], certific
       {/* Conteúdo */}
       <div>
         {tab === 'resumo' && <Resumo patient={patient} a={a} />}
-        {tab === 'evolucoes' && <Evolucoes records={records} pid={pid} />}
+        {tab === 'anamnese' && <Anamnese anamneses={anamneses} pid={pid} />}
+        {tab === 'evolucoes' && <Evolucoes records={evolucoes} pid={pid} />}
         {tab === 'alergias' && <Alergias patient={patient} pid={pid} />}
         {tab === 'composicao' && <Composicao patient={patient} pid={pid} />}
         {tab === 'exames' && <DocList title="Exames" items={exams} pid={pid} base="exam-requests" render={(e) => ({ main: dt(e.created_at), sub: e.status })} />}
@@ -156,12 +160,67 @@ function Resumo({ patient, a }) {
   );
 }
 
+function Anamnese({ anamneses, pid }) {
+  const current = anamneses[0];       // backend já traz em ordem decrescente (latest)
+  const previous = anamneses.slice(1);
+  const resumoOf = (r) => { const an = asObj(r.anamnesis); return an.resumo || an.hda || an.queixa_principal || ''; };
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Anamnese</h2>
+          <p className="text-xs text-slate-400">História clínica do paciente. A mais recente é a atual; as anteriores ficam no histórico.</p>
+        </div>
+        <Link href={`/patients/${pid}/records/create?type=anamnese`} className="text-sm font-semibold text-blue-600 hover:text-blue-700 shrink-0">+ Nova anamnese</Link>
+      </div>
+
+      {!current ? (
+        <p className="text-sm text-slate-400">Nenhuma anamnese ainda. Grave uma consulta (Studio Med) ou crie uma manualmente.</p>
+      ) : (
+        <>
+          <Link href={`/patients/${pid}/records/${current.id}`} className="block rounded-xl border-2 border-blue-200 bg-blue-50/40 p-4 hover:border-blue-300 transition">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">Anamnese atual</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {current.origem === 'studio_med' && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Studio Med</span>}
+                <span className="text-xs text-slate-500">{dt(current.created_at)}{current.doctor?.name ? ` · ${current.doctor.name}` : ''}</span>
+              </div>
+            </div>
+            {resumoOf(current)
+              ? <p className="mt-2 text-sm text-slate-700 line-clamp-4 whitespace-pre-wrap">{resumoOf(current)}</p>
+              : <p className="mt-2 text-sm text-slate-400">Sem resumo.</p>}
+            <span className="mt-2 inline-block text-sm font-semibold text-blue-600">Abrir anamnese completa →</span>
+          </Link>
+
+          {previous.length > 0 && (
+            <div className="mt-5">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Anamneses anteriores ({previous.length})</h3>
+              <div className="space-y-2">
+                {previous.map((r) => (
+                  <Link key={r.id} href={`/patients/${pid}/records/${r.id}`} className="block rounded-lg border border-slate-200 p-3 hover:border-blue-300 hover:bg-blue-50/30 transition">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-slate-700">{dt(r.created_at)}{r.doctor?.name ? ` · ${r.doctor.name}` : ''}</span>
+                      {r.origem === 'studio_med' && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 shrink-0">Studio Med</span>}
+                    </div>
+                    {resumoOf(r) && <p className="mt-1 text-xs text-slate-500 line-clamp-1">{resumoOf(r)}</p>}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function Evolucoes({ records, pid }) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-slate-900">Evoluções / Prontuário</h2>
-        <Link href={`/patients/${pid}/records/create`} className="text-sm font-semibold text-blue-600 hover:text-blue-700">+ Nova evolução</Link>
+        <h2 className="text-lg font-semibold text-slate-900">Evoluções</h2>
+        <Link href={`/patients/${pid}/records/create?type=evolucao`} className="text-sm font-semibold text-blue-600 hover:text-blue-700">+ Nova evolução</Link>
       </div>
       {records.length === 0 ? <p className="text-sm text-slate-400">Nenhuma evolução registrada.</p> : (
         <div className="space-y-3">
@@ -311,9 +370,13 @@ function NovaConsulta({ pid }) {
               <span className="text-lg">🎙️</span>
               <span><span className="block text-sm font-semibold text-slate-800">Gravada (Studio Med)</span><span className="block text-xs text-slate-400">Grava a consulta e gera a anamnese com IA</span></span>
             </Link>
-            <Link href={`/patients/${pid}/records/create`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
+            <Link href={`/patients/${pid}/records/create?type=anamnese`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
+              <span className="text-lg">📋</span>
+              <span><span className="block text-sm font-semibold text-slate-800">Nova anamnese (manual)</span><span className="block text-xs text-slate-400">História clínica preenchida à mão</span></span>
+            </Link>
+            <Link href={`/patients/${pid}/records/create?type=evolucao`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-slate-50">
               <span className="text-lg">✍️</span>
-              <span><span className="block text-sm font-semibold text-slate-800">Manual</span><span className="block text-xs text-slate-400">Preencher o prontuário manualmente</span></span>
+              <span><span className="block text-sm font-semibold text-slate-800">Nova evolução</span><span className="block text-xs text-slate-400">Nota de acompanhamento/retorno</span></span>
             </Link>
           </div>
         </>

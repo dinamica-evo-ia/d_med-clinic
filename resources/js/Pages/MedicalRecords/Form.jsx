@@ -1,8 +1,10 @@
 import { useForm, Link } from '@inertiajs/react';
 import SOAPEditor from '../../Components/MedicalRecords/SOAPEditor';
 
-export default function Form({ patient, record, doctors }) {
+export default function Form({ patient, record, doctors, type = 'evolucao' }) {
     const isEditing = !!record?.id;
+    const recType = record?.type || type || 'evolucao';
+    const typeLabel = recType === 'anamnese' ? 'Anamnese' : 'Evolução';
 
     const { data, setData, post, put, processing, errors } = useForm({
         doctor_id: record?.doctor_id || doctors?.[0]?.id || '',
@@ -16,6 +18,7 @@ export default function Form({ patient, record, doctors }) {
         exam_requests: record?.exam_requests || [],
         certificates: record?.certificates || [],
         notes: record?.notes || '',
+        type: recType,
     });
 
     const handleSubmit = (e) => {
@@ -31,6 +34,7 @@ export default function Form({ patient, record, doctors }) {
             exam_requests: data.exam_requests,
             certificates: data.certificates,
             notes: data.notes,
+            type: data.type,
         };
 
         if (isEditing) {
@@ -45,7 +49,7 @@ export default function Form({ patient, record, doctors }) {
             <div className="mb-6">
                 <Link href={`/patients/${patient.id}/records`} className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">← Voltar</Link>
                 <h1 className="text-2xl font-bold text-gray-900">
-                    {isEditing ? 'Editar Prontuário' : 'Novo Prontuário'} - {patient.name}
+                    {isEditing ? `Editar ${typeLabel}` : `Nova ${typeLabel}`} — {patient.name}
                 </h1>
             </div>
 
