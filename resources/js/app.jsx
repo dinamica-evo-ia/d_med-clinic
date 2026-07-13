@@ -22,7 +22,7 @@ createInertiaApp({
         // Layout: Auth e TenantSelect ficam sem shell; Master/* usa MasterLayout; resto usa AppLayout
         if (name.startsWith('Master/')) {
             page.default.layout = page.default.layout || ((p) => <MasterLayout>{p}</MasterLayout>);
-        } else if (!name.startsWith('Auth/') && name !== 'TenantSelect') {
+        } else if (!name.startsWith('Auth/') && !name.startsWith('Public/') && name !== 'TenantSelect') {
             page.default.layout = page.default.layout || ((p) => <AppLayout>{p}</AppLayout>);
         }
 

@@ -39,6 +39,10 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
+// Página PÚBLICA de parceria com farmácias de manipulação (sem auth, sem tenancy)
+Route::get('/parceria-farmacias', [\App\Http\Controllers\PharmacyPartnerController::class, 'show'])->name('pharmacy.partner');
+Route::post('/parceria-farmacias', [\App\Http\Controllers\PharmacyPartnerController::class, 'store'])->name('pharmacy.partner.store');
+
 // Tenant-specific routes (after authentication + tenancy init)
 Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
