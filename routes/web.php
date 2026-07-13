@@ -253,6 +253,10 @@ Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('mas
     Route::post('/impersonate/{clinica}', [\App\Http\Controllers\Master\ImpersonationController::class, 'start'])->name('impersonate.start');
     Route::get('/planos', [\App\Http\Controllers\Master\PlanController::class, 'index'])->name('planos.index');
     Route::put('/planos/{plan}', [\App\Http\Controllers\Master\PlanController::class, 'update'])->name('planos.update');
+    Route::get('/farmacias', [\App\Http\Controllers\Master\PharmacyController::class, 'index'])->name('farmacias.index');
+    Route::get('/farmacias/{submission}/download', [\App\Http\Controllers\Master\PharmacyController::class, 'download'])->name('farmacias.download');
+    Route::put('/farmacias/{submission}/status', [\App\Http\Controllers\Master\PharmacyController::class, 'updateStatus'])->name('farmacias.status');
+    Route::delete('/farmacias/{submission}', [\App\Http\Controllers\Master\PharmacyController::class, 'destroy'])->name('farmacias.destroy');
 });
 
 // Sair da impersonacao (qualquer auth user com flag de impersonacao)
