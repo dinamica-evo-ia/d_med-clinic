@@ -41,7 +41,16 @@ export default function Form({ prescription, patients, doctors, prefill }) {
             setData('body', (cur ? cur + '\n\n' : '') + text);
         }
     }
-    function insertFormula(f) { const t = String(f.content || '').trim(); if (t) insertText(t); }
+    function insertFormula(f) {
+        const raw = String(f.content || '').trim();
+        if (!raw) return;
+        // Tira o cabeçalho genérico "---------- Fórmula ----------" (artefato da importação)
+        // e usa a finalidade (pra que serve) como título — igual aparece na biblioteca.
+        const composition = raw.replace(/^\s*-{3,}\s*Fórmula\s*-{3,}\s*/i, '').trim();
+        const header = String(f.purpose || f.name || '').trim();
+        insertText(header ? `${header}\n${composition}` : composition);
+        if (header && !String(data.title || '').trim()) setData('title', header);
+    }
     function onDropFormula(e) {
         e.preventDefault();
         try { const f = JSON.parse(e.dataTransfer.getData('application/json')); if (f) insertFormula(f); } catch { /* drop inválido */ }
