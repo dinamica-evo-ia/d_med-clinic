@@ -44,7 +44,10 @@ export default function Index({ formulas, filters, total }) {
           {rows.map((f) => (
             <div key={f.id} className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="text-sm font-semibold text-slate-800">{f.name}</h3>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-800">{f.purpose || f.name}</h3>
+                  {f.purpose && <p className="text-[11px] text-slate-400 truncate">{f.name}</p>}
+                </div>
                 <div className="flex gap-1 shrink-0">
                   {f.form && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">{f.form}</span>}
                   {f.route && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{f.route}</span>}
@@ -79,6 +82,7 @@ export default function Index({ formulas, filters, total }) {
 function FormulaModal({ formula, onClose }) {
   const isEdit = !!formula.id;
   const frm = useForm({
+    purpose: formula.purpose || '',
     name: formula.name || '',
     content: formula.content || '',
     form: formula.form || '',
@@ -95,7 +99,11 @@ function FormulaModal({ formula, onClose }) {
       <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Editar fórmula' : 'Nova fórmula'}</h2>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Nome</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Finalidade <span className="text-slate-400 font-normal">(para que serve)</span></label>
+          <input value={frm.data.purpose} onChange={(e) => frm.setData('purpose', e.target.value)} className={field} placeholder="Ex.: Antienvelhecimento facial / Emagrecimento" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Nome / ativos</label>
           <input value={frm.data.name} onChange={(e) => frm.setData('name', e.target.value)} className={field} placeholder="Ex.: Minoxidil 5% + Finasterida 0,1%" />
           {frm.errors.name && <p className="text-xs text-red-600 mt-1">{frm.errors.name}</p>}
         </div>

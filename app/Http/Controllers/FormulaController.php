@@ -28,8 +28,8 @@ class FormulaController extends Controller
     {
         return response()->json(
             Formula::search((string) $request->query('q', ''))
-                ->orderBy('name')->limit(40)
-                ->get(['id', 'name', 'content', 'form', 'route'])
+                ->orderByRaw('purpose is null, purpose')->orderBy('name')->limit(40)
+                ->get(['id', 'name', 'purpose', 'content', 'form', 'route'])
         );
     }
 
@@ -58,6 +58,7 @@ class FormulaController extends Controller
     {
         return $request->validate([
             'name' => 'required|string|max:255',
+            'purpose' => 'nullable|string|max:255',
             'content' => 'required|string',
             'form' => 'nullable|string|max:80',
             'route' => 'nullable|string|max:80',

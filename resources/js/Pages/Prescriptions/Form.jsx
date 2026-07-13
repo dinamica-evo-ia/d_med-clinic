@@ -146,7 +146,10 @@ function FormulaPanel({ onInsert }) {
                         onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(f))}
                         className="border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:border-blue-300 hover:bg-blue-50/40 transition">
                         <div className="flex items-start justify-between gap-2">
-                            <span className="text-xs font-semibold text-gray-800 leading-snug">{f.name}</span>
+                            <span className="min-w-0">
+                                <span className="block text-xs font-semibold text-gray-800 leading-snug">{f.purpose || f.name}</span>
+                                {f.purpose && <span className="block text-[10px] text-gray-400 truncate">{f.name}</span>}
+                            </span>
                             <button type="button" onClick={() => onInsert(f)} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 shrink-0">+ inserir</button>
                         </div>
                         {(f.form || f.route) && (
