@@ -91,6 +91,9 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::resource('prescriptions', PrescriptionController::class)->except(['edit', 'update']);
         Route::get('prescriptions/{prescription}/print', [PrescriptionController::class, 'print'])->name('prescriptions.print');
 
+        // Biblioteca de fórmulas magistrais (manipulados)
+        Route::resource('formulas', \App\Http\Controllers\FormulaController::class)->only(['index', 'store', 'update', 'destroy']);
+
         // Certificates
         Route::resource('certificates', CertificateController::class)->except(['edit', 'update']);
         Route::get('certificates/{certificate}/print', [CertificateController::class, 'print'])->name('certificates.print');
