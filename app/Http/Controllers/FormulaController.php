@@ -23,6 +23,16 @@ class FormulaController extends Controller
         ]);
     }
 
+    /** Busca JSON — usada pelo painel de fórmulas dentro do formulário de receita. */
+    public function apiSearch(Request $request)
+    {
+        return response()->json(
+            Formula::search((string) $request->query('q', ''))
+                ->orderBy('name')->limit(40)
+                ->get(['id', 'name', 'content', 'form', 'route'])
+        );
+    }
+
     public function store(Request $request)
     {
         Formula::create($this->validated($request) + ['is_active' => true]);

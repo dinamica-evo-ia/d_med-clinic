@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useForm, usePage } from '@inertiajs/react';
-export default function Form({ prescription, patients, doctors }) {
+export default function Form({ prescription, patients, doctors, prefill }) {
     const { flash } = usePage().props;
     const isEditing = !!prescription;
+    const fromStudio = !isEditing && (prefill?.medicines?.length ?? 0) > 0;
 
     const { data, setData, post, put, errors, processing } = useForm({
-        patient_id: prescription?.patient_id || '',
-        doctor_id: prescription?.doctor_id || '',
-        medicines: prescription?.medicines || [
+        patient_id: prescription?.patient_id || prefill?.patient_id || '',
+        doctor_id: prescription?.doctor_id || prefill?.doctor_id || '',
+        medicines: prescription?.medicines || prefill?.medicines || [
             { medication: '', dosage: '', route: '', frequency: '', duration: '', quantity: '', notes: '' },
         ],
         notes: prescription?.notes || '',
@@ -34,6 +35,24 @@ export default function Form({ prescription, patients, doctors }) {
         setData('medicines', updated);
     }
 
+    // Insere uma fórmula da biblioteca como um item da receita (nome + composição/posologia).
+    function insertFormula(f) {
+        const mande = (String(f.content || '').match(/mande[:\s]*([^\n<]+)/i) || [])[1] || '';
+        const row = {
+            medication: f.name || 'Fórmula manipulada', dosage: '', route: f.route || '',
+            frequency: '', duration: '', quantity: mande.trim(), notes: String(f.content || '').trim(),
+        };
+        const meds = data.medicines;
+        const last = meds[meds.length - 1];
+        const lastEmpty = last && !last.medication && !last.notes;
+        setData('medicines', lastEmpty ? [...meds.slice(0, -1), row] : [...meds, row]);
+    }
+
+    function onDropFormula(e) {
+        e.preventDefault();
+        try { const f = JSON.parse(e.dataTransfer.getData('application/json')); if (f) insertFormula(f); } catch { /* ignora drop inválido */ }
+    }
+
     function handleSubmit(e) {
         e.preventDefault();
         post('/prescriptions');
@@ -53,7 +72,7 @@ export default function Form({ prescription, patients, doctors }) {
 
     return (
         <>
-            <div className="max-w-3xl mx-auto space-y-6">
+            <div className="max-w-6xl mx-auto space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-gray-900">
                         {isEditing ? 'Editar Receita' : 'Nova Receita Avulsa'}
@@ -69,6 +88,14 @@ export default function Form({ prescription, patients, doctors }) {
                     </div>
                 )}
 
+                {fromStudio && (
+                    <div className="rounded-lg bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 text-sm">
+                        💊 Receita <strong>pré-preenchida</strong> com os medicamentos que a IA identificou na consulta gravada.
+                        Revise cada item — dose, via e duração — antes de salvar. Campos vazios não foram verbalizados pelo médico.
+                    </div>
+                )}
+
+                <div className="grid lg:grid-cols-[1fr_20rem] gap-6 items-start">
                 <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6 space-y-6">
                     {/* Patient & Doctor */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -119,6 +146,8 @@ export default function Form({ prescription, patients, doctors }) {
 
                         {errors.medicines && <p className="text-red-500 text-xs mb-2">{errors.medicines}</p>}
 
+                        <div onDragOver={e => e.preventDefault()} onDrop={onDropFormula}
+                            className="rounded-lg border-2 border-dashed border-transparent hover:border-blue-200 transition-colors p-0.5">
                         {data.medicines.map((medicine, index) => (
                             <div key={index} className="border border-gray-200 rounded-lg p-4 mb-3 space-y-3">
                                 <div className="flex items-center justify-between">
@@ -199,18 +228,19 @@ export default function Form({ prescription, patients, doctors }) {
                                         />
                                     </div>
                                     <div className="sm:col-span-2">
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
-                                        <input
-                                            type="text"
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">Observações / composição</label>
+                                        <textarea
                                             value={medicine.notes}
                                             onChange={e => updateMedicine(index, 'notes', e.target.value)}
-                                            placeholder="Instruções adicionais..."
-                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                                            rows={medicine.notes && medicine.notes.length > 60 ? 6 : 2}
+                                            placeholder="Instruções adicionais... (fórmulas magistrais entram aqui: composição + posologia)"
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 whitespace-pre-wrap"
                                         />
                                     </div>
                                 </div>
                             </div>
                         ))}
+                        </div>
                     </div>
 
                     {/* General notes */}
@@ -250,7 +280,56 @@ export default function Form({ prescription, patients, doctors }) {
                         </Link>
                     </div>
                 </form>
+                <FormulaPanel onInsert={insertFormula} />
+                </div>
             </div>
         </>
+    );
+}
+
+function FormulaPanel({ onInsert }) {
+    const [q, setQ] = useState('');
+    const [list, setList] = useState([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        let active = true;
+        setLoading(true);
+        const t = setTimeout(() => {
+            fetch(`/formulas/search?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.ok ? r.json() : [])
+                .then(d => { if (active) { setList(Array.isArray(d) ? d : []); setLoading(false); } })
+                .catch(() => { if (active) setLoading(false); });
+        }, 300);
+        return () => { active = false; clearTimeout(t); };
+    }, [q]);
+
+    return (
+        <div className="bg-white rounded-lg border border-gray-200 p-4 lg:sticky lg:top-4">
+            <h3 className="text-sm font-semibold text-gray-800">Fórmulas magistrais</h3>
+            <p className="text-[11px] text-gray-400 mb-2">Arraste para a receita, ou clique em “inserir”.</p>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar fórmula…"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+            <div className="space-y-2 max-h-[62vh] overflow-y-auto">
+                {loading && <p className="text-xs text-gray-400">Buscando…</p>}
+                {!loading && list.length === 0 && <p className="text-xs text-gray-400">Nenhuma fórmula.</p>}
+                {list.map(f => (
+                    <div key={f.id} draggable
+                        onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(f))}
+                        className="border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:border-blue-300 hover:bg-blue-50/40 transition">
+                        <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-semibold text-gray-800 leading-snug">{f.name}</span>
+                            <button type="button" onClick={() => onInsert(f)} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 shrink-0">+ inserir</button>
+                        </div>
+                        {(f.form || f.route) && (
+                            <div className="mt-1 flex gap-1">
+                                {f.form && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">{f.form}</span>}
+                                {f.route && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{f.route}</span>}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }

@@ -92,6 +92,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('prescriptions/{prescription}/print', [PrescriptionController::class, 'print'])->name('prescriptions.print');
 
         // Biblioteca de fórmulas magistrais (manipulados)
+        Route::get('formulas/search', [\App\Http\Controllers\FormulaController::class, 'apiSearch'])->name('formulas.search');
         Route::resource('formulas', \App\Http\Controllers\FormulaController::class)->only(['index', 'store', 'update', 'destroy']);
 
         // Certificates
