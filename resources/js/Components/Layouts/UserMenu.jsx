@@ -52,6 +52,7 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
             <MItem href="/account/settings/doctor" onClick={() => setOpen(false)} label="Médico" icon="stethoscope" />
             <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
             <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />
+            <MItem href="/account/settings/anamnese-templates" onClick={() => setOpen(false)} label="Modelos de anamnese" icon="template" />
             <MItem href="/account/settings/certificate" onClick={() => setOpen(false)} label="Certificado digital (assinatura)" icon="seal" />
           </Section>
 
@@ -107,6 +108,7 @@ function MiniIcon({ n }) {
     'clock': <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
     'printer': <><path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></>,
     'seal': <><circle cx="12" cy="9" r="6"/><path d="M9 14l-2 7 5-3 5 3-2-7"/></>,
+    'template': <><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></>,
     'device': <><rect x="3" y="5" width="14" height="11" rx="1"/><path d="M21 19h-2M7 20h6"/></>,
     'swap': <><path d="M17 3l4 4-4 4"/><path d="M3 7h18"/><path d="M7 21l-4-4 4-4"/><path d="M21 17H3"/></>,
     'bulb': <><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12c1 1 1 2 1 3h6c0-1 0-2 1-3a7 7 0 00-4-12z"/></>,

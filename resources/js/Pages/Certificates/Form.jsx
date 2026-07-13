@@ -1,4 +1,6 @@
 import { Link, useForm } from '@inertiajs/react';
+import CidAutocomplete from '@/Components/shared/CidAutocomplete';
+
 const certificateTypes = [
     { value: 'medical_certificate', label: 'Atestado Médico' },
     { value: 'attendance_declaration', label: 'Declaração de Comparecimento' },
@@ -82,9 +84,18 @@ export default function Form({ certificate, patients, doctors }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">CID</label>
-                            <input type="text" value={data.cid_code} onChange={e => setData('cid_code', e.target.value)}
-                                placeholder="Ex: J00"
-                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+                            {data.cid_code ? (
+                                <div className="flex items-center gap-2 p-2.5 border border-blue-200 bg-blue-50 rounded-lg">
+                                    <span className="px-2 py-0.5 bg-blue-200 text-blue-800 text-xs font-bold rounded">{data.cid_code}</span>
+                                    <button type="button" onClick={() => setData('cid_code', '')}
+                                        className="ml-auto text-red-500 hover:text-red-700 text-sm">trocar</button>
+                                </div>
+                            ) : (
+                                <CidAutocomplete
+                                    onSelect={(item) => setData('cid_code', item.code)}
+                                    placeholder="Buscar CID-10 (código ou descrição)"
+                                />
+                            )}
                             {errors.cid_code && <p className="text-red-500 text-xs mt-1">{errors.cid_code}</p>}
                         </div>
                         <div>
