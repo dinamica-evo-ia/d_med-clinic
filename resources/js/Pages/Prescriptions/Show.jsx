@@ -53,26 +53,33 @@ export default function Show({ prescription }) {
                             </div>
                         </div>
 
-                        {/* Medicines */}
-                        <div>
-                            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Medicamentos</h2>
-                            <div className="space-y-3">
-                                {medicines?.map((med, i) => (
-                                    <div key={i} className="border border-gray-200 rounded-lg p-4">
-                                        <p className="font-semibold text-gray-900">
-                                            {i + 1}. {med.medication}{med.dosage ? ` — ${med.dosage}` : ''}
-                                        </p>
-                                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-gray-600">
-                                            {med.route && <p><span className="font-medium">Via:</span> {med.route}</p>}
-                                            {med.frequency && <p><span className="font-medium">Frequência:</span> {med.frequency}</p>}
-                                            {med.duration && <p><span className="font-medium">Duração:</span> {med.duration}</p>}
-                                            {med.quantity && <p><span className="font-medium">Quantidade:</span> {med.quantity}</p>}
-                                            {med.notes && <p className="col-span-full"><span className="font-medium">Obs:</span> {med.notes}</p>}
-                                        </div>
-                                    </div>
-                                ))}
+                        {/* Corpo da receita (texto livre) OU medicamentos estruturados (retrocompat) */}
+                        {prescription.body && prescription.body.trim() ? (
+                            <div>
+                                {prescription.title && <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{prescription.title}</h2>}
+                                <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed border border-gray-200 rounded-lg p-4">{prescription.body}</div>
                             </div>
-                        </div>
+                        ) : (
+                            <div>
+                                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Medicamentos</h2>
+                                <div className="space-y-3">
+                                    {medicines?.map((med, i) => (
+                                        <div key={i} className="border border-gray-200 rounded-lg p-4">
+                                            <p className="font-semibold text-gray-900">
+                                                {i + 1}. {med.medication}{med.dosage ? ` — ${med.dosage}` : ''}
+                                            </p>
+                                            <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm text-gray-600">
+                                                {med.route && <p><span className="font-medium">Via:</span> {med.route}</p>}
+                                                {med.frequency && <p><span className="font-medium">Frequência:</span> {med.frequency}</p>}
+                                                {med.duration && <p><span className="font-medium">Duração:</span> {med.duration}</p>}
+                                                {med.quantity && <p><span className="font-medium">Quantidade:</span> {med.quantity}</p>}
+                                                {med.notes && <p className="col-span-full"><span className="font-medium">Obs:</span> {med.notes}</p>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Notes */}
                         {notes && (

@@ -11,7 +11,7 @@ function waNumber(raw) {
 }
 
 function receitaTexto({ s, prescription, clinicName }) {
-  const { patient, doctor, medicines, notes, created_at } = prescription;
+  const { patient, doctor, medicines, notes, body, title, created_at } = prescription;
   const h = s.header;
   const council = h.council_number || doctor?.license_number;
   const L = [];
@@ -23,14 +23,19 @@ function receitaTexto({ s, prescription, clinicName }) {
   if (patient?.name) L.push(`Paciente: ${patient.name}`);
   if (created_at) L.push(`Data: ${dt(created_at)}`);
   L.push('');
-  L.push('Prescrição:');
-  (medicines || []).forEach((m, i) => {
-    let line = `${i + 1}. ${m.medication || ''}${m.dosage ? ` — ${m.dosage}` : ''}`;
-    const det = [m.route && `Via: ${m.route}`, m.frequency && `Freq: ${m.frequency}`, m.duration && `Duração: ${m.duration}`, m.quantity && `Qtd: ${m.quantity}`].filter(Boolean).join(' · ');
-    if (det) line += `\n   ${det}`;
-    if (m.notes) line += `\n   Obs: ${m.notes}`;
-    L.push(line);
-  });
+  if (body && body.trim()) {
+    if (title) L.push(`*${title}*`);
+    L.push(body.trim());
+  } else {
+    L.push('Prescrição:');
+    (medicines || []).forEach((m, i) => {
+      let line = `${i + 1}. ${m.medication || ''}${m.dosage ? ` — ${m.dosage}` : ''}`;
+      const det = [m.route && `Via: ${m.route}`, m.frequency && `Freq: ${m.frequency}`, m.duration && `Duração: ${m.duration}`, m.quantity && `Qtd: ${m.quantity}`].filter(Boolean).join(' · ');
+      if (det) line += `\n   ${det}`;
+      if (m.notes) line += `\n   Obs: ${m.notes}`;
+      L.push(line);
+    });
+  }
   if (notes) { L.push(''); L.push(`Observações: ${notes}`); }
   L.push('');
   if (s.footer?.enabled && s.footer.text) L.push(s.footer.text);
@@ -116,21 +121,30 @@ export default function Print({ prescription, settings }) {
             </div>
           )}
 
-          <p className="text-sm font-semibold mb-3">Prescrevo o(s) seguinte(s) medicamento(s):</p>
-          <div className="space-y-4 min-h-[260px]">
-            {(medicines || []).map((med, i) => (
-              <div key={i} className="text-sm">
-                <p className="font-semibold">{i + 1}. {med.medication}{med.dosage ? ` — ${med.dosage}` : ''}</p>
-                <div className="ml-4 text-slate-700">
-                  {med.route && <span className="block">Via: {med.route}</span>}
-                  {med.frequency && <span className="block">Frequência: {med.frequency}</span>}
-                  {med.duration && <span className="block">Duração: {med.duration}</span>}
-                  {med.quantity && <span className="block">Quantidade: {med.quantity}</span>}
-                  {med.notes && <span className="block">Obs: {med.notes}</span>}
-                </div>
+          {prescription.body && prescription.body.trim() ? (
+            <div className="min-h-[260px]">
+              {prescription.title && <p className="text-sm font-semibold mb-2">{prescription.title}</p>}
+              <div className="text-sm whitespace-pre-wrap leading-relaxed">{prescription.body}</div>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm font-semibold mb-3">Prescrevo o(s) seguinte(s) medicamento(s):</p>
+              <div className="space-y-4 min-h-[260px]">
+                {(medicines || []).map((med, i) => (
+                  <div key={i} className="text-sm">
+                    <p className="font-semibold">{i + 1}. {med.medication}{med.dosage ? ` — ${med.dosage}` : ''}</p>
+                    <div className="ml-4 text-slate-700">
+                      {med.route && <span className="block">Via: {med.route}</span>}
+                      {med.frequency && <span className="block">Frequência: {med.frequency}</span>}
+                      {med.duration && <span className="block">Duração: {med.duration}</span>}
+                      {med.quantity && <span className="block">Quantidade: {med.quantity}</span>}
+                      {med.notes && <span className="block">Obs: {med.notes}</span>}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
 
           {notes && <p className="text-sm italic mt-4"><strong>Observações:</strong> {notes}</p>}
 

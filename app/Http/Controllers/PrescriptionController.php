@@ -32,12 +32,43 @@ class PrescriptionController extends Controller
         ]);
     }
 
-    public function create()
+    public function create(Request $request)
     {
+        // Pré-preenchimento a partir de uma consulta gravada (Studio Med):
+        // /prescriptions/create?patient_id=X&from_record=Y carrega os medicamentos
+        // que a IA extraiu da fala do médico. Sempre revisáveis antes de salvar.
+        $prefill = null;
+        if ($recordId = $request->get('from_record')) {
+            $record = \App\Models\MedicalRecord::find($recordId);
+            if ($record) {
+                $meds = collect($record->prescriptions ?? [])
+                    ->filter(fn ($p) => ! empty($p['ai_suggested']) && ! empty($p['medication']))
+                    ->map(fn ($p) => [
+                        'medication' => $p['medication'],
+                        'dosage'     => $p['dosage'] ?? '',
+                        'route'      => $p['route'] ?? '',
+                        'frequency'  => $p['frequency'] ?? '',
+                        'duration'   => $p['duration'] ?? '',
+                        'quantity'   => '',
+                        'notes'      => $p['notes'] ?? '',
+                    ])->values()->all();
+                if (count($meds) > 0) {
+                    $prefill = [
+                        'patient_id' => $record->patient_id,
+                        'doctor_id'  => $record->doctor_id,
+                        'medicines'  => $meds,
+                    ];
+                }
+            }
+        } elseif ($patientId = $request->get('patient_id')) {
+            $prefill = ['patient_id' => $patientId, 'doctor_id' => null, 'medicines' => null];
+        }
+
         return Inertia::render('Prescriptions/Form', [
             'prescription' => null,
             'patients' => Patient::orderBy('name')->get(['id', 'name']),
             'doctors' => Doctor::orderBy('name')->get(['id', 'name']),
+            'prefill' => $prefill,
         ]);
     }
 
@@ -46,7 +77,9 @@ class PrescriptionController extends Controller
         $validated = $request->validate([
             'patient_id' => 'required|exists:patients,id',
             'doctor_id' => 'required|exists:doctors,id',
-            'medicines' => 'required|array|min:1',
+            'title' => 'nullable|string|max:255',
+            'body' => 'nullable|string',
+            'medicines' => 'nullable|array',
             'medicines.*.medication' => 'required|string|max:255',
             'medicines.*.dosage' => 'nullable|string|max:255',
             'medicines.*.route' => 'nullable|string|max:100',
@@ -55,7 +88,14 @@ class PrescriptionController extends Controller
             'medicines.*.quantity' => 'nullable|string|max:255',
             'medicines.*.notes' => 'nullable|string|max:500',
             'notes' => 'nullable|string',
-        ]);
+        ], [], ['body' => 'receita']);
+
+        // Precisa ter ao menos o corpo da receita OU medicamentos (retrocompat).
+        if (empty(trim((string) ($validated['body'] ?? ''))) && empty($validated['medicines'])) {
+            return back()->withErrors(['body' => 'Escreva a receita.'])->withInput();
+        }
+
+        $validated['medicines'] = $validated['medicines'] ?? []; // coluna é NOT NULL
 
         $prescription = Prescription::create($validated);
 

@@ -15,7 +15,7 @@ class Prescription extends Model
     protected $primaryKey = 'id';
 
     protected $fillable = [
-        'patient_id', 'doctor_id', 'medicines', 'notes',
+        'patient_id', 'doctor_id', 'title', 'body', 'medicines', 'notes',
     ];
 
     protected function casts(): array
