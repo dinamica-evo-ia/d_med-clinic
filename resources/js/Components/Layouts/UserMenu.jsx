@@ -28,7 +28,8 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
         <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden z-50">
           {/* Header */}
           <div className="p-4 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100">
-            <p className="text-sm font-semibold text-slate-900">{user?.name}</p>
+            {/* nome só no mobile — no desktop já aparece ao lado do avatar (evita duplicar) */}
+            <p className="text-sm font-semibold text-slate-900 sm:hidden">{user?.name}</p>
             <p className="text-xs text-slate-500 truncate">{user?.email}</p>
             {tenant && (
               <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
