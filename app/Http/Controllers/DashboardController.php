@@ -61,42 +61,37 @@ class DashboardController extends Controller
             ];
         }
 
-        // Aniversariantes — compara mês/dia (independe do ano), via PHP (robusto entre SQLite/MySQL)
-        $patientsWithBirthday = Patient::whereNotNull('birth_date')->get(['id', 'name', 'birth_date']);
-        $todayMd = now()->format('m-d');
+        // Aniversariantes desta semana (de HOJE até domingo — não mostra dias já passados,
+        // pra não poluir). Compara mês/dia (independe do ano); weekday em PT-BR fixo (robusto
+        // a locale). photo_path incluído pra alimentar o accessor photo_url (avatar com foto).
+        $patientsWithBirthday = Patient::whereNotNull('birth_date')->get(['id', 'name', 'birth_date', 'photo_path']);
         $currentYear = now()->year;
-        $weekDates = collect(range(0, 6))->map(fn ($i) => $weekStart->copy()->addDays($i));
+        $weekEnd = now()->endOfWeek(Carbon::SUNDAY);
+        $diaPt = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-        $birthdaysToday = $patientsWithBirthday
-            ->filter(fn ($p) => $p->birth_date->format('m-d') === $todayMd)
-            ->map(fn ($p) => [
-                'id' => $p->id,
-                'name' => $p->name,
-                'age' => $currentYear - $p->birth_date->year,
-            ])->values();
-
-        $birthdaysWeek = $patientsWithBirthday
-            ->filter(fn ($p) => $p->birth_date->format('m-d') !== $todayMd)
-            ->map(function ($p) use ($weekDates, $currentYear) {
-                $match = $weekDates->first(fn ($d) => $d->format('m-d') === $p->birth_date->format('m-d'));
-                return $match ? [
-                    'id' => $p->id,
-                    'name' => $p->name,
-                    'age' => $currentYear - $p->birth_date->year,
-                    'date' => $match->format('Y-m-d'),
-                    'weekday' => ucfirst($match->translatedFormat('D')),
-                ] : null;
-            })
-            ->filter()
-            ->sortBy('date')
-            ->values();
+        $birthdays = collect();
+        for ($day = now()->copy()->startOfDay(); $day->lte($weekEnd); $day->addDay()) {
+            $md = $day->format('m-d');
+            foreach ($patientsWithBirthday as $p) {
+                if ($p->birth_date->format('m-d') === $md) {
+                    $birthdays->push([
+                        'id' => $p->id,
+                        'name' => $p->name,
+                        'photo_url' => $p->photo_url,
+                        'age' => $currentYear - $p->birth_date->year,
+                        'is_today' => $day->isToday(),
+                        'weekday' => $diaPt[$day->dayOfWeek],
+                        'date' => $day->format('d/m'),
+                    ]);
+                }
+            }
+        }
 
         return Inertia::render('Dashboard', [
             'agenda' => $agenda,
             'stats' => $stats,
             'week_summary' => $weekSummary,
-            'birthdays_today' => $birthdaysToday,
-            'birthdays_week' => $birthdaysWeek,
+            'birthdays' => $birthdays->values(),
         ]);
     }
 

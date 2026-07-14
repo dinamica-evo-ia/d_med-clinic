@@ -45,15 +45,19 @@ function Icon({ n, className }) {
   );
 }
 
-function initials(name) {
-  if (!name) return '?';
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase();
+// Avatar do paciente: foto quando houver, senão ícone genérico (mesmo padrão da lista de pacientes).
+function BirthdayAvatar({ name, photo }) {
+  if (photo) {
+    return <img src={photo} alt={name} className="w-9 h-9 rounded-full object-cover shrink-0 border border-slate-200" />;
+  }
+  return (
+    <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+      <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5z" /></svg>
+    </div>
+  );
 }
-const AVATAR_COLORS = ['bg-blue-100 text-blue-700', 'bg-violet-100 text-violet-700', 'bg-emerald-100 text-emerald-700', 'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-700', 'bg-cyan-100 text-cyan-700'];
-const colorFor = (s) => AVATAR_COLORS[(s || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 
-export default function Dashboard({ agenda = [], stats = {}, week_summary = [], birthdays_today = [], birthdays_week = [] }) {
+export default function Dashboard({ agenda = [], stats = {}, week_summary = [], birthdays = [] }) {
   const { auth, tenant, impersonating } = usePage().props;
   const { openMobileMenu } = useAppChrome();
   const firstName = auth?.user?.name?.split(' ')[0] || '';
@@ -174,40 +178,31 @@ export default function Dashboard({ agenda = [], stats = {}, week_summary = [], 
         <div className="space-y-6">
           {/* Aniversariantes */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2 mb-4">
-              <Icon n="cake" className="w-5 h-5 text-slate-400" /> Aniversariantes
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <Icon n="cake" className="w-5 h-5 text-slate-400" /> Aniversariantes
+              </h2>
+              {birthdays.length > 0 && <span className="text-xs text-slate-400 shrink-0">{birthdays.length} esta semana</span>}
+            </div>
 
-            {birthdays_today.length === 0 && birthdays_week.length === 0 ? (
+            {birthdays.length === 0 ? (
               <p className="text-sm text-slate-400 py-2">Nenhum aniversariante esta semana.</p>
             ) : (
-              <div className="space-y-3">
-                {birthdays_today.map((p) => (
+              <div className="space-y-3 max-h-80 overflow-y-auto pr-1 -mr-1">
+                {birthdays.map((p) => (
                   <div key={p.id} className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${colorFor(p.name)}`}>{initials(p.name)}</div>
+                    <BirthdayAvatar name={p.name} photo={p.photo_url} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-900 truncate">{p.name}</p>
                       <p className="text-xs text-slate-500">{p.age} anos</p>
                     </div>
-                    <span className="px-2 py-1 text-[11px] font-semibold rounded-full bg-amber-50 text-amber-700 shrink-0">Hoje</span>
+                    {p.is_today ? (
+                      <span className="px-2 py-1 text-[11px] font-semibold rounded-full bg-amber-50 text-amber-700 shrink-0">Hoje</span>
+                    ) : (
+                      <span className="text-xs text-slate-400 shrink-0">{p.weekday} · {p.date}</span>
+                    )}
                   </div>
                 ))}
-                {birthdays_week.length > 0 && (
-                  <>
-                    {birthdays_today.length > 0 && <div className="border-t border-slate-100 my-1" />}
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Esta semana</p>
-                    {birthdays_week.map((p) => (
-                      <div key={p.id} className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${colorFor(p.name)}`}>{initials(p.name)}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">{p.name}</p>
-                          <p className="text-xs text-slate-500">{p.age} anos</p>
-                        </div>
-                        <span className="text-xs text-slate-400 shrink-0">{p.weekday}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
               </div>
             )}
           </div>
