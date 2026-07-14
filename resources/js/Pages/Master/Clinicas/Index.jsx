@@ -51,6 +51,15 @@ export default function Index({ tenants, filters, plans, statuses }) {
       router.post(`/master/clinicas/${t.id}/approve`, {}, { preserveScroll: true });
     }
   };
+  const apagar = (t) => {
+    const typed = window.prompt(`⚠️ Isto APAGA EM DEFINITIVO a clínica "${t.name}", a conta e TODOS os dados — sem volta.\n\nPara confirmar, digite o nome exato da clínica:`);
+    if (typed === null) return;
+    if (typed.trim() === (t.name || '').trim()) {
+      router.delete(`/master/clinicas/${t.id}/force`, { preserveScroll: true });
+    } else {
+      alert('O nome não confere. Nada foi apagado.');
+    }
+  };
 
   const pendingCount = tenants.filter((t) => t.status === 'pending').length;
 
@@ -135,6 +144,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
                       {t.status === 'trial' && <button onClick={() => extendTrial(t)} className="text-indigo-300 hover:text-indigo-200">Estender</button>}
                       {t.status !== 'active' && t.status !== 'cancelled' && t.status !== 'pending' && <button onClick={() => reactivate(t)} className="text-emerald-300 hover:text-emerald-200">Reativar</button>}
                       {t.status !== 'cancelled' && <button onClick={() => cancel(t)} className="text-rose-300 hover:text-rose-200">Cancelar</button>}
+                      <button onClick={() => apagar(t)} className="text-rose-500 hover:text-rose-400 font-semibold">Apagar</button>
                     </div>
                   </td>
                 </tr>

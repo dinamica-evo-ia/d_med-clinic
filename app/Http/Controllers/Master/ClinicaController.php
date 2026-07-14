@@ -196,6 +196,44 @@ class ClinicaController extends Controller
         return back()->with('success', 'Clínica cancelada.');
     }
 
+    /**
+     * APAGA em definitivo: clínica + banco do tenant + vínculos + usuários que pertenciam
+     * SÓ a essa clínica. Nunca apaga um master. Irreversível — pra limpar cadastros de teste.
+     */
+    public function forceDestroy(Tenant $clinica)
+    {
+        $central = config('tenancy.database.central_connection');
+        $id = $clinica->id;
+
+        $userIds = DB::connection($central)->table('tenant_user')->where('tenant_id', $id)->pluck('user_id');
+        $dbFile = database_path($clinica->database()->getName());
+        $name = $clinica->name;
+
+        DB::connection($central)->table('tenant_user')->where('tenant_id', $id)->delete();
+
+        // apaga só usuários que não estão ligados a NENHUMA outra clínica (e nunca um master)
+        foreach ($userIds as $uid) {
+            $aindaLigado = DB::connection($central)->table('tenant_user')->where('user_id', $uid)->exists();
+            if (! $aindaLigado) {
+                $u = User::find($uid);
+                if ($u && ! $u->is_master) {
+                    $u->delete();
+                }
+            }
+        }
+
+        DB::connection($central)->table('domains')->where('tenant_id', $id)->delete();
+        DB::connection($central)->table('tenants')->where('id', $id)->delete();
+
+        if ($dbFile && file_exists($dbFile)) {
+            @unlink($dbFile);
+        }
+
+        Log::info("Master apagou em definitivo a clínica {$name} ({$id}).");
+
+        return back()->with('success', "Clínica \"{$name}\" e a conta foram apagadas em definitivo.");
+    }
+
     /** Estende o trial em N dias (a partir do vencimento atual se ainda futuro, senão de hoje) e volta o status pra trial. */
     public function extendTrial(Request $request, Tenant $clinica)
     {
