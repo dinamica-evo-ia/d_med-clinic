@@ -240,6 +240,7 @@ Route::middleware(['auth', 'web'])->group(function () {
 // Painel master (super-admin do produto)
 Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('master.')->group(function () {
     Route::get('/', [\App\Http\Controllers\Master\DashboardController::class, 'index'])->name('dashboard');
+    Route::put('/account/password', [\App\Http\Controllers\Master\AccountController::class, 'updatePassword'])->name('account.password');
     Route::get('/clinicas', [\App\Http\Controllers\Master\ClinicaController::class, 'index'])->name('clinicas.index');
     Route::get('/clinicas/create', [\App\Http\Controllers\Master\ClinicaController::class, 'create'])->name('clinicas.create');
     Route::post('/clinicas', [\App\Http\Controllers\Master\ClinicaController::class, 'store'])->name('clinicas.store');
