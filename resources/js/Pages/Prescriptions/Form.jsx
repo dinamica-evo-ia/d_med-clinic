@@ -154,19 +154,15 @@ function FormulaPanel({ onInsert }) {
                     <div key={f.id} draggable
                         onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(f))}
                         className="border border-gray-200 rounded-lg p-2.5 cursor-grab active:cursor-grabbing hover:border-blue-300 hover:bg-blue-50/40 transition">
-                        <div className="flex items-start justify-between gap-2">
-                            <span className="min-w-0">
-                                <span className="block text-xs font-semibold text-gray-800 leading-snug">{f.purpose || f.name}</span>
-                                {f.purpose && <span className="block text-[10px] text-gray-400 truncate">{f.name}</span>}
-                            </span>
-                            <button type="button" onClick={() => onInsert(f)} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 shrink-0">+ inserir</button>
-                        </div>
-                        {(f.form || f.route) && (
-                            <div className="mt-1 flex gap-1">
+                        <div className="text-xs font-semibold text-gray-800 leading-snug">{f.purpose || f.name}</div>
+                        {f.purpose && <div className="text-[10px] text-gray-400 truncate mt-0.5">{f.name}</div>}
+                        <div className="mt-1.5 flex items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-1 min-w-0">
                                 {f.form && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">{f.form}</span>}
                                 {f.route && <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{f.route}</span>}
                             </div>
-                        )}
+                            <button type="button" onClick={() => onInsert(f)} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 shrink-0 ml-auto">+ inserir</button>
+                        </div>
                     </div>
                 ))}
             </div>
