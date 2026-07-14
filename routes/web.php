@@ -204,6 +204,9 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('/settings/import-export/prescriptions', [\App\Http\Controllers\ImportExportController::class, 'prescriptionsForm'])->name('settings.import-export.prescriptions');
         Route::post('/settings/import-export/prescriptions/preview', [\App\Http\Controllers\ImportExportController::class, 'prescriptionsPreview'])->name('settings.import-export.prescriptions.preview');
         Route::post('/settings/import-export/prescriptions', [\App\Http\Controllers\ImportExportController::class, 'prescriptionsStore'])->name('settings.import-export.prescriptions.store');
+        Route::get('/settings/import-export/formulas', [\App\Http\Controllers\ImportExportController::class, 'formulasForm'])->name('settings.import-export.formulas');
+        Route::post('/settings/import-export/formulas/preview', [\App\Http\Controllers\ImportExportController::class, 'formulasPreview'])->name('settings.import-export.formulas.preview');
+        Route::post('/settings/import-export/formulas', [\App\Http\Controllers\ImportExportController::class, 'formulasStore'])->name('settings.import-export.formulas.store');
 
         Route::get('/suggestions', [\App\Http\Controllers\AccountController::class, 'suggestions'])->name('suggestions');
         Route::get('/referral', [\App\Http\Controllers\AccountController::class, 'referral'])->name('referral');

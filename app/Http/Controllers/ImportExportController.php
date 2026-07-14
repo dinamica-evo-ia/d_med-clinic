@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Doctor;
+use App\Models\Formula;
 use App\Models\MedicalRecord;
 use App\Models\Patient;
 use App\Models\Prescription;
@@ -49,6 +50,22 @@ class ImportExportController extends Controller
         'data de criacao' => 'created_at',
     ];
 
+    /* Apelidos de cabeçalho pro CSV de fórmulas (Manipulados/Industrializados). */
+    private const FORMULA_ALIASES = [
+        'nome' => 'name', 'name' => 'name', 'formula' => 'name', 'fórmula' => 'name',
+        'ativo' => 'name', 'ativos' => 'name', 'principio ativo' => 'name', 'princípio ativo' => 'name',
+        'medicamento' => 'name', 'produto' => 'name',
+        'finalidade' => 'purpose', 'para que serve' => 'purpose', 'indicacao' => 'purpose',
+        'indicação' => 'purpose', 'purpose' => 'purpose', 'objetivo' => 'purpose',
+        'composicao' => 'content', 'composição' => 'content', 'conteudo' => 'content',
+        'conteúdo' => 'content', 'content' => 'content', 'descricao' => 'content',
+        'descrição' => 'content', 'posologia' => 'content', 'receita' => 'content',
+        'forma' => 'form', 'forma farmaceutica' => 'form', 'forma farmacêutica' => 'form',
+        'form' => 'form', 'apresentacao' => 'form', 'apresentação' => 'form',
+        'via' => 'route', 'via de uso' => 'route', 'route' => 'route',
+        'categoria' => 'category', 'tipo' => 'category', 'category' => 'category',
+    ];
+
     public function index()
     {
         return Inertia::render('Account/Settings/ImportExport/Index', [
@@ -56,8 +73,120 @@ class ImportExportController extends Controller
                 'patients' => Patient::count(),
                 'medical_records' => MedicalRecord::count(),
                 'prescriptions' => Prescription::count(),
+                'formulas' => Formula::count(),
             ],
         ]);
+    }
+
+    public function formulasForm()
+    {
+        return Inertia::render('Account/Settings/ImportExport/Formulas', [
+            'counts' => [
+                'manipulado' => Formula::where('category', 'manipulado')->count(),
+                'industrializado' => Formula::where('category', 'industrializado')->count(),
+            ],
+        ]);
+    }
+
+    public function formulasPreview(Request $request)
+    {
+        $request->validate(['file' => 'required|file|mimes:csv,txt|max:5120']);
+        $parsed = CsvImport::parse($request->file('file')->getRealPath(), self::FORMULA_ALIASES);
+
+        $rows = [];
+        foreach ($parsed['rows'] as $row) {
+            $name = trim((string) ($row['name'] ?? ''));
+            $content = trim((string) ($row['content'] ?? ''));
+            if ($name === '' && $content === '') {
+                continue;
+            }
+            $rows[] = [
+                'name' => $name ?: null,
+                'purpose' => $row['purpose'] ?? null,
+                'content_preview' => mb_strimwidth($content, 0, 110, '…'),
+                'form' => $row['form'] ?? null,
+                'route' => $row['route'] ?? null,
+                'category' => $this->normalizeCategory($row['category'] ?? null),
+                'ok' => $name !== '' && $content !== '',
+            ];
+        }
+
+        return response()->json([
+            'total' => count($rows),
+            'invalid' => count(array_filter($rows, fn ($r) => ! $r['ok'])),
+            'unmapped' => $parsed['unmapped'],
+            'rows' => array_slice($rows, 0, 50),
+        ]);
+    }
+
+    public function formulasStore(Request $request)
+    {
+        $data = $request->validate([
+            'file' => 'required|file|mimes:csv,txt|max:5120',
+            'category' => 'required|in:manipulado,industrializado',
+        ]);
+        $parsed = CsvImport::parse($request->file('file')->getRealPath(), self::FORMULA_ALIASES);
+
+        $created = 0;
+        $duplicates = 0;
+        $skipped = 0;
+        $errors = [];
+        foreach ($parsed['rows'] as $row) {
+            $name = trim((string) ($row['name'] ?? ''));
+            $content = trim((string) ($row['content'] ?? ''));
+            if ($name === '' || $content === '') {
+                $skipped++;
+                if (count($errors) < 5) {
+                    $errors[] = "Linha {$row['_line']}: sem nome ou sem composição — ignorada.";
+                }
+                continue;
+            }
+            // categoria da linha (se o CSV trouxer) vence; senão usa a escolhida no formulário
+            $cat = $this->normalizeCategory($row['category'] ?? null) ?: $data['category'];
+
+            // não duplica: mesmo nome (case-insensitive) na mesma categoria
+            $existe = Formula::where('category', $cat)
+                ->whereRaw('lower(name) = ?', [mb_strtolower($name)])->exists();
+            if ($existe) {
+                $duplicates++;
+                continue;
+            }
+
+            Formula::create([
+                'name' => $name,
+                'purpose' => $row['purpose'] ?? null,
+                'content' => $content,
+                'form' => $row['form'] ?? null,
+                'route' => $row['route'] ?? null,
+                'category' => $cat,
+                'is_active' => true,
+            ]);
+            $created++;
+        }
+
+        // O CsvImportPanel (front) consome este JSON: imported/duplicates/skipped/errors.
+        return response()->json([
+            'imported' => $created,
+            'duplicates' => $duplicates,
+            'skipped' => $skipped,
+            'errors' => $errors,
+        ]);
+    }
+
+    private function normalizeCategory(?string $v): ?string
+    {
+        $v = mb_strtolower(trim((string) $v));
+        if ($v === '') {
+            return null;
+        }
+        if (str_contains($v, 'industrial')) {
+            return 'industrializado';
+        }
+        if (str_contains($v, 'manipul')) {
+            return 'manipulado';
+        }
+
+        return null;
     }
 
     // ---------- Anamneses (medical_records) ----------

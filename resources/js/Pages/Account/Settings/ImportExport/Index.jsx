@@ -26,6 +26,14 @@ export default function Index({ counts }) {
       importHref: '/account/settings/import-export/prescriptions',
       canImport: true,
     },
+    {
+      key: 'formulas',
+      title: 'Fórmulas (Manipulados e Industrializados)',
+      description: 'Biblioteca de fórmulas da clínica — finalidade, ativos, composição, forma e via.',
+      count: counts.formulas,
+      importHref: '/account/settings/import-export/formulas',
+      canImport: true,
+    },
   ];
 
   return (

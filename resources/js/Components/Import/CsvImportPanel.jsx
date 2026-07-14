@@ -10,6 +10,7 @@ import { useState } from 'react';
 export default function CsvImportPanel({
   backHref, backLabel, title, existing, existingLabel,
   previewUrl, storeUrl, columns, hints, confirmLabel, warnings,
+  extraData, extraFields, // opcionais: campos/valores extras enviados junto do arquivo
 }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -17,9 +18,14 @@ export default function CsvImportPanel({
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
 
+  const appendExtra = (fd) => {
+    Object.entries(extraData || {}).forEach(([k, v]) => { if (v != null) fd.append(k, v); });
+    return fd;
+  };
+
   const doPreview = async (f) => {
     setLoading(true); setPreview(null); setResult(null);
-    const fd = new FormData(); fd.append('file', f);
+    const fd = appendExtra(new FormData()); fd.append('file', f);
     try {
       const { data } = await window.axios.post(previewUrl, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setPreview(data);
@@ -37,7 +43,7 @@ export default function CsvImportPanel({
     e.preventDefault();
     if (!file || importing) return;
     setImporting(true);
-    const fd = new FormData(); fd.append('file', file);
+    const fd = appendExtra(new FormData()); fd.append('file', file);
     try {
       const { data } = await window.axios.post(storeUrl, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
       setResult(data);
@@ -79,6 +85,7 @@ export default function CsvImportPanel({
       )}
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+        {extraFields}
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">Selecione o arquivo CSV</span>
           <input type="file" accept=".csv,text/csv" onChange={onFile}

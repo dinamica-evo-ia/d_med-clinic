@@ -30,7 +30,10 @@ export default function Index({ formulas, filters, total, counts }) {
           <h1 className="text-2xl font-bold text-slate-900">Manipulados e Industrializados</h1>
           <p className="text-sm text-slate-500">Biblioteca de fórmulas — busque, copie e use nas receitas. {total} no total.</p>
         </div>
-        <button onClick={() => setEditing({})} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Nova fórmula</button>
+        <div className="flex items-center gap-2">
+          <a href="/account/settings/import-export/formulas" className="px-4 py-2 border border-slate-300 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-50">Importar CSV</a>
+          <button onClick={() => setEditing({})} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Nova fórmula</button>
+        </div>
       </div>
 
       {flash?.success && <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm text-emerald-700">{flash.success}</div>}
