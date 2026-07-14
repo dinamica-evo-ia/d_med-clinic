@@ -246,6 +246,7 @@ Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('mas
     Route::put('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'update'])->name('clinicas.update');
     Route::post('/clinicas/{clinica}/extend-trial', [\App\Http\Controllers\Master\ClinicaController::class, 'extendTrial'])->name('clinicas.extend-trial');
     Route::post('/clinicas/{clinica}/reactivate', [\App\Http\Controllers\Master\ClinicaController::class, 'reactivate'])->name('clinicas.reactivate');
+    Route::post('/clinicas/{clinica}/approve', [\App\Http\Controllers\Master\ClinicaController::class, 'approve'])->name('clinicas.approve');
     Route::delete('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'destroy'])->name('clinicas.destroy');
     Route::get('/clinicas/{clinica}/api-keys', [\App\Http\Controllers\Master\ApiKeyController::class, 'index'])->name('clinicas.api-keys.index');
     Route::post('/clinicas/{clinica}/api-keys', [\App\Http\Controllers\Master\ApiKeyController::class, 'store'])->name('clinicas.api-keys.store');

@@ -56,6 +56,10 @@ class InitializeTenancyByUser
     /** Trial vencido ou clínica suspensa/cancelada pelo Master — bloqueia o uso do CRM (não apaga nada). */
     private function isBlocked(Tenant $tenant): bool
     {
+        // Conta nova aguardando aprovação manual do master — bloqueada até ser liberada.
+        if ($tenant->status === 'pending') {
+            return true;
+        }
         if (in_array($tenant->status, ['suspended', 'cancelled'], true)) {
             return true;
         }

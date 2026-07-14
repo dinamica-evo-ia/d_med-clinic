@@ -2,6 +2,10 @@ import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, router } from '@inertiajs/react';
 
 const REASON = {
+    pending: {
+        title: 'Conta em análise',
+        body: 'Sua clínica foi criada e está aguardando aprovação da nossa equipe. Assim que for liberada, você poderá entrar e começar o teste grátis de 7 dias. Qualquer dúvida, fale com a gente.',
+    },
     trial: {
         title: 'Seu teste grátis terminou',
         body: 'Os 7 dias de teste da sua clínica chegaram ao fim. Fale com a gente pra continuar usando o D_Med Clinic — seus dados continuam guardados, com segurança.',
@@ -35,7 +39,7 @@ export default function Blocked({ tenant }) {
 
                 <div className="mt-6 flex flex-col gap-2.5">
                     <a
-                        href="mailto:ola@dmed.app"
+                        href="mailto:comercial@dinamicami.com.br"
                         className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
                     >
                         Falar com a gente

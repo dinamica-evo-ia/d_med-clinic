@@ -220,4 +220,15 @@ class ClinicaController extends Controller
 
         return back()->with('success', 'Clínica reativada (status: Ativo).');
     }
+
+    /** Aprova uma conta nova (pendente): libera o teste grátis de 7 dias a partir de agora. */
+    public function approve(Tenant $clinica)
+    {
+        $ends = now()->addDays(7)->toDateString();
+        $clinica->status = 'trial';
+        $clinica->trial_ends_at = $ends;
+        $clinica->save();
+
+        return back()->with('success', 'Clínica aprovada! Teste de 7 dias liberado (vence em '.\Carbon\Carbon::parse($ends)->format('d/m/Y').').');
+    }
 }

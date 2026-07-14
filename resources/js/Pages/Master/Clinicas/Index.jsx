@@ -2,6 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 
 const STATUS_COLORS = {
+  pending: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
   trial: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
   active: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
   past_due: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
@@ -45,11 +46,24 @@ export default function Index({ tenants, filters, plans, statuses }) {
     const days = parseInt(window.prompt(`Estender o trial de "${t.name}" por quantos dias?`, '7') || '', 10);
     if (days > 0) router.post(`/master/clinicas/${t.id}/extend-trial`, { days }, { preserveScroll: true });
   };
+  const approve = (t) => {
+    if (confirm(`Aprovar a clínica "${t.name}" e liberar o teste grátis de 7 dias?`)) {
+      router.post(`/master/clinicas/${t.id}/approve`, {}, { preserveScroll: true });
+    }
+  };
+
+  const pendingCount = tenants.filter((t) => t.status === 'pending').length;
 
   return (
     <div className="space-y-6">
       {flash?.success && <div className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 px-4 py-2 text-sm text-emerald-200">{flash.success}</div>}
       {flash?.error && <div className="rounded-lg bg-rose-500/15 border border-rose-500/30 px-4 py-2 text-sm text-rose-200">{flash.error}</div>}
+
+      {pendingCount > 0 && (
+        <div className="rounded-lg bg-purple-500/15 border border-purple-500/30 px-4 py-2.5 text-sm text-purple-200">
+          <span className="font-semibold">{pendingCount} conta(s) aguardando aprovação</span> <span className="text-purple-300/70">— revise e clique em “Aprovar” pra liberar o teste de 7 dias.</span>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -114,11 +128,12 @@ export default function Index({ tenants, filters, plans, statuses }) {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex flex-wrap justify-end gap-x-3 gap-y-1 text-xs">
+                      {t.status === 'pending' && <button onClick={() => approve(t)} className="text-emerald-300 hover:text-emerald-200 font-semibold">Aprovar</button>}
                       <button onClick={() => setEditing(t)} className="text-slate-300 hover:text-amber-300">Editar</button>
                       <button onClick={() => setApiKeysFor(t)} className="text-teal-300 hover:text-teal-200">API</button>
                       <button onClick={() => impersonate(t)} className="text-sky-300 hover:text-sky-200">Entrar</button>
                       {t.status === 'trial' && <button onClick={() => extendTrial(t)} className="text-indigo-300 hover:text-indigo-200">Estender</button>}
-                      {t.status !== 'active' && t.status !== 'cancelled' && <button onClick={() => reactivate(t)} className="text-emerald-300 hover:text-emerald-200">Reativar</button>}
+                      {t.status !== 'active' && t.status !== 'cancelled' && t.status !== 'pending' && <button onClick={() => reactivate(t)} className="text-emerald-300 hover:text-emerald-200">Reativar</button>}
                       {t.status !== 'cancelled' && <button onClick={() => cancel(t)} className="text-rose-300 hover:text-rose-200">Cancelar</button>}
                     </div>
                   </td>

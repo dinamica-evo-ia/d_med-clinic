@@ -66,8 +66,10 @@ class TenantRegistrationController extends Controller
                     'slug' => $slug,
                     'email' => $data['email'],
                     'plan' => $data['plan'],
-                    'status' => 'trial',
-                    'trial_ends_at' => now()->addDays(self::TRIAL_DAYS)->toDateString(),
+                    // Conta nova entra PENDENTE: só libera pro trial depois da aprovação
+                    // manual de um master no painel (que aí define o trial_ends_at).
+                    'status' => 'pending',
+                    'trial_ends_at' => null,
                 ]);
                 $tenant->domains()->create(['domain' => $slug.'.localhost']);
 
@@ -105,10 +107,10 @@ class TenantRegistrationController extends Controller
             }
 
             event(new Registered($user));
-            Auth::login($user);
-            session(['tenant_slug' => $slug]);
 
-            return redirect()->route('dashboard');
+            // NÃO loga automaticamente: a conta está pendente de aprovação. O usuário volta
+            // e entra depois que um master liberar. Mensagem na tela de login.
+            return redirect()->route('login')->with('status', 'Conta criada! Sua clínica está em análise pela nossa equipe. Assim que for aprovada, você poderá entrar e começar o teste grátis de 7 dias.');
         } catch (\Throwable $e) {
             if (tenancy()->initialized) tenancy()->end();
 

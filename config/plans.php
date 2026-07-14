@@ -40,6 +40,7 @@ return [
     ],
 
     'statuses' => [
+        'pending' => 'Aguardando aprovação',
         'trial' => 'Em trial',
         'active' => 'Ativo',
         'past_due' => 'Inadimplente',
