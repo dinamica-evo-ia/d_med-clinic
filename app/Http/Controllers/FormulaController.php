@@ -15,10 +15,16 @@ class FormulaController extends Controller
     public function index(Request $request)
     {
         $search = (string) $request->query('search', '');
+        $category = in_array($request->query('category'), ['manipulado', 'industrializado'], true) ? $request->query('category') : null;
 
         return Inertia::render('Formulas/Index', [
-            'formulas' => Formula::search($search)->orderBy('name')->paginate(30)->withQueryString(),
-            'filters' => ['search' => $search],
+            'formulas' => Formula::when($category, fn ($q) => $q->where('category', $category))
+                ->search($search)->orderBy('name')->paginate(30)->withQueryString(),
+            'filters' => ['search' => $search, 'category' => $category],
+            'counts' => [
+                'manipulado' => Formula::where('category', 'manipulado')->count(),
+                'industrializado' => Formula::where('category', 'industrializado')->count(),
+            ],
             'total' => Formula::count(),
         ]);
     }
@@ -26,10 +32,13 @@ class FormulaController extends Controller
     /** Busca JSON — usada pelo painel de fórmulas dentro do formulário de receita. */
     public function apiSearch(Request $request)
     {
+        $category = $request->query('category') === 'industrializado' ? 'industrializado' : 'manipulado';
+
         return response()->json(
-            Formula::search((string) $request->query('q', ''))
+            Formula::where('category', $category)
+                ->search((string) $request->query('q', ''))
                 ->orderByRaw('purpose is null, purpose')->orderBy('name')->limit(40)
-                ->get(['id', 'name', 'purpose', 'content', 'form', 'route'])
+                ->get(['id', 'name', 'purpose', 'content', 'form', 'route', 'category'])
         );
     }
 
@@ -62,6 +71,7 @@ class FormulaController extends Controller
             'content' => 'required|string',
             'form' => 'nullable|string|max:80',
             'route' => 'nullable|string|max:80',
+            'category' => 'nullable|in:manipulado,industrializado',
         ]);
     }
 }

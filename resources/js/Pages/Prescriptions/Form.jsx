@@ -126,6 +126,7 @@ export default function Form({ prescription, patients, doctors, prefill }) {
 
 function FormulaPanel({ onInsert }) {
     const [q, setQ] = useState('');
+    const [category, setCategory] = useState('manipulado');
     const [list, setList] = useState([]);
     const [loading, setLoading] = useState(false);
 
@@ -133,23 +134,31 @@ function FormulaPanel({ onInsert }) {
         let active = true;
         setLoading(true);
         const t = setTimeout(() => {
-            fetch(`/formulas/search?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+            fetch(`/formulas/search?q=${encodeURIComponent(q)}&category=${category}`, { headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(r => r.ok ? r.json() : [])
                 .then(d => { if (active) { setList(Array.isArray(d) ? d : []); setLoading(false); } })
                 .catch(() => { if (active) setLoading(false); });
         }, 300);
         return () => { active = false; clearTimeout(t); };
-    }, [q]);
+    }, [q, category]);
 
     return (
         <div className="bg-white rounded-lg border border-gray-200 p-4 lg:sticky lg:top-4">
-            <h3 className="text-sm font-semibold text-gray-800">Manipulados e Industrializados</h3>
-            <p className="text-[11px] text-gray-400 mb-2">Arraste para a receita, ou clique em “inserir”. <span className="text-gray-300">Industrializados via Memed em breve.</span></p>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar fórmula…"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
-            <div className="space-y-2 max-h-[64vh] overflow-y-auto">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Adicionar à receita</h3>
+            <div className="flex gap-1 rounded-lg bg-gray-100 p-1 mb-2">
+                <button type="button" onClick={() => setCategory('manipulado')} className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${category === 'manipulado' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Manipulados</button>
+                <button type="button" onClick={() => setCategory('industrializado')} className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${category === 'industrializado' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>Industrializados</button>
+            </div>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={category === 'manipulado' ? 'Buscar manipulado…' : 'Buscar industrializado…'}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
+            <p className="text-[11px] text-gray-400 mb-2">Arraste para a receita, ou clique em “inserir”.</p>
+            <div className="space-y-2 max-h-[58vh] overflow-y-auto">
                 {loading && <p className="text-xs text-gray-400">Buscando…</p>}
-                {!loading && list.length === 0 && <p className="text-xs text-gray-400">Nenhuma fórmula.</p>}
+                {!loading && list.length === 0 && (
+                    category === 'industrializado'
+                        ? <p className="text-xs text-gray-400 leading-relaxed">Nenhum industrializado cadastrado ainda.<br /><span className="text-gray-300">Integração com a Memed em breve — por enquanto dá pra cadastrar manualmente na biblioteca.</span></p>
+                        : <p className="text-xs text-gray-400">Nenhum manipulado encontrado.</p>
+                )}
                 {list.map(f => (
                     <div key={f.id} draggable
                         onDragStart={e => e.dataTransfer.setData('application/json', JSON.stringify(f))}

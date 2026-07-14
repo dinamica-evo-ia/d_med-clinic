@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Formula extends Model
 {
-    protected $fillable = ['doctor_id', 'name', 'purpose', 'content', 'form', 'route', 'is_active'];
+    protected $fillable = ['doctor_id', 'name', 'purpose', 'content', 'form', 'route', 'category', 'is_active'];
 
     protected function casts(): array
     {

@@ -3,18 +3,21 @@ import { useState, useEffect, useRef } from 'react';
 
 const field = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500';
 
-export default function Index({ formulas, filters, total }) {
+export default function Index({ formulas, filters, total, counts }) {
   const { flash } = usePage().props;
   const [search, setSearch] = useState(filters?.search || '');
   const [editing, setEditing] = useState(null); // null=fechado | {}=nova | {id,...}=editar
   const [copiedId, setCopiedId] = useState(null);
+  const cat = filters?.category || '';
 
   const first = useRef(true);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
-    const t = setTimeout(() => router.get('/formulas', { search }, { preserveState: true, replace: true, preserveScroll: true }), 350);
+    const t = setTimeout(() => router.get('/formulas', { search: search || undefined, category: cat || undefined }, { preserveState: true, replace: true, preserveScroll: true }), 350);
     return () => clearTimeout(t);
   }, [search]);
+
+  const goCat = (k) => router.get('/formulas', { search: search || undefined, category: k || undefined }, { preserveState: true, replace: true, preserveScroll: true });
 
   const rows = formulas.data || [];
   const copy = (f) => { navigator.clipboard?.writeText(f.content || ''); setCopiedId(f.id); setTimeout(() => setCopiedId(null), 1500); };
@@ -24,17 +27,25 @@ export default function Index({ formulas, filters, total }) {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Fórmulas magistrais</h1>
-          <p className="text-sm text-slate-500">Biblioteca de manipulados — busque, copie e use nas receitas. {total} fórmula(s).</p>
+          <h1 className="text-2xl font-bold text-slate-900">Manipulados e Industrializados</h1>
+          <p className="text-sm text-slate-500">Biblioteca de fórmulas — busque, copie e use nas receitas. {total} no total.</p>
         </div>
         <button onClick={() => setEditing({})} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">+ Nova fórmula</button>
       </div>
 
       {flash?.success && <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm text-emerald-700">{flash.success}</div>}
 
-      <div className="relative max-w-md">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, ativo, forma…" className={`${field} pl-10`} />
-        <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, ativo, forma…" className={`${field} pl-10`} />
+          <svg className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        </div>
+        <div className="flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
+          {[['', 'Todas'], ['manipulado', `Manipulados${counts ? ` (${counts.manipulado})` : ''}`], ['industrializado', `Industrializados${counts ? ` (${counts.industrializado})` : ''}`]].map(([k, label]) => (
+            <button key={k} onClick={() => goCat(k)}
+              className={`px-3 py-1.5 rounded-md font-medium transition ${cat === k ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -49,6 +60,7 @@ export default function Index({ formulas, filters, total }) {
                   {f.purpose && <p className="text-[11px] text-slate-400 truncate">{f.name}</p>}
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  {f.category === 'industrializado' && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700">Industr.</span>}
                   {f.form && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700">{f.form}</span>}
                   {f.route && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{f.route}</span>}
                 </div>
@@ -87,6 +99,7 @@ function FormulaModal({ formula, onClose }) {
     content: formula.content || '',
     form: formula.form || '',
     route: formula.route || '',
+    category: formula.category || 'manipulado',
   });
   const submit = (e) => {
     e.preventDefault();
@@ -98,6 +111,15 @@ function FormulaModal({ formula, onClose }) {
     <div className="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 p-4" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Editar fórmula' : 'Nova fórmula'}</h2>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {[['manipulado', 'Manipulado'], ['industrializado', 'Industrializado']].map(([k, l]) => (
+              <button type="button" key={k} onClick={() => frm.setData('category', k)}
+                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${frm.data.category === k ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+            ))}
+          </div>
+        </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Finalidade <span className="text-slate-400 font-normal">(para que serve)</span></label>
           <input value={frm.data.purpose} onChange={(e) => frm.setData('purpose', e.target.value)} className={field} placeholder="Ex.: Antienvelhecimento facial / Emagrecimento" />
