@@ -111,10 +111,10 @@ export default function Form({ prescription, patients, doctors, prefill }) {
                         {errors.body && <p className="text-red-500 text-xs mt-1">{errors.body}</p>}
                     </div>
 
-                    <div className="flex gap-3 pt-1">
-                        <button type="submit" disabled={processing} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition">{processing ? 'Salvando...' : 'Salvar'}</button>
-                        <button type="button" onClick={handleSaveAndPrint} disabled={processing} className="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition">Salvar e Imprimir</button>
+                    <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-4">
                         <Link href="/prescriptions" className="rounded-lg border border-gray-300 px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition">Cancelar</Link>
+                        <button type="button" onClick={handleSaveAndPrint} disabled={processing} className="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition">Salvar e Imprimir</button>
+                        <button type="submit" disabled={processing} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition">{processing ? 'Salvando...' : 'Salvar'}</button>
                     </div>
                 </form>
 
@@ -143,8 +143,8 @@ function FormulaPanel({ onInsert }) {
 
     return (
         <div className="bg-white rounded-lg border border-gray-200 p-4 lg:sticky lg:top-4">
-            <h3 className="text-sm font-semibold text-gray-800">Fórmulas magistrais</h3>
-            <p className="text-[11px] text-gray-400 mb-2">Arraste para a receita, ou clique em “inserir”.</p>
+            <h3 className="text-sm font-semibold text-gray-800">Manipulados e Industrializados</h3>
+            <p className="text-[11px] text-gray-400 mb-2">Arraste para a receita, ou clique em “inserir”. <span className="text-gray-300">Industrializados via Memed em breve.</span></p>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar fórmula…"
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm mb-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500" />
             <div className="space-y-2 max-h-[64vh] overflow-y-auto">
