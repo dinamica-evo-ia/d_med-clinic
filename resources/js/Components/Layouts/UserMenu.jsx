@@ -28,11 +28,11 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
         <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden z-50">
           {/* Header */}
           <div className="p-4 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100">
-            {/* nome só no mobile — no desktop já aparece ao lado do avatar (evita duplicar) */}
-            <p className="text-sm font-semibold text-slate-900 sm:hidden">{user?.name}</p>
-            <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+            {/* nome só no mobile — no desktop já aparece ao lado do avatar (evita duplicar).
+                E-mail não entra aqui: é redundante e polui (a identificação útil é a clínica). */}
+            <p className="text-sm font-semibold text-slate-900 sm:hidden mb-3">{user?.name}</p>
             {tenant && (
-              <div className="mt-3 pt-3 border-t border-slate-100 space-y-1">
+              <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-wider text-slate-400">Clínica</span>
                   {tenant.plan && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{planLabel[tenant.plan] || tenant.plan}</span>}
