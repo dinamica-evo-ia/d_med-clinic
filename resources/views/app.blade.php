@@ -1,8 +1,12 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+{{-- lang pt-BR + translate="no" + meta notranslate: impede o Google Tradutor do navegador
+     de mexer no DOM (isso quebra o React com "insertBefore NotFoundError" / tela branca). --}}
+<html lang="pt-BR" translate="no">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="google" content="notranslate">
+        <meta name="robots" content="notranslate">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
         <link rel="icon" type="image/png" href="/favicon.png">
@@ -17,7 +21,7 @@
         @vite(['resources/js/app.jsx'])
         @inertiaHead
     </head>
-    <body class="font-sans antialiased">
+    <body class="font-sans antialiased notranslate">
         @inertia
     </body>
 </html>
