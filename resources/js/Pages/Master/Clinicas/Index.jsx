@@ -24,6 +24,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
   const [status, setStatus] = useState(filters?.status || '');
   const [editing, setEditing] = useState(null);
   const [apiKeysFor, setApiKeysFor] = useState(null);
+  const [usersFor, setUsersFor] = useState(null);
 
   const apply = () => router.get('/master/clinicas', { search: search || undefined, status: status || undefined }, { preserveState: true, replace: true });
 
@@ -140,6 +141,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
                       {t.status === 'pending' && <button onClick={() => approve(t)} className="text-emerald-300 hover:text-emerald-200 font-semibold">Aprovar</button>}
                       <button onClick={() => setEditing(t)} className="text-slate-300 hover:text-amber-300">Editar</button>
                       <button onClick={() => setApiKeysFor(t)} className="text-teal-300 hover:text-teal-200">API</button>
+                      <button onClick={() => setUsersFor(t)} className="text-fuchsia-300 hover:text-fuchsia-200">Senha</button>
                       <button onClick={() => impersonate(t)} className="text-sky-300 hover:text-sky-200">Entrar</button>
                       {t.status === 'trial' && <button onClick={() => extendTrial(t)} className="text-indigo-300 hover:text-indigo-200">Estender</button>}
                       {t.status !== 'active' && t.status !== 'cancelled' && t.status !== 'pending' && <button onClick={() => reactivate(t)} className="text-emerald-300 hover:text-emerald-200">Reativar</button>}
@@ -156,6 +158,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
 
       {editing && <EditModal tenant={editing} plans={plans} statuses={statuses} onClose={() => setEditing(null)} />}
       {apiKeysFor && <ApiKeysModal tenant={apiKeysFor} onClose={() => setApiKeysFor(null)} />}
+      {usersFor && <UsersPasswordModal tenant={usersFor} onClose={() => setUsersFor(null)} />}
     </div>
   );
 }
@@ -220,6 +223,72 @@ function ApiKeysModal({ tenant, onClose }) {
 
         <div className="flex justify-between items-center pt-2">
           <button onClick={generate} disabled={busy} className="px-4 py-2 bg-amber-500 text-slate-900 text-sm font-semibold rounded-lg hover:bg-amber-400 disabled:opacity-50">{busy ? 'Gerando…' : '+ Gerar nova chave'}</button>
+          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UsersPasswordModal({ tenant, onClose }) {
+  const [users, setUsers] = useState(null);
+  const [pw, setPw] = useState({});
+  const [busyId, setBusyId] = useState(null);
+  const [doneId, setDoneId] = useState(null);
+  const [err, setErr] = useState({});
+  const base = `/master/clinicas/${tenant.id}/users`;
+  const roleLabel = { admin: 'Administrador', doctor: 'Médico(a)', receptionist: 'Secretária' };
+
+  useEffect(() => {
+    window.axios.get(base).then(({ data }) => setUsers(data.users || [])).catch(() => setUsers([]));
+  }, [tenant.id]);
+
+  const gen = (id) => {
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = '';
+    for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    setPw((p) => ({ ...p, [id]: s }));
+    setErr((e) => ({ ...e, [id]: null }));
+  };
+  const save = (u) => {
+    const password = (pw[u.id] || '').trim();
+    if (password.length < 8) { setErr((e) => ({ ...e, [u.id]: 'Mínimo 8 caracteres.' })); return; }
+    setBusyId(u.id); setErr((e) => ({ ...e, [u.id]: null }));
+    window.axios.put(`${base}/${u.id}/password`, { password })
+      .then(() => { setDoneId(u.id); setTimeout(() => setDoneId(null), 4000); })
+      .catch((e) => setErr((er) => ({ ...er, [u.id]: e?.response?.data?.errors?.password?.[0] || 'Erro ao salvar.' })))
+      .finally(() => setBusyId(null));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm grid place-items-center p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl p-6 space-y-4 text-slate-100 max-h-[90vh] overflow-y-auto">
+        <div>
+          <h2 className="text-lg font-bold">Senhas · {tenant.name}</h2>
+          <p className="text-xs text-slate-400 mt-1">Defina uma nova senha para um login desta clínica e repasse ao cliente.</p>
+        </div>
+
+        {users === null && <div className="text-sm text-slate-400">Carregando…</div>}
+        {users?.length === 0 && <div className="text-sm text-slate-500">Nenhum usuário nesta clínica.</div>}
+
+        <div className="space-y-2">
+          {users?.map((u) => (
+            <div key={u.id} className="rounded-lg bg-slate-800/60 border border-slate-700/60 p-3">
+              <div className="text-sm font-medium">{u.name} <span className="text-slate-500 font-normal">· {roleLabel[u.role] || u.role}</span></div>
+              <div className="text-[11px] text-slate-500">{u.email}</div>
+              <div className="mt-2 flex gap-2">
+                <input type="text" value={pw[u.id] || ''} onChange={(e) => setPw((p) => ({ ...p, [u.id]: e.target.value }))}
+                  placeholder="Nova senha" className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm font-mono" />
+                <button onClick={() => gen(u.id)} title="Gerar senha" className="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs">Gerar</button>
+                <button onClick={() => save(u)} disabled={busyId === u.id} className="px-3 py-1.5 bg-amber-500 text-slate-900 text-xs font-semibold rounded-lg hover:bg-amber-400 disabled:opacity-50 whitespace-nowrap">{busyId === u.id ? '…' : 'Definir'}</button>
+              </div>
+              {err[u.id] && <p className="text-[11px] text-rose-400 mt-1">{err[u.id]}</p>}
+              {doneId === u.id && <p className="text-[11px] text-emerald-300 mt-1">✓ Senha redefinida — repasse <span className="font-mono font-semibold">{pw[u.id]}</span> ao cliente.</p>}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex justify-end pt-1">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200">Fechar</button>
         </div>
       </div>

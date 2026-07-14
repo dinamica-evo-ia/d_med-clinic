@@ -250,6 +250,8 @@ Route::middleware(['auth', 'web', 'ensure.master'])->prefix('master')->name('mas
     Route::post('/clinicas/{clinica}/approve', [\App\Http\Controllers\Master\ClinicaController::class, 'approve'])->name('clinicas.approve');
     Route::delete('/clinicas/{clinica}', [\App\Http\Controllers\Master\ClinicaController::class, 'destroy'])->name('clinicas.destroy');
     Route::delete('/clinicas/{clinica}/force', [\App\Http\Controllers\Master\ClinicaController::class, 'forceDestroy'])->name('clinicas.force-destroy');
+    Route::get('/clinicas/{clinica}/users', [\App\Http\Controllers\Master\ClinicaController::class, 'users'])->name('clinicas.users');
+    Route::put('/clinicas/{clinica}/users/{user}/password', [\App\Http\Controllers\Master\ClinicaController::class, 'resetUserPassword'])->name('clinicas.users.password');
     Route::get('/clinicas/{clinica}/api-keys', [\App\Http\Controllers\Master\ApiKeyController::class, 'index'])->name('clinicas.api-keys.index');
     Route::post('/clinicas/{clinica}/api-keys', [\App\Http\Controllers\Master\ApiKeyController::class, 'store'])->name('clinicas.api-keys.store');
     Route::delete('/clinicas/{clinica}/api-keys/{apiKey}', [\App\Http\Controllers\Master\ApiKeyController::class, 'destroy'])->name('clinicas.api-keys.destroy');

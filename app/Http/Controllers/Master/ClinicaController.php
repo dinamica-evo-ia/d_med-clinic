@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 
 class ClinicaController extends Controller
@@ -232,6 +233,34 @@ class ClinicaController extends Controller
         Log::info("Master apagou em definitivo a clínica {$name} ({$id}).");
 
         return back()->with('success', "Clínica \"{$name}\" e a conta foram apagadas em definitivo.");
+    }
+
+    /** JSON: usuários (logins) de uma clínica — usado pelo modal de senha do painel master. */
+    public function users(Tenant $clinica)
+    {
+        $central = config('tenancy.database.central_connection');
+        $users = DB::connection($central)->table('tenant_user')
+            ->join('users', 'users.id', '=', 'tenant_user.user_id')
+            ->where('tenant_user.tenant_id', $clinica->id)
+            ->orderBy('tenant_user.role')
+            ->get(['users.id', 'users.name', 'users.email', 'tenant_user.role', 'tenant_user.is_active']);
+
+        return response()->json(['users' => $users]);
+    }
+
+    /** Redefine a senha de um usuário (login) de uma clínica. */
+    public function resetUserPassword(Request $request, Tenant $clinica, User $user)
+    {
+        $central = config('tenancy.database.central_connection');
+        $belongs = DB::connection($central)->table('tenant_user')
+            ->where('tenant_id', $clinica->id)->where('user_id', $user->id)->exists();
+        abort_unless($belongs, 404);
+
+        $data = $request->validate(['password' => ['required', Password::defaults()]]);
+        $user->password = $data['password']; // cast 'hashed' criptografa
+        $user->save();
+
+        return response()->json(['ok' => true, 'message' => "Senha de {$user->name} redefinida."]);
     }
 
     /** Estende o trial em N dias (a partir do vencimento atual se ainda futuro, senão de hoje) e volta o status pra trial. */
