@@ -30,17 +30,25 @@ class Tenant extends BaseTenant implements TenantWithDatabase
             ->withTimestamps();
     }
 
-    // Nº de registro sequencial do cliente (1, 2, 3...) — nunca reutilizado.
+    // Nº de registro do cliente — ÚNICO e crescente, mas NÃO sequencial:
+    // o primeiro sai de uma base aleatória de 5 dígitos e cada novo soma um
+    // salto aleatório. Assim o código não revela quantos clientes existem
+    // nem quantos entraram entre dois cadastros. Nunca reutilizado.
     // Chamar DENTRO da transação que cria o tenant.
     public static function proximoRegistro(): int
     {
         $max = (int) static::query()->max('data->registro');
 
-        return $max + 1;
+        if ($max < 10000) {
+            // Primeiro registro (ou legado pré-aleatorização): sorteia a base.
+            return random_int(10000, 69999);
+        }
+
+        return $max + random_int(3, 17);
     }
 
-    // Código de cliente legível e ÚNICO: slug + registro com 4 dígitos
-    // (ex.: "medhealth-0007"). O slug já é único; o registro garante que
+    // Código de cliente legível e ÚNICO: slug + nº de registro
+    // (ex.: "medhealth-38452"). O slug já é único; o registro garante que
     // nem renomeação/reuso de nome gera duplicata.
     public function getCodigoClienteAttribute(): ?string
     {
@@ -49,6 +57,6 @@ class Tenant extends BaseTenant implements TenantWithDatabase
             return $this->slug ?? null;
         }
 
-        return ($this->slug ?? 'clinica').'-'.str_pad((string) $registro, 4, '0', STR_PAD_LEFT);
+        return ($this->slug ?? 'clinica').'-'.str_pad((string) $registro, 5, '0', STR_PAD_LEFT);
     }
 }
