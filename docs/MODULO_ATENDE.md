@@ -1,6 +1,7 @@
 # Módulo D_Med Atende — atendente de WhatsApp com IA
 
-> **Status:** Fases 1–5 implementadas e testadas (2026-07-08). O cérebro (Claude) foi validado com créditos reais — entende, consulta horários reais e **marca de verdade** na agenda. Falta só conectar uma instância WADuck pro teste do transporte WhatsApp ao vivo.
+> **Status:** Fases 1–5 implementadas e testadas (2026-07-08). O cérebro (Claude) foi validado com créditos reais — entende, consulta horários reais e **marca de verdade** na agenda.
+> Em 2026-07-15 entrou o provedor **Evolution API** (open source) e um servidor Evolution subiu no VPS: criar instância, apontar webhook e **gerar QR** já foram testados de ponta a ponta. Falta **ler o QR com um celular** e rodar uma conversa real.
 
 ## O que é
 Atendente virtual de WhatsApp, **embutido no próprio D_Med** (não é app à parte, não usa Supabase).
@@ -20,13 +21,13 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 
 ## Arquitetura / arquivos
 **Dados (tenant DB)** — migrations `2026_07_08_130000` (tabelas) e `2026_07_08_140000` (WhatsApp):
-- `attendant_settings` — config do bot + credenciais WADuck + `webhook_token` + autonomia (singleton por clínica, `AttendantSetting::current()`).
+- `attendant_settings` — config do bot + `provider` + credenciais do provedor + `webhook_token` + autonomia (singleton por clínica, `AttendantSetting::current()`).
 - `attendant_conversations` / `attendant_messages` — conversas e mensagens (in/out).
 - `attendant_knowledge` — FAQ/base de conhecimento que a IA usa.
 
 **Backend**
 - `App\Http\Controllers\AttendantController` — painel (index/update), conectar/desconectar/testar WhatsApp, e o **webhook público** de entrada.
-- `App\Support\Waduck` — envio (`sendText`, `POST {base}/v1/message/sendText/{instance}`, header `apikey`) e parse de entrada (`messages.upsert`). Mesmo formato do D_Agent.
+- `App\Support\Whatsapp\*` — **camada de provedor** (ver seção abaixo). `Whatsapp::for($s)` escolhe por `attendant_settings.provider`; `Whatsapp::parseInbound()` normaliza a entrada (`messages.upsert`), igual nos dois provedores.
 - `App\Support\Claude` — cliente fino da Messages API da Anthropic (tool-use).
 - `App\Support\AttendantAI` — **o cérebro**: system prompt (persona/FAQ/paciente), histórico, loop de ferramentas, envio. Ferramentas: `listar_medicos`, `consultar_horarios` (horários reais), `agendar_consulta` (reusa porteiro do `AgentController`).
 
@@ -47,9 +48,46 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 **Polimento (2026-07-08)** — fechados 5 gaps da auditoria:
 - **A) Horário de atendimento** (`business_hours` open/close + fim de semana): fora do horário o bot envia `offhours_message` (anti-spam 30min) e não aciona a IA. `welcome_message` entra no system prompt. `AttendantSetting::isWithinBusinessHours()`.
 - **B) Base de conhecimento (FAQ)**: CRUD em `AttendantController::{storeKnowledge,updateKnowledge,destroyKnowledge}` + seção na página de config. O bot já usava no prompt; agora a clínica edita.
-- **C) Fallback de mídia**: `Waduck::parseInbound` detecta tipo; áudio/foto sem legenda viram `[Áudio recebido]`, e o prompt instrui a IA a pedir texto.
+- **C) Fallback de mídia**: `Whatsapp::parseInbound` detecta tipo; áudio/foto sem legenda viram `[Áudio recebido]`, e o prompt instrui a IA a pedir texto.
 - **D) Paciente cancela/remarca pelo bot**: tools `minhas_consultas`, `cancelar_consulta`, `remarcar_consulta` (auto_schedule) — remarcar passa pelo mesmo porteiro (expediente+conflito).
-- **E) Status real do WhatsApp**: `Waduck::connectionState` + `GET /atendente/whatsapp/status` + botão "Verificar conexão" (open/close/connecting). Endpoint exato do WADuck a confirmar no teste real.
+- **E) Status real do WhatsApp**: `Whatsapp::connectionState` + `GET /atendente/whatsapp/status` + botão "Verificar conexão" (open/close/connecting). Endpoint exato do WADuck a confirmar no teste real.
+
+## Provedores de WhatsApp
+
+| Provedor | `provider` | O que é |
+|---|---|---|
+| **WADuck** | `waduck` | Evolution **hospedada** por terceiro. Pareia o número no painel deles; aqui só entram instância + chave |
+| **Evolution API** | `evolution` | [Open source, self-hosted](https://github.com/evolution-foundation/evolution-api). Cria a instância e **pareia por QR na própria tela** |
+| Meta / Cloud API | — | Oficial. **Pendente** — entra como mais uma classe, sem tocar em quem chama |
+
+Os dois falam a **mesma API** (a WADuck é uma Evolution hospedada): header `apikey`,
+`POST /message/sendText/{instancia}` com `{number,text}`, webhook `messages.upsert`.
+
+    WhatsappProvider (base: sendText, connectionState)
+      ├── WaduckProvider     — prefixo /v1 no path
+      └── EvolutionProvider  — sem prefixo + pair() / setWebhook() / logout()
+
+### 🔴 Evolution v2 — o que quebra se copiar exemplo velho da internet
+
+1. **Paths sem `/v1`** (a WADuck tem; a Evolution não).
+2. **`sendText` recebe `{number,text}` plano** — na v1 era `{number, textMessage:{text}}`.
+3. **`webhook/set` recebe ANINHADO**: `{"webhook":{enabled,url,events}}` — na v1 era plano.
+4. **Os eventos no `set` são UPPER_SNAKE** (`MESSAGES_UPSERT`), mas o webhook **CHEGA** com
+   `event: "messages.upsert"` (minúsculo com ponto). São grafias diferentes do mesmo evento.
+5. **`/instance/connect` responde de dois jeitos**: com o QR no topo (quando `connecting`/
+   `close`) e aninhado em `qrcode` no outro ramo. O `pair()` aceita os dois.
+6. **`hash`** (token da instância) vem string na v2; versões antigas devolviam `{apikey:...}`.
+
+> Tudo acima foi conferido **no código do repo** (`webhook.schema.ts`, `event.controller.ts`,
+> `instance.controller.ts`), não em blog post — a doc oficial `doc.evolution-api.com` estava
+> 404 em 2026-07-15.
+
+### Armadilha de namespace
+
+`AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo
+`Waduck` — por isso **não tinham `use`**. Com a classe nova em `App\Support\Whatsapp\Whatsapp`,
+`Whatsapp::` sem import resolve pro **namespace** `App\Support\Whatsapp` e dá fatal error.
+Qualquer classe nova ali dentro precisa do `use` explícito nesses arquivos.
 
 ## Autonomia (até onde a IA vai)
 - `suggest` — a IA **não responde** sozinha (humano assume; útil na Fase 4).
@@ -63,7 +101,13 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 4. Resposta volta ao paciente via WADuck; consulta aparece na **agenda do CRM**.
 
 ## Como ATIVAR (o que falta — credenciais)
-1. **WADuck** (linha de WhatsApp): criar instância em [waduck.pro](https://waduck.pro), parear o número (QR). Em **Atendente → Conexão do WhatsApp**: colar instância + API key; copiar a **URL do webhook** e colar no WADuck (evento `messages.upsert`); "Enviar teste".
+1. **Linha de WhatsApp** — escolher o provedor em **Atendente → Conexão do WhatsApp**:
+   - **Evolution** (já no ar no VPS, ver abaixo): URL `http://evolution_api:8080` + a API key
+     global → "Conectar" → **"Parear com QR Code"** → ler o QR no celular da clínica.
+     O webhook é apontado sozinho; não precisa colar nada.
+   - **WADuck**: criar instância em [waduck.pro](https://waduck.pro), parear o número lá,
+     colar instância + API key aqui, e **copiar a URL do webhook** pro painel deles
+     (evento `messages.upsert`).
 2. **Anthropic** (cérebro): `ANTHROPIC_API_KEY=sk-ant-...` no `/opt/dmedclinic/.env.runtime` (opcional `ATTENDANT_AI_MODEL`), depois `optimize:clear`. Sem a chave, o bot só grava as mensagens (skip gracioso).
 3. Ligar o atendente + escolher autonomia na página.
 
@@ -72,6 +116,22 @@ D_Med evita Supabase, API entre sistemas e duplicação. O D_Agent (Lovable/Supa
 - Conectar grava + gera webhook_url; webhook de entrada cria conversa+mensagem (reconhece paciente por telefone); token errado → 401.
 - Ferramentas da IA rodam de verdade (lista médico + horários reais com rótulo). Skip gracioso sem a chave.
 - **Falta:** teste ponta a ponta com WADuck + chave reais (conversa real gerando resposta + marcação).
+
+## Evolution no VPS (subida em 2026-07-15)
+
+- **`/opt/dmedclinic/evolution/docker-compose.yml`** (+ `.env` 600, fora do git, com a chave
+  global e as senhas). Subir/atualizar:
+  `docker compose -f /opt/dmedclinic/evolution/docker-compose.yml --project-directory /opt/dmedclinic/evolution up -d`
+- **Sem porta pública, de propósito.** Quem fala com ele é o CRM, pela rede interna
+  (`http://evolution_api:8080` na `dguard_default`). O webhook sai do Evolution pra URL
+  pública do CRM. Não precisa de subdomínio nem de cert — e a API não fica na internet.
+- **Reaproveita o Postgres e o Redis do dguard** (mesmo dono, já rodando), em banco
+  `evolution` separado. O VPS estava com 561 MB livres e disco em 84% — subir outro
+  Postgres só pra isso não se pagava.
+- `DATABASE_SAVE_DATA_*` de mensagem/contato/chat estão **false**: o prontuário é o CRM, e o
+  disco está apertado. Só a sessão da instância persiste.
+- ⚠️ Ficou um container órfão **`evolution_api_orfao`** (parado) do primeiro `docker run`
+  antes de virar compose — pode remover.
 
 ## Pendências
 - **Ativar:** conectar uma **instância WADuck** e fazer o **teste do transporte WhatsApp ao vivo** (receber msg real → bot responde/marca → e cancelar/remarcar avisando o paciente). Créditos Anthropic ✅ e cérebro ✅ já validados.
