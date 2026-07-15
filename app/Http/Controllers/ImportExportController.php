@@ -57,9 +57,14 @@ class ImportExportController extends Controller
         'medicamento' => 'name', 'produto' => 'name',
         'finalidade' => 'purpose', 'para que serve' => 'purpose', 'indicacao' => 'purpose',
         'indicação' => 'purpose', 'purpose' => 'purpose', 'objetivo' => 'purpose',
+        // ⚠️ 'posologia' NÃO pode apontar pra 'content': export de catálogo traz Conteudo E
+        // Posologia como colunas separadas, e a última venceria — o conteúdo (a composição
+        // inteira) seria substituído por "Tomar 1 cápsula ao dia". Posologia tem chave própria
+        // e é anexada ao final do conteúdo.
         'composicao' => 'content', 'composição' => 'content', 'conteudo' => 'content',
         'conteúdo' => 'content', 'content' => 'content', 'descricao' => 'content',
-        'descrição' => 'content', 'posologia' => 'content', 'receita' => 'content',
+        'descrição' => 'content', 'receita' => 'content',
+        'posologia' => 'posology', 'modo de usar' => 'posology', 'posology' => 'posology',
         'forma' => 'form', 'forma farmaceutica' => 'form', 'forma farmacêutica' => 'form',
         'form' => 'form', 'apresentacao' => 'form', 'apresentação' => 'form',
         'via' => 'route', 'via de uso' => 'route', 'route' => 'route',
@@ -96,7 +101,7 @@ class ImportExportController extends Controller
         $rows = [];
         foreach ($parsed['rows'] as $row) {
             $name = trim((string) ($row['name'] ?? ''));
-            $content = trim((string) ($row['content'] ?? ''));
+            $content = $this->formulaContent($row);
             if ($name === '' && $content === '') {
                 continue;
             }
@@ -133,7 +138,7 @@ class ImportExportController extends Controller
         $errors = [];
         foreach ($parsed['rows'] as $row) {
             $name = trim((string) ($row['name'] ?? ''));
-            $content = trim((string) ($row['content'] ?? ''));
+            $content = $this->formulaContent($row);
             if ($name === '' || $content === '') {
                 $skipped++;
                 if (count($errors) < 5) {
@@ -171,6 +176,22 @@ class ImportExportController extends Controller
             'skipped' => $skipped,
             'errors' => $errors,
         ]);
+    }
+
+    /**
+     * Monta o conteúdo final da fórmula: converte o HTML do export (vem com <br/>) pra texto e
+     * anexa a posologia quando ela vem em coluna separada e ainda não está no corpo.
+     */
+    private function formulaContent(array $row): string
+    {
+        $content = $this->htmlToText((string) ($row['content'] ?? ''), 100000);
+        $posology = trim((string) ($row['posology'] ?? ''));
+
+        if ($posology !== '' && ! str_contains($content, $posology)) {
+            $content = trim($content."\n\n".$posology);
+        }
+
+        return trim($content);
     }
 
     private function normalizeCategory(?string $v): ?string
