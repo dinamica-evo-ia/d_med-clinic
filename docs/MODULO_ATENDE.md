@@ -187,6 +187,47 @@ fim a cada 6 segundos — impossível ler a conversa. Agora compara o **id da ú
 `Whatsapp::` sem import resolve pro **namespace** `App\Support\Whatsapp` e dá fatal error.
 Qualquer classe nova ali dentro precisa do `use` explícito nesses arquivos.
 
+## Avisos ao paciente (AttendantNotifier)
+
+| Quando | O que manda |
+|---|---|
+| Recepção **cancela** | Avisa e oferece remarcar |
+| Recepção **muda o horário** | **Pergunta se serve** e pede dia/período se não servir — quem mudou foi a clínica, a palavra final é do paciente. Se ele disser que não pode, o AttendantAI assume e remarca |
+| **24h antes** | Lembrete + confirmação de presença (`appointments:send-reminders`, via scheduler) |
+
+**Quem recebe:** qualquer paciente com WhatsApp no cadastro. Antes só avisava quem já tinha
+conversa aberta ou tinha agendado pelo bot — ou seja, quem foi cadastrado na recepção **nunca
+era avisado de mudança na própria consulta**. O porteiro agora é o `enabled` do Atendente:
+bot desligado = não fala com ninguém.
+
+A conversa é **criada** quando não existe: sem ela a mensagem não entra no histórico e a IA
+ficaria sem contexto quando o paciente respondesse *"não posso nesse dia"*.
+
+### Lembrete de 24h
+
+`appointments:send-reminders [--tenant=] [--dry]` — WhatsApp é o canal principal; e-mail só
+sai se houver SMTP (o comando era **só e-mail** e nunca enviou nada, porque `MAIL_*` está
+vazio — pendência 0b).
+
+- **Janela 23h–25h** + cron de 15 em 15 min: sobra folga, uma rodada que falhe não perde
+  ninguém. Quem marca com menos de 23h de antecedência **não** recebe (acabou de marcar).
+- **`appointments.reminded_at`** evita reenvio.
+- Se **nenhum canal** estiver disponível, o comando **sai fora sem marcar** `reminded_at` —
+  senão engoliria o lembrete em silêncio e, ao conectar o WhatsApp depois, ninguém receberia.
+
+⚠️ **O container não tem cron.** O supervisord roda só php-fpm e nginx. Quem dispara o
+scheduler é o **crontab do host** (sobrevive a recriação do container, sem depender de rebuild
+da imagem):
+
+```
+* * * * * docker exec -u www-data dmedclinic-app php artisan schedule:run >/dev/null 2>&1
+```
+
+> 🔴 **`reminded_at` tem que estar no `$fillable` do Appointment.** Ficou de fora na primeira
+> versão e o `update(['reminded_at' => now()])` **descartava o campo em silêncio** — sem erro
+> nenhum, e o lembrete reenviava a cada 15 minutos, pra sempre. Só apareceu porque o teste
+> rodou o comando **duas vezes seguidas** e conferiu o contador.
+
 ## Autonomia (até onde a IA vai)
 - `suggest` — a IA **não responde** sozinha (humano assume; útil na Fase 4).
 - `auto_reply` — responde dúvidas e informa horários, **não marca**.

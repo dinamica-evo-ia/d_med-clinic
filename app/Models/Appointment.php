@@ -18,7 +18,7 @@ class Appointment extends Model
         'patient_id', 'doctor_id', 'user_id',
         'starts_at', 'ends_at',
         'status', 'type', 'notes',
-        'source', 'external_ref',
+        'source', 'external_ref', 'reminded_at',
         'cancelled_at', 'cancellation_reason',
     ];
 
@@ -28,6 +28,7 @@ class Appointment extends Model
             'starts_at' => 'datetime',
             'ends_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'reminded_at' => 'datetime',
             'id' => 'string',
         ];
     }
