@@ -32,6 +32,7 @@ conexão/FK — ver as armadilhas no `CLAUDE.md`.
 |---|---|---|
 | **Prontuário** | [MODULO_PRONTUARIO.md](MODULO_PRONTUARIO.md) | Consulta/SOAP, anamnese × evolução, CID-10, receitas, atestados |
 | **Fórmulas** | [MODULO_FORMULAS.md](MODULO_FORMULAS.md) | Biblioteca de Manipulados e Industrializados; arrastar pra receita; limpeza por IA |
+| **Minha Conta** | [MODULO_CONTA.md](MODULO_CONTA.md) | Menu do avatar: ficha do médico, dados da clínica e **usuários** (cadastro da secretária) |
 | **Painel Master** | [MODULO_MASTER.md](MODULO_MASTER.md) | Super-admin do produto: clínicas, aprovação, planos, senhas, farmácias |
 | **Importar & Exportar** | [MODULO_IMPORTAR_EXPORTAR.md](MODULO_IMPORTAR_EXPORTAR.md) | Migração de sistema antigo: pacientes, anamneses, receitas, fórmulas |
 | **Parceria com farmácias** | [MODULO_PARCERIA_FARMACIAS.md](MODULO_PARCERIA_FARMACIAS.md) | Página pública onde laboratórios enviam suas fórmulas |
