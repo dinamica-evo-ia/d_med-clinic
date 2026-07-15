@@ -167,6 +167,14 @@ class AttendantAI
             ? 'Você PODE marcar consultas. Confirme médico, dia e horário com o paciente ANTES de chamar agendar_consulta.'
             : 'Você NÃO deve marcar consultas sozinho. Pode informar horários livres, mas peça pro paciente aguardar a confirmação da secretária.';
 
+        // Médicos direto no prompt: o histórico é remontado do banco a cada mensagem e NÃO
+        // guarda tool_use/tool_result — sem isso a IA perde o medico_id entre uma mensagem e
+        // outra e não consegue chamar agendar_consulta quando o paciente confirma.
+        $medicos = Doctor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'specialty'])
+            ->map(fn ($d) => "- {$d->name}".($d->specialty ? " ({$d->specialty})" : '')." — medico_id: {$d->id}")
+            ->implode("\n");
+        $medicosBlock = $medicos ? "\n\nMédicos ativos (use o medico_id nas ferramentas):\n{$medicos}" : '';
+
         $persona = $this->s->persona ? "\n\nInstruções da clínica:\n{$this->s->persona}" : '';
         $tone = $this->s->tone ? " Tom: {$this->s->tone}." : '';
         $welcome = trim((string) $this->s->welcome_message) !== ''
@@ -183,10 +191,20 @@ Objetivo: entender o que o paciente precisa e, quando for agendamento, oferecer 
 
 Regras:
 - Nunca invente horários, médicos nem informações; use as ferramentas.
+- 🔴 NUNCA diga que a consulta foi marcada/confirmada/agendada sem que a ferramenta
+  agendar_consulta tenha respondido com sucesso NESTA MESMA resposta. Se você só escreveu
+  texto, NADA foi marcado — o paciente vai aparecer na clínica e não vai ter consulta.
+  Quando o paciente confirmar, CHAME a ferramenta; só depois avise que está marcado.
+- 🔴 Ao listar horários, escreva SÓ o que a ferramenta devolveu, com o dia e a hora exatos.
+  Não invente rótulo de período: não escreva "de manhã", "à tarde" ou "à noite" por conta
+  própria — olhe a hora. Antes de 12:00 é manhã.
+- Antes de marcar, peça NOME COMPLETO e CPF e chame identificar_paciente. Muita gente já é
+  paciente da clínica e o cadastro antigo não tem telefone — sem o CPF você cria um cadastro
+  duplicado. Se encontrar, trate a pessoa pelo nome do cadastro e siga.
 - Ao oferecer horários, dê poucas opções claras (dia + hora).
-- Não peça dados que já tem. Se precisar cadastrar, peça só o nome.
+- Não peça dados que já tem.
 - Mensagens entre colchetes como [Áudio recebido] ou [Imagem recebida] significam que o paciente mandou uma mídia que você NÃO consegue ver/ouvir — peça gentilmente que ele escreva em texto.
-- Se não souber algo, seja honesto e ofereça falar com a secretária.{$welcome}{$persona}{$faqBlock}
+- Se não souber algo, seja honesto e ofereça falar com a secretária.{$medicosBlock}{$welcome}{$persona}{$faqBlock}
 TXT;
     }
 
@@ -238,19 +256,35 @@ TXT;
                     ],
                 ],
             ],
+            [
+                'name' => 'identificar_paciente',
+                'description' => 'Procura o cadastro do paciente pelo CPF. Use SEMPRE antes de marcar, '
+                    .'pra não criar cadastro duplicado de quem já é paciente da clínica.',
+                'input_schema' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'cpf' => ['type' => 'string', 'description' => 'CPF do paciente, só números ou com pontuação.'],
+                        'nome' => ['type' => 'string', 'description' => 'Nome completo, como o paciente informou.'],
+                    ],
+                    'required' => ['cpf'],
+                ],
+            ],
         ];
 
         if ($this->s->autonomy === 'auto_schedule') {
             $tools[] = [
                 'name' => 'agendar_consulta',
-                'description' => 'Marca a consulta na agenda. Só depois de o paciente confirmar médico, dia e horário.',
+                'description' => 'Marca a consulta na agenda DE VERDADE. Só depois de o paciente confirmar '
+                    .'médico, dia e horário. A consulta só existe se esta ferramenta devolver sucesso.',
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
                         'medico_id' => ['type' => 'string'],
-                        'inicio' => ['type' => 'string', 'description' => 'Início em ISO 8601, ex 2026-07-10T14:30:00.'],
+                        'inicio' => ['type' => 'string', 'description' => 'Início em ISO 8601, ex 2026-07-10T14:30:00. '
+                            .'Use exatamente o campo "inicio" que consultar_horarios devolveu.'],
                         'duracao_min' => ['type' => 'integer', 'description' => 'Duração em minutos (padrão 30).'],
-                        'nome_paciente' => ['type' => 'string', 'description' => 'Nome, se ainda não cadastrado.'],
+                        'nome_paciente' => ['type' => 'string', 'description' => 'Nome completo, se ainda não cadastrado.'],
+                        'cpf' => ['type' => 'string', 'description' => 'CPF do paciente. Evita cadastro duplicado.'],
                     ],
                     'required' => ['medico_id', 'inicio'],
                 ],
@@ -291,6 +325,7 @@ TXT;
         return match ($name) {
             'listar_medicos' => $this->toolListarMedicos(),
             'consultar_horarios' => $this->toolConsultarHorarios($input),
+            'identificar_paciente' => $this->toolIdentificarPaciente($input),
             'agendar_consulta' => $this->toolAgendarConsulta($input),
             'minhas_consultas' => $this->toolMinhasConsultas(),
             'cancelar_consulta' => $this->toolCancelarConsulta($input),
@@ -308,6 +343,54 @@ TXT;
         $phone = $this->conv->contact_phone;
 
         return Patient::where('phone', $phone)->orWhere('whatsapp', $phone)->first();
+    }
+
+    /** CPF só com dígitos — é assim que a coluna `document` guarda (import veio sem máscara). */
+    private static function cpfDigits(?string $cpf): string
+    {
+        return preg_replace('/\D/', '', (string) $cpf);
+    }
+
+    /** Acha o paciente pelo CPF e vincula à conversa. Nome sozinho NÃO identifica (homônimo). */
+    private function toolIdentificarPaciente(array $input): array
+    {
+        $cpf = self::cpfDigits($input['cpf'] ?? '');
+        if (strlen($cpf) !== 11) {
+            return ['erro' => 'CPF precisa ter 11 dígitos. Peça de novo ao paciente.'];
+        }
+
+        $patient = Patient::whereRaw(
+            "REPLACE(REPLACE(REPLACE(COALESCE(document,''), '.', ''), '-', ''), ' ', '') = ?",
+            [$cpf]
+        )->first();
+
+        if (! $patient) {
+            return [
+                'encontrado' => false,
+                'mensagem' => 'Não achei cadastro com esse CPF. Confirme o nome completo e a data '
+                    .'de nascimento pra eu cadastrar antes de marcar.',
+            ];
+        }
+
+        // vincula a conversa e aproveita pra completar o WhatsApp, que o import não trouxe
+        $this->conv->update([
+            'patient_id' => $patient->id,
+            'contact_name' => $patient->name,
+        ]);
+        if (blank($patient->whatsapp)) {
+            $patient->update(['whatsapp' => $this->conv->contact_phone]);
+        }
+
+        return [
+            'encontrado' => true,
+            'paciente' => [
+                'id' => $patient->id,
+                'nome' => $patient->name,
+                'nascimento' => $patient->birth_date
+                    ? Carbon::parse($patient->birth_date)->format('d/m/Y')
+                    : null,
+            ],
+        ];
     }
 
     private function toolMinhasConsultas(): array
@@ -451,8 +534,19 @@ TXT;
         }
         $end = $start->copy()->addMinutes((int) ($input['duracao_min'] ?? 30));
 
-        // Paciente: vinculado → por telefone → cria com o nome informado.
+        // Paciente: vinculado → por CPF → por telefone → cria.
+        // A ordem importa: a base importada tem CPF em quase todo mundo e telefone em quase
+        // ninguém (1521 de 2466 com CPF, 15 com telefone na Clínica RF). Procurar só por
+        // telefone criava cadastro DUPLICADO de quem já era paciente.
         $patient = $this->conv->patient_id ? Patient::find($this->conv->patient_id) : null;
+
+        $cpf = self::cpfDigits($input['cpf'] ?? '');
+        if (! $patient && strlen($cpf) === 11) {
+            $patient = Patient::whereRaw(
+                "REPLACE(REPLACE(REPLACE(COALESCE(document,''), '.', ''), '-', ''), ' ', '') = ?",
+                [$cpf]
+            )->first();
+        }
         if (! $patient) {
             $phone = $this->conv->contact_phone;
             $patient = Patient::where('phone', $phone)->orWhere('whatsapp', $phone)->first();
@@ -462,8 +556,12 @@ TXT;
             if ($nome === '') {
                 return ['erro' => 'Preciso do nome do paciente pra cadastrar antes de marcar.'];
             }
+            if (strlen($cpf) !== 11) {
+                return ['erro' => 'Preciso do CPF pra conferir se já existe cadastro antes de criar um novo.'];
+            }
             $patient = Patient::create([
                 'name' => $nome,
+                'document' => $cpf,
                 'phone' => $this->conv->contact_phone,
                 'whatsapp' => $this->conv->contact_phone,
                 'status' => 'active',

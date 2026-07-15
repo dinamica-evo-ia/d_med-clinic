@@ -108,6 +108,49 @@ seguidas). Se precisar de ordem diferente da relação, use `reorder()` — nunc
 > indistinguível de conversa certa. **Só aparece em diálogo real de várias trocas** — que foi
 > exatamente o primeiro teste de ponta a ponta com WhatsApp de verdade (2026-07-15).
 
+### 🔴 A IA dizia que marcou — e não marcava
+
+Primeiro teste real (2026-07-15): o bot respondeu *"Sua consulta foi marcada com sucesso! 🎉"*
+e **nenhuma consulta foi criada**. O paciente apareceria na clínica sem consulta.
+
+Duas causas somadas:
+
+1. **O prompt nunca proibiu declarar sucesso sem ferramenta.** Só dizia "confirme antes de
+   chamar agendar_consulta". O modelo confirmou, e escreveu o "marcado!" de cabeça.
+2. **`tool_use`/`tool_result` não são gravados no banco** — só o texto. Como o `history()`
+   remonta a conversa do banco a cada mensagem que chega, a IA **perde o `medico_id` e o
+   horário ISO entre uma mensagem e outra**. No "Confirmo" ela não tinha como chamar a
+   ferramenta nem se quisesse.
+
+**Correções:** regra dura no prompt ("a consulta só existe se agendar_consulta devolver
+sucesso") + **lista de médicos com `medico_id` direto no system prompt**, que é o que
+devolve à IA o dado que ela perdia entre turnos.
+
+> Persistir os blocos de ferramenta no banco resolveria a causa 2 na raiz — hoje só
+> contornamos. Fica como pendência se aparecer outro sintoma do mesmo tipo.
+
+### Rótulo de período inventado
+
+O bot listou os 8 horários **corretos** (08:00–11:30, agenda só de quarta de manhã) sob o
+título *"⏰ Hoje à tarde:"* — e ainda escreveu "(8 da manhã)" ao lado do 08:00, se
+contradizendo. A ferramenta estava certa; o texto é que mentia. Regra no prompt: escrever só
+o que a ferramenta devolveu, sem inventar manhã/tarde/noite.
+
+### 🔴 Buscar paciente por telefone duplica cadastro
+
+`resolvePatient()` procurava só por `phone`/`whatsapp`. Na base real do Dr. Ricardo:
+**2466 pacientes, 1521 com CPF, apenas 15 com telefone** — o import não trouxe telefone.
+Ou seja, a busca por telefone falhava em ~99% e o bot criaria um cadastro **novo** pra quem
+já era paciente há anos, perdendo o histórico.
+
+Agora existe a ferramenta **`identificar_paciente`** (CPF → cadastro), o prompt manda pedir
+**nome + CPF** antes de marcar, e o `agendar_consulta` procura por **CPF antes de telefone**
+e só cria cadastro novo com CPF na mão. Ao identificar, o WhatsApp do contato é gravado no
+cadastro antigo (que estava sem).
+
+> ⚠️ A coluna do CPF é **`document`**, não `cpf` — e guarda **só dígitos**, sem máscara.
+> A busca normaliza os dois lados.
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo
