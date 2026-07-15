@@ -249,10 +249,16 @@ class ImportExportController extends Controller
             }
 
             $content = $row['content'] ?? null;
+            $texto = $content ?: 'Registro histórico importado do sistema anterior — este export não trazia o texto da anamnese, apenas a referência de que a consulta ocorreu.';
+
             $record = new MedicalRecord([
                 'patient_id' => $patientId,
                 'doctor_id' => $doctorId,
-                'anamnesis' => $content ?: 'Registro histórico importado do sistema anterior — este export não trazia o texto da anamnese, apenas a referência de que a consulta ocorreu.',
+                // `anamnesis` tem cast 'array' e a tela do prontuário só renderiza objeto
+                // (`typeof anamnesis === 'object'`). Gravar texto puro salvava o conteúdo mas
+                // deixava a anamnese INVISÍVEL na ficha — por isso embrulha numa chave.
+                'anamnesis' => ['anamnese_importada' => $texto],
+                'type' => 'anamnese',
                 'origem' => 'importado',
             ]);
             $record->timestamps = false;

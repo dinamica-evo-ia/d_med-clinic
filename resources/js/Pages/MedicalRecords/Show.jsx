@@ -14,6 +14,7 @@ const ANAMNESE_LABELS = {
   revisao_de_sistemas: 'Revisão de sistemas',
   hipoteses_diagnosticas: 'Hipóteses diagnósticas',
   conduta: 'Conduta',
+  anamnese_importada: 'Anamnese (importada do sistema anterior)',
 };
 const CHAVES_META = new Set(['resumo', 'alertas', '_terceira_voz_alerta', '_template_nome']); // meta, exibidas à parte
 

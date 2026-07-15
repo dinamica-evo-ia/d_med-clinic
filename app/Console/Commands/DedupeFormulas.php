@@ -17,12 +17,9 @@ use Illuminate\Console\Command;
  */
 class DedupeFormulas extends Command
 {
-    protected $signature = 'formulas:dedupe {tenant} {--dry}';
+    protected $signature = 'formulas:dedupe {tenant} {--dry} {--junk= : IDs (separados por vírgula) que não são fórmula — ex.: notas/encaminhamentos}';
 
     protected $description = 'Remove não-fórmulas, deduplica por nome e reporta PII residual';
-
-    // Notas/encaminhamentos importados por engano (verificado manualmente).
-    private const JUNK_IDS = [21, 40, 47];
 
     public function handle(): int
     {
@@ -34,9 +31,13 @@ class DedupeFormulas extends Command
         tenancy()->initialize($tenant);
         $dry = (bool) $this->option('dry');
 
+        // IDs que não são fórmula (notas, encaminhamentos) — variam por importação, por isso
+        // vêm por parâmetro. Confira antes com --dry.
+        $junkIds = array_filter(array_map('trim', explode(',', (string) $this->option('junk'))), fn ($v) => $v !== '');
+
         // 1) remove não-fórmulas
         $removedJunk = 0;
-        foreach (Formula::whereIn('id', self::JUNK_IDS)->get() as $f) {
+        foreach (Formula::whereIn('id', $junkIds)->get() as $f) {
             $this->line("  <fg=red>não-fórmula</> #{$f->id} {$f->name}");
             if (! $dry) {
                 $f->delete();
@@ -47,7 +48,7 @@ class DedupeFormulas extends Command
         // 2) dedup por nome normalizado — mantém o de conteúdo mais completo
         $norm = fn ($s) => preg_replace('/\s+/', ' ', mb_strtolower(trim((string) $s)));
         $groups = Formula::orderBy('id')->get()
-            ->reject(fn ($f) => in_array($f->id, self::JUNK_IDS, true))
+            ->reject(fn ($f) => in_array((string) $f->id, $junkIds, true))
             ->groupBy(fn ($f) => $norm($f->name));
 
         $removedDup = 0;
