@@ -34,9 +34,19 @@ class AppointmentController extends Controller
     {
         $doctors = Doctor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'schedule']);
 
+        /*
+         * Só o paciente pré-selecionado (quando se chega pela ficha dele, ?patient_id=).
+         * Antes vinha Patient::orderBy('name')->get() INTEIRO — 2466 na Clínica RF, em todo
+         * carregamento da tela, só pra popular um <select>. Agora quem escolhe é o
+         * PatientPicker, que busca sob demanda em /api/patients/search.
+         */
+        $preId = $request->get('patient_id');
+
         return Inertia::render('Appointments/Form', [
             'appointment' => null,
-            'patients' => Patient::orderBy('name')->get(['id', 'name', 'phone']),
+            'patients' => $preId
+                ? Patient::where('id', $preId)->get(['id', 'name', 'phone'])
+                : collect(),
             'doctors' => $doctors->map(fn ($d) => [
                 'id' => $d->id,
                 'name' => $d->name,

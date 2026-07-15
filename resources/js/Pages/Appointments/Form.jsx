@@ -1,5 +1,6 @@
 import { useForm, Link, usePage } from '@inertiajs/react';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import PatientPicker from '@/Components/shared/PatientPicker';
 
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const hhmmToMin = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
@@ -91,13 +92,11 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
-                        <select value={data.patient_id} onChange={e => setData('patient_id', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="">Selecione...</option>
-                            {patients.map((p) => (
-                                <option key={p.id} value={p.id}>{p.name} {p.phone ? `- ${p.phone}` : ''}</option>
-                            ))}
-                        </select>
+                        <PatientPicker
+                            value={data.patient_id}
+                            initial={patients.find((p) => p.id === data.patient_id) || null}
+                            onChange={(id) => setData('patient_id', id)}
+                        />
                         {errors.patient_id && <p className="text-red-500 text-xs mt-1">{errors.patient_id}</p>}
                     </div>
 

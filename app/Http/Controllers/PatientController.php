@@ -230,9 +230,58 @@ class PatientController extends Controller
         $patients = Patient::where('name', 'like', "%{$search}%")
             ->orWhere('email', 'like', "%{$search}%")
             ->orWhere('phone', 'like', "%{$search}%")
+            ->orWhere('document', 'like', "%{$search}%")
             ->limit(20)
             ->get(['id', 'name', 'email', 'phone', 'document']);
 
         return response()->json($patients);
+    }
+
+    /**
+     * Cadastro rápido, pra marcar consulta de quem ligou e ainda não é paciente — sem obrigar
+     * a recepção a sair da tela e preencher a ficha inteira. Responde JSON.
+     *
+     * O CPF é opcional (paciente novo nem sempre tem em mãos na hora), mas quando vem é
+     * conferido: se já existe cadastro com aquele CPF, devolve o EXISTENTE em vez de criar
+     * duplicado — é o mesmo problema que a IA do Atendente teve com a base importada.
+     */
+    public function quickStore(Request $request)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'document' => ['nullable', 'string', 'max:14'],
+            'birth_date' => ['nullable', 'date'],
+        ]);
+
+        $cpf = preg_replace('/\D/', '', (string) ($data['document'] ?? ''));
+
+        if (strlen($cpf) === 11) {
+            $existente = Patient::whereRaw(
+                "REPLACE(REPLACE(REPLACE(COALESCE(document,''), '.', ''), '-', ''), ' ', '') = ?",
+                [$cpf]
+            )->first();
+
+            if ($existente) {
+                return response()->json([
+                    'patient' => ['id' => $existente->id, 'name' => $existente->name, 'phone' => $existente->phone],
+                    'ja_existia' => true,
+                ]);
+            }
+        }
+
+        $patient = Patient::create([
+            'name' => trim($data['name']),
+            'phone' => $data['phone'] ?? null,
+            'whatsapp' => $data['phone'] ?? null,
+            'document' => $cpf ?: null,
+            'birth_date' => $data['birth_date'] ?? null,
+            'status' => 'active',
+        ]);
+
+        return response()->json([
+            'patient' => ['id' => $patient->id, 'name' => $patient->name, 'phone' => $patient->phone],
+            'ja_existia' => false,
+        ]);
     }
 }

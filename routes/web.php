@@ -164,6 +164,8 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::prefix('api')->group(function () {
         Route::get('appointments/calendar', [AppointmentController::class, 'calendar'])->name('api.appointments.calendar');
         Route::get('patients/search', [PatientController::class, 'search'])->name('api.patients.search');
+        // cadastro rápido pra marcar consulta de paciente novo sem sair da tela
+        Route::post('patients/quick', [PatientController::class, 'quickStore'])->name('api.patients.quick');
         Route::get('stats/dashboard', [DashboardController::class, 'stats'])->name('api.stats.dashboard');
         Route::get('cid/search', [CidCodeController::class, 'search'])->name('api.cid.search');
         Route::post('prescriptions/suggest', [\App\Http\Controllers\Api\AiSuggestionController::class, 'suggest'])->name('api.prescriptions.suggest');

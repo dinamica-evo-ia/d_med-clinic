@@ -41,6 +41,22 @@ Receitas identificadas pela IA aparecem como **sugestão** — nada é emitido s
 Componente `Components/shared/CidAutocomplete.jsx` — usado no SOAP e no atestado.
 ⚠️ O dataset **não inclui U07** (COVID-19).
 
+### Marcar consulta pra paciente novo
+
+`Components/shared/PatientPicker.jsx` — busca por **nome, telefone ou CPF** e, se não achar,
+**cadastra na hora** (`POST /api/patients/quick`), sem sair do formulário.
+
+Antes era um `<select>` com **todos** os pacientes e **não havia como marcar consulta pra quem
+ainda não era paciente** — a recepção tinha que sair da tela, cadastrar, e voltar (perdendo o
+que já tinha digitado). Pior: o `create()` carregava `Patient::orderBy('name')->get()` inteiro
+a cada abertura — **2466 registros** na Clínica RF pra popular um dropdown. Agora só vem o
+paciente pré-selecionado (quando se chega pela ficha dele, `?patient_id=`).
+
+**No cadastro rápido só o nome é obrigatório** — quem liga nem sempre tem CPF em mãos; a ficha
+se completa depois em Pacientes. Mas **quando o CPF vem, o backend devolve o cadastro
+EXISTENTE em vez de criar outro** — mesmo problema que a IA do Atendente teve com a base
+importada (1521 de 2466 têm CPF; só 15 têm telefone).
+
 ### Fórmulas na receita
 Ver [MODULO_FORMULAS.md](MODULO_FORMULAS.md).
 
