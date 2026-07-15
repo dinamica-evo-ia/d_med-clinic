@@ -206,15 +206,23 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         });
 
         /*
-         * Configurações do médico/clínica + importação. Estava TUDO aberto: a secretária
-         * conseguia abrir e AGIR — mudar a agenda do médico, o certificado digital de
-         * assinatura, e importar paciente/receita/fórmula em massa. Não era só o menu
-         * aparecendo demais; a rota respondia.
+         * AGENDA (dias/horários) — a secretária ENTRA. É ela quem opera a recepção e ajusta
+         * os horários no dia a dia; travar aqui obrigava a chamar o médico pra cada mudança.
+         * Decisão do dono (2026-07-15), depois de eu ter trancado junto com o resto.
+         */
+        Route::middleware('role:admin,doctor,receptionist')->group(function () {
+            Route::get('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'settingsSchedule'])->name('settings.schedule');
+            Route::put('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'scheduleUpdate'])->name('settings.schedule.update');
+        });
+
+        /*
+         * O resto das configurações do médico/clínica + importação: secretária NÃO entra.
+         * Estava tudo aberto — ela conseguia mexer no certificado digital de assinatura e
+         * importar paciente/receita/fórmula em massa. Não era só o menu aparecendo demais;
+         * a rota respondia 200.
          */
         Route::middleware('role:admin,doctor')->group(function () {
         Route::get('/settings/doctor', [\App\Http\Controllers\AccountController::class, 'settingsDoctor'])->name('settings.doctor');
-        Route::get('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'settingsSchedule'])->name('settings.schedule');
-        Route::put('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'scheduleUpdate'])->name('settings.schedule.update');
         Route::get('/settings/print', [\App\Http\Controllers\AccountController::class, 'settingsPrint'])->name('settings.print');
         Route::put('/settings/print', [\App\Http\Controllers\AccountController::class, 'printUpdate'])->name('settings.print.update');
         Route::post('/settings/print/logo', [\App\Http\Controllers\AccountController::class, 'printLogo'])->name('settings.print.logo');

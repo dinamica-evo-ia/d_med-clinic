@@ -60,15 +60,20 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
             )}
           </Section>
 
-          {podeConfigurar && (
-            <Section title="Configurações">
+          {/* Agenda a secretária configura (é ela que opera a recepção); o resto, não. */}
+          <Section title="Configurações">
+            {podeConfigurar && (
               <MItem href="/account/settings/doctor" onClick={() => setOpen(false)} label="Médico" icon="stethoscope" />
-              <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
-              <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />
-              <MItem href="/account/settings/anamnese-templates" onClick={() => setOpen(false)} label="Modelos de anamnese" icon="template" />
-              <MItem href="/account/settings/certificate" onClick={() => setOpen(false)} label="Certificado digital (assinatura)" icon="seal" />
-            </Section>
-          )}
+            )}
+            <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
+            {podeConfigurar && (
+              <>
+                <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />
+                <MItem href="/account/settings/anamnese-templates" onClick={() => setOpen(false)} label="Modelos de anamnese" icon="template" />
+                <MItem href="/account/settings/certificate" onClick={() => setOpen(false)} label="Certificado digital (assinatura)" icon="seal" />
+              </>
+            )}
+          </Section>
 
           <Section>
             {podeConfigurar && (

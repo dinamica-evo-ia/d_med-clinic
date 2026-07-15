@@ -22,7 +22,8 @@ A aba ativa vai na URL (`?tab=medico|clinica|usuarios`) — dá pra linkar diret
 | Item | Quem acessa |
 |---|---|
 | Médico / Clínica / Usuários | `admin`, `doctor` |
-| Configurações (Médico · Agenda · Impressão · Modelos de anamnese · Certificado) | `admin`, `doctor` |
+| Configurações → **Agenda (dias/horários)** | `admin`, `doctor`, **`receptionist`** — é ela que opera a recepção |
+| Configurações → Médico · Impressão · Modelos de anamnese · Certificado | `admin`, `doctor` |
 | Importar & Exportar | `admin`, `doctor` |
 | Planos e pagamentos | **`admin`** (assinatura é do dono; o dono é sempre admin — signup e criação pelo master gravam `role=admin`) |
 | Alterar senha · Sugestões · Indique um colega | todos |
