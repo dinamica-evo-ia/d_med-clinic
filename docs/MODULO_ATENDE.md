@@ -230,6 +230,35 @@ cabeça — o campo `quando` da ferramenta já vem com o dia escrito, é só cop
 > Conta de calendário é o tipo de coisa que LLM erra em silêncio. Se o dado existe no banco,
 > mande pronto — não peça pro modelo deduzir.
 
+### Parear sem escanear: código de pareamento
+
+`pair($webhookUrl, $phone)` — passando o telefone (com DDI), o Baileys devolve um
+**código de 8 caracteres** em vez do QR. A pessoa digita no app em **Aparelhos conectados →
+Conectar com número de telefone**. Serve quando não dá pra escanear (sem câmera, celular
+longe — dá pra mandar o código por mensagem pra quem está com ele).
+
+> ⚠️ **Não elimina o celular.** Evolution/Baileys fala o protocolo do **WhatsApp Web**: é
+> sempre um aparelho **vinculado a uma conta que já existe**. Sem nenhum celular com WhatsApp,
+> o único caminho é a **Cloud API oficial da Meta** (registra o número direto na Meta,
+> verificação por SMS/ligação) — que é o provider ainda pendente.
+
+#### 🔴 O código só sai com a instância em `close`
+
+No controller do Evolution:
+
+```js
+if (state == 'connecting') return instance.qrCode;      // devolve o QR VELHO
+if (state == 'close')      connectToWhatsapp(number)    // só AQUI usa o number
+```
+
+Ou seja: se alguém pediu o **QR antes**, a instância fica `connecting` e o telefone é
+**ignorado em silêncio** — `pairingCode` volta `null` e ninguém entende por quê. O `pair()`
+faz `logout` pra voltar ao `close` quando detecta esse caso. É seguro porque o early-return
+já saiu se estivesse `open`: nunca derruba um WhatsApp funcionando.
+
+Medido nos dois caminhos: instância nova com número → código na hora; QR primeiro e código
+depois → antes vinha `null`, agora vem.
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo

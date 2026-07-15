@@ -254,34 +254,41 @@ function WhatsappCard({ whatsapp }) {
   const test = useForm({ to: '', text: '' });
   const isEvolution = conn.data.provider === 'evolution';
 
-  // QR (só Evolution): pede o pareamento e fica olhando o status até virar 'open'.
+  // Pareamento (só Evolution): QR pra escanear, ou CÓDIGO pra digitar no app (sem câmera).
   const [qr, setQr] = useState(null);
+  const [pairCode, setPairCode] = useState(null);
   const [qrError, setQrError] = useState(null);
   const [pairing, setPairing] = useState(false);
+  const [pairPhone, setPairPhone] = useState('');
 
-  const doPair = async () => {
-    setPairing(true); setQrError(null); setQr(null);
+  const doPair = async (phone = null) => {
+    setPairing(true); setQrError(null); setQr(null); setPairCode(null);
     try {
-      const { data } = await window.axios.post('/atendente/whatsapp/pair');
-      if (data.state === 'open') { setQrError(null); router.reload({ only: ['whatsapp'] }); }
-      else setQr(data.qr_base64 || null);
+      const { data } = await window.axios.post('/atendente/whatsapp/pair', phone ? { phone } : {});
+      if (data.state === 'open') { router.reload({ only: ['whatsapp'] }); }
+      else if (phone) {
+        if (data.pairing_code) setPairCode(data.pairing_code);
+        else setQrError('O servidor não devolveu o código. Confira o número (com DDI, ex. 5547999998888) e tente de novo.');
+      } else {
+        setQr(data.qr_base64 || null);
+      }
     } catch (e) {
-      setQrError(e.response?.data?.error || 'Falha ao gerar o QR Code.');
+      setQrError(e.response?.data?.error || 'Falha ao parear.');
     }
     setPairing(false);
   };
 
-  // enquanto o QR está na tela, checa a conexão a cada 5s (o QR expira sozinho)
+  // enquanto QR/código estão na tela, checa a conexão a cada 5s (os dois expiram sozinhos)
   useEffect(() => {
-    if (!qr) return undefined;
+    if (!qr && !pairCode) return undefined;
     const id = setInterval(async () => {
       try {
         const { data } = await window.axios.get('/atendente/whatsapp/status');
-        if (data.state === 'open') { setQr(null); router.reload({ only: ['whatsapp'] }); }
+        if (data.state === 'open') { setQr(null); setPairCode(null); router.reload({ only: ['whatsapp'] }); }
       } catch { /* silencioso: é só polling */ }
     }, 5000);
     return () => clearInterval(id);
-  }, [qr]);
+  }, [qr, pairCode]);
 
   const doConnect = (e) => { e.preventDefault(); conn.post('/atendente/whatsapp/connect', { preserveScroll: true, onSuccess: () => conn.reset('waduck_api_key') }); };
   const doTest = (e) => { e.preventDefault(); test.post('/atendente/whatsapp/test', { preserveScroll: true }); };
@@ -365,22 +372,54 @@ function WhatsappCard({ whatsapp }) {
             )}
           </div>
 
-          {/* Pareamento por QR (Evolution) */}
+          {/* Pareamento (Evolution): QR pra escanear OU código pra digitar */}
           {whatsapp.supports_qr && (
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-4">
+              {/* opção 1 — QR */}
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs text-slate-600">
-                  Número não pareado? Gere o QR e leia no WhatsApp do celular da clínica
+                  <b>Com a câmera:</b> gere o QR e leia no WhatsApp do celular
                   (<b>Aparelhos conectados → Conectar aparelho</b>).
                 </p>
-                <button type="button" onClick={doPair} disabled={pairing}
+                <button type="button" onClick={() => doPair()} disabled={pairing}
                   className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-60">
                   {pairing ? 'Gerando…' : 'Parear com QR Code'}
                 </button>
               </div>
-              {qrError && <p className="mt-2 text-xs text-red-600">{qrError}</p>}
+
+              {/* opção 2 — código de pareamento (sem escanear) */}
+              <div className="border-t border-slate-200 pt-4">
+                <p className="text-xs text-slate-600 mb-2">
+                  <b>Sem escanear:</b> informe o número e receba um <b>código de 8 dígitos</b> pra
+                  digitar no app — em <b>Aparelhos conectados → Conectar com número de telefone</b>.
+                  Dá pra passar o código pra quem estiver com o celular.
+                </p>
+                <div className="flex gap-2">
+                  <input value={pairPhone} onChange={(e) => setPairPhone(e.target.value)}
+                    className={field} placeholder="5547999998888 (com DDI e DDD)" />
+                  <button type="button" onClick={() => doPair(pairPhone)} disabled={pairing || !pairPhone.trim()}
+                    className="shrink-0 px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 hover:bg-white disabled:opacity-50">
+                    {pairing ? '…' : 'Gerar código'}
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-slate-400">
+                  Precisa do WhatsApp instalado nesse número — o Evolution entra como aparelho
+                  vinculado a uma conta que já existe.
+                </p>
+              </div>
+
+              {qrError && <p className="text-xs text-red-600">{qrError}</p>}
+
+              {pairCode && (
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-xs text-emerald-800">Digite este código no WhatsApp:</p>
+                  <p className="font-mono text-3xl font-bold tracking-[0.2em] text-emerald-900">{pairCode}</p>
+                  <p className="text-[11px] text-emerald-700">Aguardando… o código expira em poucos minutos.</p>
+                </div>
+              )}
+
               {qr && (
-                <div className="mt-3 flex flex-col items-center gap-2">
+                <div className="flex flex-col items-center gap-2">
                   <img src={qr} alt="QR Code para parear o WhatsApp" className="h-56 w-56 rounded-lg border border-slate-200 bg-white p-2" />
                   <p className="text-[11px] text-slate-500">Aguardando leitura… o QR expira em ~40s (clique de novo se sumir).</p>
                 </div>

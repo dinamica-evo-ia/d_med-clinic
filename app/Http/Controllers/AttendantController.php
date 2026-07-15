@@ -265,8 +265,10 @@ class AttendantController extends Controller
      * Evolution: cria a instância (se preciso), aponta o webhook e devolve o QR code.
      * Responde JSON — a tela faz polling até o state virar 'open'.
      */
-    public function pairWhatsapp()
+    public function pairWhatsapp(Request $request)
     {
+        $request->validate(['phone' => ['nullable', 'string', 'max:20']]);
+
         $s = AttendantSetting::current();
         $provider = Whatsapp::for($s);
 
@@ -277,8 +279,12 @@ class AttendantController extends Controller
             $s->update(['webhook_token' => Str::random(40)]);
         }
 
+        // Com telefone => código de pareamento (digitado no app, sem escanear).
+        // Sem telefone  => QR code de sempre.
+        $phone = preg_replace('/\D/', '', (string) $request->input('phone')) ?: null;
+
         try {
-            $r = $provider->pair($this->webhookUrl($s));
+            $r = $provider->pair($this->webhookUrl($s), $phone);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 422);
         }
