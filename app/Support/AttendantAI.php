@@ -22,6 +22,12 @@ class AttendantAI
 {
     private const TZ = 'America/Sao_Paulo';
 
+    /** Chaves de DoctorSchedule::DAYS em português, pro prompt. */
+    private const DIA_PT = [
+        'mon' => 'segunda', 'tue' => 'terça', 'wed' => 'quarta', 'thu' => 'quinta',
+        'fri' => 'sexta', 'sat' => 'sábado', 'sun' => 'domingo',
+    ];
+
     public function __construct(
         private AttendantSetting $s,
         private AttendantConversation $conv,
@@ -170,10 +176,25 @@ class AttendantAI
         // Médicos direto no prompt: o histórico é remontado do banco a cada mensagem e NÃO
         // guarda tool_use/tool_result — sem isso a IA perde o medico_id entre uma mensagem e
         // outra e não consegue chamar agendar_consulta quando o paciente confirma.
-        $medicos = Doctor::where('is_active', true)->orderBy('name')->get(['id', 'name', 'specialty'])
-            ->map(fn ($d) => "- {$d->name}".($d->specialty ? " ({$d->specialty})" : '')." — medico_id: {$d->id}")
-            ->implode("\n");
-        $medicosBlock = $medicos ? "\n\nMédicos ativos (use o medico_id nas ferramentas):\n{$medicos}" : '';
+        //
+        // Os DIAS DE ATENDIMENTO também vão aqui: sem isso a IA oferecia "segunda, terça..."
+        // pra um médico que só atende quarta. A regra está no CRM, ela não tinha como saber.
+        $medicos = Doctor::where('is_active', true)->orderBy('name')->get()
+            ->map(function ($d) {
+                $cfg = DoctorSchedule::normalize($d->schedule);
+                $dias = [];
+                foreach ($cfg['days'] as $k => $c) {
+                    if (! empty($c['active'])) {
+                        $dias[] = self::DIA_PT[$k]." {$c['open']}–{$c['close']}";
+                    }
+                }
+                $agenda = $dias ? implode('; ', $dias) : 'sem dias configurados';
+
+                return "- {$d->name}".($d->specialty ? " ({$d->specialty})" : '')."\n"
+                    ."  medico_id: {$d->id}\n"
+                    ."  atende: {$agenda}";
+            })->implode("\n");
+        $medicosBlock = $medicos ? "\n\nMédicos ativos:\n{$medicos}" : '';
 
         $persona = $this->s->persona ? "\n\nInstruções da clínica:\n{$this->s->persona}" : '';
         $tone = $this->s->tone ? " Tom: {$this->s->tone}." : '';
@@ -198,6 +219,13 @@ Regras:
 - 🔴 Ao listar horários, escreva SÓ o que a ferramenta devolveu, com o dia e a hora exatos.
   Não invente rótulo de período: não escreva "de manhã", "à tarde" ou "à noite" por conta
   própria — olhe a hora. Antes de 12:00 é manhã.
+- 🔴 NUNCA calcule data nem dia da semana de cabeça. Você erra (já ofereceu "segunda (22/07)"
+  quando 22/07 era quarta). O campo "quando" de consultar_horarios já vem com o dia da semana
+  escrito — copie dali. Se o paciente pedir "semana que vem" ou "outro dia", chame
+  consultar_horarios com dias=21 e ofereça o que voltar; não deduza as datas sozinho.
+- Antes de dizer que não tem vaga, confira os dias de atendimento do médico (estão abaixo) e
+  chame consultar_horarios com uma janela maior. Médico que atende 1x por semana precisa de
+  janela grande — não conclua "não tem horário" a partir de uma busca curta.
 - Antes de marcar, você precisa de NOME COMPLETO e CPF pra chamar identificar_paciente. Muita
   gente já é paciente da clínica e o cadastro antigo não tem telefone — sem o CPF você cria um
   cadastro duplicado. Se encontrar, trate a pessoa pelo nome do cadastro e siga.
@@ -249,12 +277,15 @@ TXT;
             ],
             [
                 'name' => 'consultar_horarios',
-                'description' => 'Consulta horários livres de um médico nos próximos dias. Use antes de oferecer horários.',
+                'description' => 'Consulta horários livres de um médico nos próximos dias. Use antes de oferecer '
+                    .'horários. Devolve o dia da semana já escrito em cada horário — use esse texto, não calcule '
+                    .'datas por conta própria.',
                 'input_schema' => [
                     'type' => 'object',
                     'properties' => [
                         'medico_id' => ['type' => 'string', 'description' => 'ID do médico. Se omitido, usa o primeiro ativo.'],
-                        'dias' => ['type' => 'integer', 'description' => 'Dias à frente (padrão 7, máx 30).'],
+                        'dias' => ['type' => 'integer', 'description' => 'Dias à frente (padrão 21, máx 90). '
+                            .'Aumente se vier pouco horário: médico que atende 1x por semana precisa de janela grande.'],
                     ],
                 ],
             ],
@@ -487,7 +518,14 @@ TXT;
     private function toolConsultarHorarios(array $input): array
     {
         Carbon::setLocale('pt_BR');
-        $days = max(1, min(30, (int) ($input['dias'] ?? 7)));
+        /*
+         * Padrão 21 dias, não 7. Com 7, a partir de uma quarta a janela vai de 15/07 a 21/07
+         * e PARA NA TERÇA — a quarta seguinte (22/07) fica de fora por um dia. Pra um médico
+         * que atende só às quartas, a ferramenta devolvia apenas os horários de hoje e a IA
+         * não tinha como ver "a semana que vem". 21 dias garante ~3 ocorrências de qualquer
+         * dia da semana.
+         */
+        $days = max(1, min(90, (int) ($input['dias'] ?? 21)));
         $from = Carbon::now(self::TZ);
         $doctor = ! empty($input['medico_id'])
             ? Doctor::find($input['medico_id'])

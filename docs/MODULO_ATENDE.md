@@ -180,6 +180,37 @@ recarga mesmo sem mensagem nova, a dependência dispara e o `scrollIntoView` jog
 fim a cada 6 segundos — impossível ler a conversa. Agora compara o **id da última mensagem**
 (identidade de array não serve) e só rola se você já estiver no fim.
 
+### 🔴 A janela de 7 dias escondia a semana seguinte
+
+`consultar_horarios` tinha `dias` padrão **7**. A partir de uma **quarta**, a janela vai de
+15/07 a **21/07 (terça)** — a quarta seguinte (22/07) fica de fora **por um dia**. Como o
+Dr. Ricardo atende **só às quartas**, a ferramenta devolvia **apenas os horários de hoje**, e
+a IA não tinha como oferecer "semana que vem". Ela não estava mentindo: o sistema é que não
+mostrava.
+
+Medido:
+
+| `dias` | o que volta |
+|---|---|
+| 7 | qua 15/07 |
+| 8 | qua 15/07 · qua 22/07 |
+| 21 | qua 15/07 · 22/07 · 29/07 |
+
+**Padrão agora é 21** (garante ~3 ocorrências de qualquer dia da semana), máx 90.
+
+### 🔴 A IA não sabia os dias de atendimento — e errava as datas
+
+Ela ofereceu *"Segunda (22/07), terça (23/07), quarta (24/07)"*. **22/07/2026 é quarta**, não
+segunda: errou por 2 dias. E ofereceu segunda/terça pra um médico que **só atende quarta** —
+a regra estava no CRM, mas nunca chegava ao prompt.
+
+**Correções:** os **dias de atendimento de cada médico** entram no system prompt
+(`atende: quarta 08:00–12:00`), e há regra explícita proibindo calcular data/dia da semana de
+cabeça — o campo `quando` da ferramenta já vem com o dia escrito, é só copiar.
+
+> Conta de calendário é o tipo de coisa que LLM erra em silêncio. Se o dado existe no banco,
+> mande pronto — não peça pro modelo deduzir.
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo
