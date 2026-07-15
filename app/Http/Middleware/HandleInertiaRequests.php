@@ -68,6 +68,7 @@ class HandleInertiaRequests extends Middleware
                 return [
                     'id' => $t->id,
                     'slug' => $t->slug ?? null,
+                    'codigo' => $t->codigo_cliente,
                     'name' => $t->name ?? null,
                     'plan' => $t->plan ?? null,
                     'status' => $t->status ?? null,

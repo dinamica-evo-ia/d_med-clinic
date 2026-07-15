@@ -29,4 +29,26 @@ class Tenant extends BaseTenant implements TenantWithDatabase
             ->withPivot('role', 'is_active')
             ->withTimestamps();
     }
+
+    // Nº de registro sequencial do cliente (1, 2, 3...) — nunca reutilizado.
+    // Chamar DENTRO da transação que cria o tenant.
+    public static function proximoRegistro(): int
+    {
+        $max = (int) static::query()->max('data->registro');
+
+        return $max + 1;
+    }
+
+    // Código de cliente legível e ÚNICO: slug + registro com 4 dígitos
+    // (ex.: "medhealth-0007"). O slug já é único; o registro garante que
+    // nem renomeação/reuso de nome gera duplicata.
+    public function getCodigoClienteAttribute(): ?string
+    {
+        $registro = $this->registro ?? null;
+        if (! $registro) {
+            return $this->slug ?? null;
+        }
+
+        return ($this->slug ?? 'clinica').'-'.str_pad((string) $registro, 4, '0', STR_PAD_LEFT);
+    }
 }

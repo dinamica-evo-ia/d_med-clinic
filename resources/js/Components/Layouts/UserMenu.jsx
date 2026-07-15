@@ -40,7 +40,7 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
                   {tenant.plan && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">{planLabel[tenant.plan] || tenant.plan}</span>}
                 </div>
                 <p className="text-sm font-medium text-slate-800 truncate">{tenant.name}</p>
-                <p className="text-[10px] font-mono text-slate-400 truncate">ID: {tenant.slug || tenant.id?.slice(0, 8)}</p>
+                <p className="text-[10px] font-mono text-slate-400 truncate">ID: {tenant.codigo || tenant.slug || tenant.id?.slice(0, 8)}</p>
               </div>
             )}
           </div>

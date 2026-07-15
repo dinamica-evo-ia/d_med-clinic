@@ -64,6 +64,7 @@ class TenantRegistrationController extends Controller
                     'id' => (string) Str::uuid(),
                     'name' => $data['clinic_name'],
                     'slug' => $slug,
+                    'registro' => Tenant::proximoRegistro(),
                     'email' => $data['email'],
                     'plan' => $data['plan'],
                     // Conta nova entra PENDENTE: só libera pro trial depois da aprovação

@@ -118,7 +118,7 @@ export default function Index({ tenants, filters, plans, statuses }) {
                 <tr key={t.id} className="border-t border-slate-700/40 hover:bg-slate-800/40">
                   <td className="px-4 py-3">
                     <div className="font-semibold text-slate-100">{t.name}</div>
-                    <div className="text-xs text-slate-500">{t.slug}{t.email ? ` · ${t.email}` : ''}</div>
+                    <div className="text-xs text-slate-500 font-mono">{t.codigo || t.slug}{t.email ? ` · ${t.email}` : ''}</div>
                   </td>
                   <td className="px-3 py-3">
                     <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">{plan.name}</span>
