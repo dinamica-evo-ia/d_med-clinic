@@ -44,5 +44,10 @@ class TenantSetupSeeder extends Seeder
         foreach ($categories as $data) {
             TransactionCategory::create($data);
         }
+
+        // Tipos de exame (catálogo). Ficou de fora desde sempre: o ExamTypeSeeder existia mas
+        // nunca era chamado, e TODA clínica nascia com zero tipos — o que impedia SALVAR
+        // pedido de exame, porque o item exige exam_type_id.
+        $this->call(ExamTypeSeeder::class);
     }
 }

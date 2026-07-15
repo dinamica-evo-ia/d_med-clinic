@@ -57,10 +57,18 @@ class ExamTypeSeeder extends Seeder
             ['code' => 'ENDOS', 'name' => 'Endoscopia Digestiva', 'category' => 'Outros'],
             ['code' => 'COLONO', 'name' => 'Colonoscopia', 'category' => 'Outros'],
             ['code' => 'ESP', 'name' => 'Espirometria', 'category' => 'Outros'],
+
+            // Genéricos: pro exame que não está na lista. O médico escolhe o balde e escreve
+            // o pedido na observação do item — sem isso, exame fora do catálogo não tem como
+            // ser solicitado.
+            ['code' => 'LAB', 'name' => 'Exames Laboratoriais (especificar na observação)', 'category' => 'Geral'],
+            ['code' => 'IMG', 'name' => 'Exames de Imagem (especificar na observação)', 'category' => 'Geral'],
         ];
 
+        // updateOrCreate pelo `code` (que é unique): permite rodar de novo em tenant que já
+        // tem tipos, sem estourar no índice nem duplicar.
         foreach ($types as $type) {
-            ExamType::create($type);
+            ExamType::updateOrCreate(['code' => $type['code']], $type);
         }
     }
 }
