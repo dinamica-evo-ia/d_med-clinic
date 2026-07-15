@@ -16,7 +16,7 @@ const ANAMNESE_LABELS = {
   conduta: 'Conduta',
   anamnese_importada: 'Anamnese (importada do sistema anterior)',
 };
-const CHAVES_META = new Set(['resumo', 'alertas', '_terceira_voz_alerta', '_template_nome']); // meta, exibidas à parte
+const CHAVES_META = new Set(['resumo', 'alertas', '_terceira_voz_alerta', '_template_nome', '_identificacao_por_voz']); // meta, exibidas à parte
 
 // Fase 2: campos "<key>_fontes" são metadados de rastreabilidade — não são exibidos como campos.
 const isFonteMeta = (k) => k.endsWith('_fontes');
@@ -30,6 +30,7 @@ export default function Show({ patient, record }) {
     const acompanhante = record.acompanhante_snapshot && typeof record.acompanhante_snapshot === 'object'
         ? record.acompanhante_snapshot : null;
     const terceiraVozAlerta = !!anamnesis?._terceira_voz_alerta;
+    const identificacaoPorVoz = !!anamnesis?._identificacao_por_voz;
     const templateNome = anamnesis?._template_nome || null;
 
     // N1 — turnos sociais colapsados por padrão (transcrição nunca é apagada)
@@ -164,6 +165,11 @@ export default function Show({ patient, record }) {
                 {/* 1) TRANSCRIÇÃO — protagonista no topo pra consultas gravadas */}
                 {isStudio && transcricao.length > 0 && (
                     <SOAPSection title="Transcrição da consulta" icon="🎙️" subtitle="O que foi dito, palavra por palavra — base de tudo que a IA gerou abaixo.">
+                        {identificacaoPorVoz && (
+                            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-teal-50 border border-teal-200 px-3 py-1 text-xs font-medium text-teal-700">
+                                🎤 Médico identificado por biometria de voz
+                            </div>
+                        )}
                         {socialCount > 0 && (
                             <div className="mb-3 flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
                                 <p className="text-xs text-gray-500">

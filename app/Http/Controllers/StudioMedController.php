@@ -127,6 +127,7 @@ class StudioMedController extends Controller
             'acompanhanteSnapshot.nome' => ['nullable', 'string', 'max:120'],
             'acompanhanteSnapshot.vinculo' => ['nullable', 'string', 'max:60'],
             'terceiraVozNaoIdentificada' => ['nullable', 'boolean'],
+            'identificacaoPorVoz'        => ['nullable', 'boolean'],
             'prescricoes'                  => ['nullable', 'array'],
             'prescricoes.*.medicamento'    => ['required_with:prescricoes', 'string', 'max:255'],
             'prescricoes.*.posologia'      => ['nullable', 'string', 'max:255'],
@@ -192,6 +193,11 @@ class StudioMedController extends Controller
         // Camada 5: alerta se EVO detectou 3+ vozes sem acompanhante informado
         if (! empty($d['terceiraVozNaoIdentificada']) && empty($d['acompanhanteSnapshot'])) {
             $anamnesis['_terceira_voz_alerta'] = true;
+        }
+
+        // Camada 2: o médico foi reconhecido por BIOMETRIA de voz (voiceprint calibrado no EVO)
+        if (! empty($d['identificacaoPorVoz'])) {
+            $anamnesis['_identificacao_por_voz'] = true;
         }
 
         // Extrai campos "especiais" (exame físico, diagnóstico, conduta) — ficam em suas colunas próprias
