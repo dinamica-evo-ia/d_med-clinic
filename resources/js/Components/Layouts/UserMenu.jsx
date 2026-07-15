@@ -44,7 +44,10 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
           </div>
 
           <Section>
-            <MItem href="/account/doctor" onClick={() => setOpen(false)} label="Editar médico / clínica" icon="user-edit" />
+            {/* secretária não entra (a rota é role:admin,doctor) — não mostra o item pra ela */}
+            {role !== 'receptionist' && (
+              <MItem href="/account/clinica" onClick={() => setOpen(false)} label="Médico / Clínica / Usuários" icon="user-edit" />
+            )}
             <MItem href="/account/password" onClick={() => setOpen(false)} label="Alterar senha" icon="lock" />
             <MItem href="/account/plan" onClick={() => setOpen(false)} label="Planos e pagamentos" icon="card" />
           </Section>

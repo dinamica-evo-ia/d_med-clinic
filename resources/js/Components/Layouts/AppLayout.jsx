@@ -46,9 +46,7 @@ const NAV = [
     { name: 'Atendente', href: '/atendente', icon: 'chat', roles: ['admin', 'receptionist'] },
     { name: 'Conversas', href: '/atendente/conversas', icon: 'inbox', roles: ['admin', 'receptionist'] },
   ]},
-  { section: 'Administração', items: [
-    { name: 'Usuários', href: '/users', icon: 'shield', roles: ['admin'] },
-  ]},
+  // 'Usuários' saiu daqui: virou aba de /account/clinica, no menu do avatar.
 ];
 
 const SIDEBAR_COLLAPSE_KEY = 'dmed_sidebar_collapsed';

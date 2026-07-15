@@ -6,12 +6,11 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Inertia\Inertia;
 
 class TenantUserController extends Controller
 {
     /** Acessos extras que o médico/admin pode liberar pra uma secretária, além do papel padrão. */
-    private const GRANTABLE_PERMISSIONS = ['financeiro'];
+    public const GRANTABLE_PERMISSIONS = ['financeiro'];
 
     /**
      * tenant_user vive só no banco central — mas este controller roda com um tenant já
@@ -24,34 +23,10 @@ class TenantUserController extends Controller
         return DB::connection(config('tenancy.database.central_connection'))->table('tenant_user');
     }
 
+    /** A lista mudou pra aba Usuários de /account/clinica (menu do avatar). */
     public function index()
     {
-        $tenantId = tenant()->id;
-
-        $users = User::whereHas('tenants', fn($q) => $q->where('tenant_id', $tenantId))
-            ->with(['tenants' => fn($q) => $q->where('tenant_id', $tenantId)])
-            ->orderBy('name')
-            ->paginate(15)
-            ->through(function ($user) {
-                $pivot = $user->tenants->first()?->pivot;
-                $permissions = $pivot?->permissions;
-                if (is_string($permissions)) $permissions = json_decode($permissions, true);
-
-                return [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'phone' => $user->phone,
-                    'role' => $pivot?->role ?? 'doctor',
-                    'is_active' => $pivot?->is_active ?? true,
-                    'permissions' => $permissions ?? [],
-                ];
-            });
-
-        return Inertia::render('Users/Index', [
-            'users' => $users,
-            'grantablePermissions' => self::GRANTABLE_PERMISSIONS,
-        ]);
+        return redirect()->route('account.clinic', ['tab' => 'usuarios']);
     }
 
     public function store(Request $request)
@@ -110,8 +85,7 @@ class TenantUserController extends Controller
             'updated_at' => now(),
         ]);
 
-        return redirect()->route('users.index')
-            ->with('success', 'Usuário adicionado com sucesso.');
+        return back()->with('success', 'Usuário adicionado com sucesso.');
     }
 
     public function update(Request $request, User $user)
@@ -132,8 +106,7 @@ class TenantUserController extends Controller
             ->exists();
 
         if (!$exists) {
-            return redirect()->route('users.index')
-                ->with('error', 'Usuário não pertence a esta clínica.');
+            return back()->with('error', 'Usuário não pertence a esta clínica.');
         }
 
         $this->tenantUserTable()
@@ -146,8 +119,7 @@ class TenantUserController extends Controller
                 'updated_at' => now(),
             ]);
 
-        return redirect()->route('users.index')
-            ->with('success', 'Usuário atualizado com sucesso.');
+        return back()->with('success', 'Usuário atualizado com sucesso.');
     }
 
     public function destroy(User $user)
@@ -159,7 +131,6 @@ class TenantUserController extends Controller
             ->where('user_id', $user->id)
             ->delete();
 
-        return redirect()->route('users.index')
-            ->with('success', 'Usuário removido da clínica.');
+        return back()->with('success', 'Usuário removido da clínica.');
     }
 }

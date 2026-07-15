@@ -15,7 +15,7 @@ class Doctor extends Model
     protected $primaryKey = 'id';
 
     protected $fillable = [
-        'name', 'email', 'phone', 'specialty', 'license_number',
+        'name', 'email', 'phone', 'specialty', 'license_number', 'license_state', 'rqe',
         'document', 'bio', 'schedule', 'print_settings', 'is_active',
     ];
 

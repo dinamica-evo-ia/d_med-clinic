@@ -119,7 +119,8 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
 
     Route::resource('doctors', DoctorController::class);
 
-    // User management (admin only)
+    // User management (admin only). A LISTA vive na aba Usuários de /account/clinica
+    // (menu do avatar) — /users só sobrevive como redirect pra não quebrar link antigo.
     Route::middleware('role:admin')->group(function () {
         Route::get('/users', [TenantUserController::class, 'index'])->name('users.index');
         Route::post('/users', [TenantUserController::class, 'store'])->name('users.store');
@@ -176,7 +177,19 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
 
     // Minha conta (dropdown do usuário no topo)
     Route::prefix('account')->name('account.')->group(function () {
-        Route::get('/doctor', [\App\Http\Controllers\AccountController::class, 'doctor'])->name('doctor');
+        // Médico / Clínica / Usuários (abas). Secretária não entra: dados cadastrais da
+        // clínica e do médico não são do papel dela.
+        Route::middleware('role:admin,doctor')->group(function () {
+            Route::get('/clinica', [\App\Http\Controllers\AccountController::class, 'clinic'])->name('clinic');
+            Route::put('/clinica', [\App\Http\Controllers\AccountController::class, 'clinicUpdate'])->name('clinic.update');
+            Route::post('/clinica/logo', [\App\Http\Controllers\AccountController::class, 'clinicLogo'])->name('clinic.logo');
+            Route::delete('/clinica/logo', [\App\Http\Controllers\AccountController::class, 'clinicLogoDestroy'])->name('clinic.logo.destroy');
+            Route::put('/clinica/medico/{doctor}', [\App\Http\Controllers\AccountController::class, 'doctorUpdate'])->name('clinic.doctor.update');
+        });
+
+        // era um placeholder "em breve"; virou a aba Médico
+        Route::redirect('/doctor', '/account/clinica')->name('doctor');
+
         Route::get('/password', [\App\Http\Controllers\AccountController::class, 'password'])->name('password');
         Route::put('/password', [\App\Http\Controllers\AccountController::class, 'passwordUpdate'])->name('password.update');
         Route::get('/plan', [\App\Http\Controllers\AccountController::class, 'plan'])->name('plan');

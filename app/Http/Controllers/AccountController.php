@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ClinicProfile;
 use App\Models\Doctor;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Support\DoctorSchedule;
 use App\Support\PrintSettings;
 use Illuminate\Http\Request;
@@ -15,9 +17,151 @@ use Inertia\Inertia;
 
 class AccountController extends Controller
 {
-    public function doctor()
+    /**
+     * Médico / Clínica / Usuários — as três coisas ficam em abas da mesma página, no menu
+     * do avatar. A aba Usuários só é montada pra admin (as rotas de /users seguem com
+     * middleware role:admin — isto aqui é só a UI).
+     */
+    public function clinic(Request $request)
     {
-        return Inertia::render('Account/Doctor');
+        $doctors = Doctor::orderBy('name')->get();
+        $selectedId = $request->get('doctor_id') ?: optional($doctors->first())->id;
+        $selected = $doctors->firstWhere('id', $selectedId);
+
+        return Inertia::render('Account/Clinic', [
+            'doctors' => $doctors->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])->values(),
+            'doctor' => $selected ? [
+                'id' => $selected->id,
+                'name' => $selected->name,
+                'email' => $selected->email,
+                'phone' => $selected->phone,
+                'specialty' => $selected->specialty,
+                'license_number' => $selected->license_number,
+                'license_state' => $selected->license_state,
+                'rqe' => $selected->rqe,
+                'document' => $selected->document,
+                'bio' => $selected->bio,
+                'is_active' => (bool) $selected->is_active,
+            ] : null,
+            'clinic' => $this->clinicPayload(),
+            'users' => $request->user()->currentRole() === 'admin' ? $this->clinicUsers() : null,
+            'grantablePermissions' => TenantUserController::GRANTABLE_PERMISSIONS,
+            'states' => ClinicProfile::STATES,
+        ]);
+    }
+
+    private function clinicPayload(): array
+    {
+        $p = ClinicProfile::current();
+
+        return array_merge(
+            $p->only((new ClinicProfile)->getFillable()),
+            ['logo_url' => $p->logo_url]
+        );
+    }
+
+    /** Usuários da clínica. Sem paginação de propósito: o plano limita a poucas dezenas. */
+    private function clinicUsers(): array
+    {
+        $tenantId = tenant()->id;
+
+        return User::whereHas('tenants', fn ($q) => $q->where('tenant_id', $tenantId))
+            ->with(['tenants' => fn ($q) => $q->where('tenant_id', $tenantId)])
+            ->orderBy('name')
+            ->get()
+            ->map(function ($user) {
+                $pivot = $user->tenants->first()?->pivot;
+                $permissions = $pivot?->permissions;
+                if (is_string($permissions)) {
+                    $permissions = json_decode($permissions, true);
+                }
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $pivot?->role ?? 'doctor',
+                    'is_active' => (bool) ($pivot?->is_active ?? true),
+                    'permissions' => $permissions ?? [],
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    public function doctorUpdate(Request $request, Doctor $doctor)
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'specialty' => ['nullable', 'string', 'max:120'],
+            'license_number' => ['nullable', 'string', 'max:30'],
+            'license_state' => ['nullable', 'string', Rule::in(ClinicProfile::STATES)],
+            'rqe' => ['nullable', 'string', 'max:30'],
+            'document' => ['nullable', 'string', 'max:20'],
+            'bio' => ['nullable', 'string', 'max:2000'],
+            'is_active' => ['boolean'],
+        ]);
+
+        $doctor->update($data);
+
+        return back()->with('success', 'Dados do médico salvos.');
+    }
+
+    public function clinicUpdate(Request $request)
+    {
+        $data = $request->validate([
+            'legal_name' => ['nullable', 'string', 'max:255'],
+            'nature' => ['required', Rule::in(ClinicProfile::NATURES)],
+            'document' => ['nullable', 'string', 'max:20'],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'mobile' => ['nullable', 'string', 'max:30'],
+            'whatsapp' => ['nullable', 'string', 'max:30'],
+            'zip' => ['nullable', 'string', 'max:15'],
+            'street' => ['nullable', 'string', 'max:255'],
+            'number' => ['nullable', 'string', 'max:20'],
+            'complement' => ['nullable', 'string', 'max:120'],
+            'district' => ['nullable', 'string', 'max:120'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'state' => ['nullable', 'string', Rule::in(ClinicProfile::STATES)],
+        ]);
+
+        ClinicProfile::current()->update($data);
+
+        return back()->with('success', 'Dados da clínica salvos.');
+    }
+
+    public function clinicLogo(Request $request)
+    {
+        $request->validate(['logo' => ['required', 'image', 'max:5120']]);
+
+        $profile = ClinicProfile::current();
+        if ($profile->logo_path) {
+            Storage::disk('public')->delete($profile->logo_path);
+        }
+
+        $profile->update([
+            'logo_path' => $request->file('logo')->storeAs(
+                'clinic-logos',
+                tenant()->id.'_'.time().'.'.$request->file('logo')->extension(),
+                'public'
+            ),
+        ]);
+
+        return back()->with('success', 'Logo da clínica atualizada.');
+    }
+
+    public function clinicLogoDestroy()
+    {
+        $profile = ClinicProfile::current();
+        if ($profile->logo_path) {
+            Storage::disk('public')->delete($profile->logo_path);
+            $profile->update(['logo_path' => null]);
+        }
+
+        return back()->with('success', 'Logo removida.');
     }
 
     public function password()
