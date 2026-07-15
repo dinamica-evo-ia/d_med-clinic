@@ -155,7 +155,7 @@ class AttendantController extends Controller
                 'patient_id' => $c->patient_id,
                 'status' => $c->status,
                 'last_at' => $c->last_message_at?->diffForHumans(),
-                'preview' => \Illuminate\Support\Str::limit((string) optional($c->messages()->latest('id')->first())->body, 60),
+                'preview' => \Illuminate\Support\Str::limit((string) optional($c->messages()->orderByDesc('id')->first())->body, 60),
             ]);
 
         $selected = null;

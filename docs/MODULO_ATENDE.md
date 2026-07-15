@@ -83,6 +83,31 @@ Os dois falam a **mesma API** (a WADuck é uma Evolution hospedada): header `api
 > **https://docs.evolutionfoundation.com.br** — o domínio antigo (`doc.evolution-api.com`)
 > responde 404, e é pra ele que quase todo tutorial de Evolution ainda aponta.
 
+### 🔴 Ordenação embutida em relação NÃO é substituída — é ANEXADA
+
+`AttendantConversation::messages()` tinha `->orderBy('created_at')`. O `history()` fazia
+`->latest('id')` achando que isso definia a ordem. O SQL saía:
+
+```sql
+ORDER BY created_at ASC, id DESC   -- o PRIMEIRO critério vence
+```
+
+Resultado: a query voltava do mais **velho** pro mais novo, e o `->reverse()` seguinte
+entregava **a conversa inteira invertida pro Claude**. O bot lia de trás pra frente, achava
+que as mensagens estavam "com caracteres estranhos" (um nome solto como "Kledson", sem
+contexto, parece string aleatória) e **repetia a mesma pergunta pra sempre** — nunca agendava.
+
+O mesmo bug fazia a **prévia do Inbox** mostrar a PRIMEIRA mensagem da conversa em vez da
+última (`$c->messages()->latest('id')->first()` devolvia a mais antiga).
+
+**Correção:** a relação não ordena mais nada; quem chama ordena explicitamente, e por **`id`**
+(não `created_at`, que só tem precisão de segundo e empata quando o paciente manda duas
+seguidas). Se precisar de ordem diferente da relação, use `reorder()` — nunca `orderBy()`.
+
+> Por que passou nos testes de 2026-07-08: com 1 ou 2 mensagens, conversa invertida é
+> indistinguível de conversa certa. **Só aparece em diálogo real de várias trocas** — que foi
+> exatamente o primeiro teste de ponta a ponta com WhatsApp de verdade (2026-07-15).
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo

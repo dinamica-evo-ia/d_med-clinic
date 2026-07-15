@@ -193,7 +193,10 @@ TXT;
     /** Histórico → mensagens Claude (funde mensagens seguidas do mesmo papel). */
     private function history(): array
     {
-        $msgs = $this->conv->messages()->latest('id')->limit(20)->get()->reverse();
+        // ordena por id (não por created_at: só tem precisão de segundo e empata quando o
+        // paciente manda duas seguidas). Pega as 20 mais novas, devolve da mais velha pra
+        // mais nova — que é como o Claude espera ler a conversa.
+        $msgs = $this->conv->messages()->orderByDesc('id')->limit(20)->get()->reverse()->values();
         $out = [];
         foreach ($msgs as $m) {
             $role = $m->direction === 'in' ? 'user' : 'assistant';
