@@ -44,12 +44,7 @@ class PatientController extends Controller
         $query = Patient::query();
 
         if ($search = $request->get('search')) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('document', 'like', "%{$search}%");
-            });
+            $query->search($search); // sem acento + telefone/CPF só com dígitos (ver Patient)
         }
 
         // Status: por padrão só Ativos; 'inactive' ou 'all' via filtro.
@@ -226,11 +221,13 @@ class PatientController extends Controller
 
     public function search(Request $request)
     {
-        $search = $request->get('q', '');
-        $patients = Patient::where('name', 'like', "%{$search}%")
-            ->orWhere('email', 'like', "%{$search}%")
-            ->orWhere('phone', 'like', "%{$search}%")
-            ->orWhere('document', 'like', "%{$search}%")
+        $search = trim((string) $request->get('q', ''));
+        if ($search === '') {
+            return response()->json([]);
+        }
+
+        $patients = Patient::search($search)
+            ->orderBy('name')
             ->limit(20)
             ->get(['id', 'name', 'email', 'phone', 'document']);
 

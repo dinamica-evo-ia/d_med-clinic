@@ -41,6 +41,30 @@ Receitas identificadas pela IA aparecem como **sugestão** — nada é emitido s
 Componente `Components/shared/CidAutocomplete.jsx` — usado no SOAP e no atestado.
 ⚠️ O dataset **não inclui U07** (COVID-19).
 
+### 🔴 Busca de paciente: acento quebrava tudo
+
+`Patient::scopeSearch()` — usado pela lista de Pacientes **e** pelo PatientPicker (os dois
+precisam achar a mesma coisa).
+
+O `LIKE` do SQLite só é case-insensitive em **ASCII**, e o `LOWER()` também
+(`LOWER('MÁRCIO')` = `'mÁrcio'`). A busca era uma loteria:
+
+| busca | antes | agora |
+|---|---|---|
+| `marcio` | 14 | **15** |
+| `MÁRCIO` | **0** | **15** |
+| `jose` | 44 | 83 |
+| `José` | **8** | 81 |
+
+Não dá pra consertar na query. Solução: coluna **`patients.name_normalized`** (minúscula, sem
+acento, indexada), preenchida no **`saving`** do model — não no `creating`, senão a busca
+passa a mentir depois da primeira edição de nome. Migration faz o backfill do que já existe.
+
+Telefone e CPF comparam **só os dígitos**, pra achar com máscara ou sem.
+
+> `jose` ainda acha 2 a mais que `JOSÉ`: são e-mails `@hsaojose.com`. É correto — e-mail não
+> tem acento.
+
 ### Marcar consulta pra paciente novo
 
 `Components/shared/PatientPicker.jsx` — busca por **nome, telefone ou CPF** e, se não achar,

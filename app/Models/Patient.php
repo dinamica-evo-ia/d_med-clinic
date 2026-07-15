@@ -49,6 +49,52 @@ class Patient extends Model
                 $patient->id = (string) Str::uuid();
             }
         });
+
+        // `saving` (não `creating`): tem que reescrever também quando o nome MUDA, senão a
+        // busca passa a mentir depois da primeira edição.
+        static::saving(function ($patient) {
+            $patient->name_normalized = self::normalizeName($patient->name);
+        });
+    }
+
+    /** Minúscula e sem acento — é assim que `name_normalized` guarda e que a busca compara. */
+    public static function normalizeName(?string $name): string
+    {
+        return Str::lower(Str::ascii((string) $name));
+    }
+
+    /**
+     * Busca por nome (sem acento), e-mail, telefone ou CPF. Usado na lista de Pacientes e no
+     * PatientPicker — os dois precisam achar a mesma coisa.
+     *
+     * Nome vai pela coluna `name_normalized`: o LIKE do SQLite só é case-insensitive em ASCII,
+     * então "MÁRCIO" não achava "márcio" nem "Marcio". Telefone e CPF comparam só os dígitos,
+     * pra achar mesmo digitando com máscara (ou sem).
+     */
+    public function scopeSearch($query, ?string $termo)
+    {
+        $termo = trim((string) $termo);
+        if ($termo === '') {
+            return $query;
+        }
+
+        $nome = self::normalizeName($termo);
+        $digitos = preg_replace('/\D/', '', $termo);
+
+        return $query->where(function ($q) use ($nome, $termo, $digitos) {
+            $q->where('name_normalized', 'like', "%{$nome}%")
+                ->orWhere('email', 'like', "%{$termo}%");
+
+            if ($digitos !== '') {
+                $q->orWhereRaw(
+                    "REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''), '.', ''), '-', ''), ' ', ''), '(', '') LIKE ?",
+                    ["%{$digitos}%"]
+                )->orWhereRaw(
+                    "REPLACE(REPLACE(REPLACE(COALESCE(document,''), '.', ''), '-', ''), ' ', '') LIKE ?",
+                    ["%{$digitos}%"]
+                );
+            }
+        });
     }
 
     /**
