@@ -41,6 +41,25 @@ Receitas identificadas pela IA aparecem como **sugestão** — nada é emitido s
 Componente `Components/shared/CidAutocomplete.jsx` — usado no SOAP e no atestado.
 ⚠️ O dataset **não inclui U07** (COVID-19).
 
+### Exames: Solicitar × Resultados
+
+Duas coisas diferentes, que viravam confusão numa lista só:
+
+| Aba | O que é | Tabela |
+|---|---|---|
+| **Solicitar** | o que a clínica **pede** ao laboratório | `exam_requests` + `exam_request_items` |
+| **Resultados** | o que **volta** de lá, com o laudo anexado | `exam_results` + `attachments` |
+
+`exam_results.exam_request_id` é **opcional e sem FK rígida**: dá pra guardar resultado sem
+pedido no sistema (paciente trouxe exame de fora).
+
+Os laudos usam a tabela polimórfica **`attachments`** que já existia. Upload por
+`Components/shared/FileDrop.jsx` (arrastar + botão), até 10 arquivos de 10 MB.
+
+> ⚠️ **Não há transação** entre criar o resultado e anexar os arquivos: se um upload falhar no
+> meio, o resultado fica salvo com menos anexos (recuperável — é só arrastar de novo na tela
+> do resultado). Envolver em transação criaria arquivo órfão em disco, que é pior.
+
 ### 🔴 Busca de paciente: acento quebrava tudo
 
 `Patient::scopeSearch()` — usado pela lista de Pacientes **e** pelo PatientPicker (os dois

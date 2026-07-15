@@ -1,4 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
+import ExamTabs from '@/Pages/ExamResults/Partials/ExamTabs';
 const statusLabels = {
     requested: 'Solicitado',
     performed: 'Realizado',
@@ -37,12 +38,17 @@ export default function Index({ examRequests, filters }) {
         <>
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold text-gray-900">Solicitação de Exames</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Exames</h1>
+                        <p className="mt-1 text-sm text-slate-500">O que a clínica pediu ao laboratório.</p>
+                    </div>
                     <Link href="/exam-requests/create"
                         className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition">
                         + Nova Solicitação
                     </Link>
                 </div>
+
+                <ExamTabs active="solicitar" />
 
                 {flash?.success && (
                     <div className="rounded-lg bg-green-50 border border-green-200 text-green-700 px-4 py-3 text-sm">

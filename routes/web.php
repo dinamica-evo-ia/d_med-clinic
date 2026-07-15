@@ -112,6 +112,14 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::patch('exam-requests/{examRequest}/status', [ExamRequestController::class, 'updateStatus'])->name('exam-requests.status');
         Route::delete('exam-requests/{examRequest}', [ExamRequestController::class, 'destroy'])->name('exam-requests.destroy');
         Route::get('exam-requests/{examRequest}/print', [ExamRequestController::class, 'print'])->name('exam-requests.print');
+
+        // Resultados de exame (o que VOLTA do laboratório) — aba irmã de Solicitar
+        Route::get('exam-results', [\App\Http\Controllers\ExamResultController::class, 'index'])->name('exam-results.index');
+        Route::get('exam-results/create', [\App\Http\Controllers\ExamResultController::class, 'create'])->name('exam-results.create');
+        Route::post('exam-results', [\App\Http\Controllers\ExamResultController::class, 'store'])->name('exam-results.store');
+        Route::get('exam-results/{examResult}', [\App\Http\Controllers\ExamResultController::class, 'show'])->name('exam-results.show');
+        Route::post('exam-results/{examResult}/files', [\App\Http\Controllers\ExamResultController::class, 'addFiles'])->name('exam-results.files');
+        Route::delete('exam-results/{examResult}', [\App\Http\Controllers\ExamResultController::class, 'destroy'])->name('exam-results.destroy');
     });
 
     Route::resource('appointments', AppointmentController::class);
