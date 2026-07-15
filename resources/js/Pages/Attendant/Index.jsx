@@ -1,5 +1,5 @@
 import { useForm, usePage, router, Link } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const AUTONOMY = [
   { v: 'suggest', label: 'Só sugerir', hint: 'A IA sugere respostas, mas nada é enviado sozinho.' },
@@ -244,8 +244,44 @@ function WhatsappCard({ whatsapp }) {
     } catch { setStatus({ ok: false, state: 'erro' }); }
     setChecking(false);
   };
-  const conn = useForm({ waduck_instance: whatsapp.instance || '', waduck_api_key: '', waduck_phone: whatsapp.phone || '', waduck_api_url: whatsapp.api_url || '' });
+  const conn = useForm({
+    provider: whatsapp.provider || 'waduck',
+    waduck_instance: whatsapp.instance || '',
+    waduck_api_key: '',
+    waduck_phone: whatsapp.phone || '',
+    waduck_api_url: whatsapp.api_url || '',
+  });
   const test = useForm({ to: '', text: '' });
+  const isEvolution = conn.data.provider === 'evolution';
+
+  // QR (só Evolution): pede o pareamento e fica olhando o status até virar 'open'.
+  const [qr, setQr] = useState(null);
+  const [qrError, setQrError] = useState(null);
+  const [pairing, setPairing] = useState(false);
+
+  const doPair = async () => {
+    setPairing(true); setQrError(null); setQr(null);
+    try {
+      const { data } = await window.axios.post('/atendente/whatsapp/pair');
+      if (data.state === 'open') { setQrError(null); router.reload({ only: ['whatsapp'] }); }
+      else setQr(data.qr_base64 || null);
+    } catch (e) {
+      setQrError(e.response?.data?.error || 'Falha ao gerar o QR Code.');
+    }
+    setPairing(false);
+  };
+
+  // enquanto o QR está na tela, checa a conexão a cada 5s (o QR expira sozinho)
+  useEffect(() => {
+    if (!qr) return undefined;
+    const id = setInterval(async () => {
+      try {
+        const { data } = await window.axios.get('/atendente/whatsapp/status');
+        if (data.state === 'open') { setQr(null); router.reload({ only: ['whatsapp'] }); }
+      } catch { /* silencioso: é só polling */ }
+    }, 5000);
+    return () => clearInterval(id);
+  }, [qr]);
 
   const doConnect = (e) => { e.preventDefault(); conn.post('/atendente/whatsapp/connect', { preserveScroll: true, onSuccess: () => conn.reset('waduck_api_key') }); };
   const doTest = (e) => { e.preventDefault(); test.post('/atendente/whatsapp/test', { preserveScroll: true }); };
@@ -263,14 +299,30 @@ function WhatsappCard({ whatsapp }) {
 
       {!whatsapp.connected ? (
         <form onSubmit={doConnect} className="space-y-3">
-          <p className="text-xs text-slate-500">Conecte o número da clínica usando as credenciais da sua instância no WADuck.</p>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Provedor</label>
+            <select value={conn.data.provider} onChange={(e) => conn.setData('provider', e.target.value)} className={field}>
+              {Object.entries(whatsapp.provider_labels || {}).map(([k, label]) => (
+                <option key={k} value={k}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <p className="text-xs text-slate-500">
+            {isEvolution
+              ? 'Aponte pro seu servidor Evolution. A instância é criada aqui e o número é pareado por QR Code.'
+              : 'Conecte o número da clínica usando as credenciais da sua instância no WADuck.'}
+          </p>
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Instância (WADuck)</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Nome da instância</label>
               <input value={conn.data.waduck_instance} onChange={(e) => conn.setData('waduck_instance', e.target.value)} className={field} placeholder="minha-clinica" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">API key</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                {isEvolution ? 'API key global (AUTHENTICATION_API_KEY)' : 'API key'}
+              </label>
               <input value={conn.data.waduck_api_key} onChange={(e) => conn.setData('waduck_api_key', e.target.value)} className={field} placeholder="••••••••" />
             </div>
             <div>
@@ -278,8 +330,11 @@ function WhatsappCard({ whatsapp }) {
               <input value={conn.data.waduck_phone} onChange={(e) => conn.setData('waduck_phone', e.target.value)} className={field} placeholder="5511999998888" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">URL da API (opcional)</label>
-              <input value={conn.data.waduck_api_url} onChange={(e) => conn.setData('waduck_api_url', e.target.value)} className={field} placeholder="https://api.waduck.pro" />
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                URL da API {isEvolution ? '' : '(opcional)'}
+              </label>
+              <input value={conn.data.waduck_api_url} onChange={(e) => conn.setData('waduck_api_url', e.target.value)} className={field}
+                placeholder={isEvolution ? 'https://evolution.seudominio.com.br' : 'https://api.waduck.pro'} />
             </div>
           </div>
           {conn.errors.waduck_instance && <p className="text-xs text-red-600">{conn.errors.waduck_instance}</p>}
@@ -310,9 +365,36 @@ function WhatsappCard({ whatsapp }) {
             )}
           </div>
 
-          {/* URL do webhook pra colar no WADuck */}
+          {/* Pareamento por QR (Evolution) */}
+          {whatsapp.supports_qr && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-600">
+                  Número não pareado? Gere o QR e leia no WhatsApp do celular da clínica
+                  (<b>Aparelhos conectados → Conectar aparelho</b>).
+                </p>
+                <button type="button" onClick={doPair} disabled={pairing}
+                  className="shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-60">
+                  {pairing ? 'Gerando…' : 'Parear com QR Code'}
+                </button>
+              </div>
+              {qrError && <p className="mt-2 text-xs text-red-600">{qrError}</p>}
+              {qr && (
+                <div className="mt-3 flex flex-col items-center gap-2">
+                  <img src={qr} alt="QR Code para parear o WhatsApp" className="h-56 w-56 rounded-lg border border-slate-200 bg-white p-2" />
+                  <p className="text-[11px] text-slate-500">Aguardando leitura… o QR expira em ~40s (clique de novo se sumir).</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* URL do webhook — na Evolution é configurada sozinha no pareamento */}
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">URL do webhook (cole no WADuck — evento <code>messages.upsert</code>)</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              {whatsapp.supports_qr
+                ? <>URL do webhook (já configurada automaticamente na Evolution)</>
+                : <>URL do webhook (cole no WADuck — evento <code>messages.upsert</code>)</>}
+            </label>
             <div className="flex gap-2">
               <input readOnly value={whatsapp.webhook_url || ''} className={`${field} font-mono text-xs bg-slate-50`} onFocus={(e) => e.target.select()} />
               <button type="button" onClick={copy} className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 hover:bg-slate-50 shrink-0">

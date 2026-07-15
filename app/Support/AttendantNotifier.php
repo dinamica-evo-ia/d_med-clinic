@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\AttendantConversation;
 use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
+use App\Support\Whatsapp\Whatsapp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -66,7 +67,7 @@ class AttendantNotifier
             $medico = $appt->doctor?->name ? 'Dr(a). '.$appt->doctor->name : null;
 
             $text = $build($nome, $quando, $medico);
-            Waduck::sendText($s, $phone, $text);
+            Whatsapp::sendText($s, $phone, $text);
 
             // Registra no inbox (se houver conversa) pra secretária ver que o paciente foi avisado.
             if ($conv) {

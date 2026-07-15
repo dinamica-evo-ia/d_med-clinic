@@ -9,6 +9,7 @@ use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
 use App\Models\Doctor;
 use App\Models\Patient;
+use App\Support\Whatsapp\Whatsapp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -66,7 +67,7 @@ class AttendantAI
             return;
         }
         try {
-            Waduck::sendText($s, $conv->contact_phone, $msg);
+            Whatsapp::sendText($s, $conv->contact_phone, $msg);
             AttendantMessage::create([
                 'conversation_id' => $conv->id, 'direction' => 'out',
                 'author_type' => 'system', 'body' => $msg,
@@ -118,7 +119,7 @@ class AttendantAI
         }
 
         if ($reply !== null && $reply !== '') {
-            Waduck::sendText($this->s, $this->conv->contact_phone, $reply);
+            Whatsapp::sendText($this->s, $this->conv->contact_phone, $reply);
             AttendantMessage::create([
                 'conversation_id' => $this->conv->id,
                 'direction' => 'out',

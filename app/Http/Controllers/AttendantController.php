@@ -9,16 +9,17 @@ use App\Models\AttendantSetting;
 use App\Models\Patient;
 use App\Models\Tenant;
 use App\Support\AttendantAI;
-use App\Support\Waduck;
+use App\Support\Whatsapp\Whatsapp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 /*
  * "D_Med Atende" — painel do atendente de WhatsApp. Acesso só admin/secretária (médico
  * não vê, pra manter o CRM clean).
  *   Fase 1: liga/desliga + config do bot.
- *   Fase 2: conectar WhatsApp (WADuck), enviar teste, receber mensagens (webhook).
+ *   Fase 2: conectar WhatsApp (WADuck ou Evolution), enviar teste, receber mensagens (webhook).
  *   Fase 3 (próxima): a IA (Claude) responde e agenda.
  */
 class AttendantController extends Controller
@@ -45,6 +46,9 @@ class AttendantController extends Controller
             ],
             'whatsapp' => [
                 'connected' => $s->isWhatsappConnected(),
+                'provider' => $s->provider ?: 'waduck',
+                'provider_labels' => \App\Support\Whatsapp\Whatsapp::LABELS,
+                'supports_qr' => Whatsapp::for($s)->supportsQrPairing(),
                 'instance' => $s->waduck_instance,
                 'phone' => $s->waduck_phone,
                 'api_url' => $s->waduck_api_url,
@@ -131,7 +135,7 @@ class AttendantController extends Controller
 
     public function whatsappStatus()
     {
-        return response()->json(Waduck::connectionState(AttendantSetting::current()));
+        return response()->json(Whatsapp::connectionState(AttendantSetting::current()));
     }
 
     // ---------- Inbox (Fase 4): secretária acompanha e assume conversas ----------
@@ -187,7 +191,7 @@ class AttendantController extends Controller
         $data = $request->validate(['text' => 'required|string|max:2000']);
 
         try {
-            Waduck::sendText(AttendantSetting::current(), $conversation->contact_phone, $data['text']);
+            Whatsapp::sendText(AttendantSetting::current(), $conversation->contact_phone, $data['text']);
         } catch (\Throwable $e) {
             return back()->with('error', 'Falha ao enviar: '.$e->getMessage());
         }
@@ -220,10 +224,11 @@ class AttendantController extends Controller
         return back();
     }
 
-    /** Conectar o número de WhatsApp (credenciais WADuck). Gera o webhook_token na 1ª vez. */
+    /** Conectar o número de WhatsApp. Gera o webhook_token na 1ª vez. */
     public function connectWhatsapp(Request $request)
     {
         $data = $request->validate([
+            'provider' => ['required', Rule::in(Whatsapp::PROVIDERS)],
             'waduck_instance' => 'required|string|max:120',
             'waduck_api_key' => 'required|string|max:255',
             'waduck_phone' => 'nullable|string|max:20',
@@ -231,27 +236,85 @@ class AttendantController extends Controller
         ]);
 
         $s = AttendantSetting::current();
+        $trocouDeInstancia = $s->waduck_instance !== $data['waduck_instance']
+            || $s->provider !== $data['provider'];
+
         $s->fill([
+            'provider' => $data['provider'],
             'waduck_instance' => $data['waduck_instance'],
             'waduck_api_key' => $data['waduck_api_key'],
             'waduck_phone' => $data['waduck_phone'] ?? null,
             'waduck_api_url' => $data['waduck_api_url'] ?? null,
             'connected_at' => now(),
         ]);
+        // token da instância antiga não vale pra outra instância/provedor
+        if ($trocouDeInstancia) {
+            $s->instance_token = null;
+        }
         if (! $s->webhook_token) {
             $s->webhook_token = Str::random(40);
         }
         $s->save();
 
-        return back()->with('success', 'WhatsApp conectado. Configure a URL do webhook no WADuck.');
+        return back()->with('success', $s->provider === 'evolution'
+            ? 'Credenciais salvas. Agora clique em "Parear com QR Code".'
+            : 'WhatsApp conectado. Configure a URL do webhook no WADuck.');
+    }
+
+    /**
+     * Evolution: cria a instância (se preciso), aponta o webhook e devolve o QR code.
+     * Responde JSON — a tela faz polling até o state virar 'open'.
+     */
+    public function pairWhatsapp()
+    {
+        $s = AttendantSetting::current();
+        $provider = Whatsapp::for($s);
+
+        if (! $provider->supportsQrPairing()) {
+            return response()->json(['error' => 'Este provedor pareia o número no painel dele, não aqui.'], 422);
+        }
+        if (! $s->webhook_token) {
+            $s->update(['webhook_token' => Str::random(40)]);
+        }
+
+        try {
+            $r = $provider->pair($this->webhookUrl($s));
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 422);
+        }
+
+        if (($r['state'] ?? null) === 'open') {
+            $s->update(['connected_at' => now()]);
+        }
+
+        return response()->json($r);
+    }
+
+    /** URL pública que o provedor chama quando chega mensagem. */
+    private function webhookUrl(AttendantSetting $s): string
+    {
+        return url('/api/whatsapp/webhook/'.tenant()->id).'?token='.$s->webhook_token;
     }
 
     /** Desconectar (mantém o webhook_token pra reconexão usar a mesma URL). */
     public function disconnectWhatsapp()
     {
-        AttendantSetting::current()->update([
+        $s = AttendantSetting::current();
+
+        // Evolution: derruba a sessão do número lá também, senão fica pareado no servidor.
+        try {
+            $p = Whatsapp::for($s);
+            if ($p->supportsQrPairing() && $s->isWhatsappConnected()) {
+                $p->logout();
+            }
+        } catch (\Throwable $e) {
+            // best-effort — desconectar aqui não pode depender do provedor estar de pé
+        }
+
+        $s->update([
             'waduck_instance' => null,
             'waduck_api_key' => null,
+            'instance_token' => null,
             'waduck_phone' => null,
             'connected_at' => null,
         ]);
@@ -268,7 +331,7 @@ class AttendantController extends Controller
         ]);
 
         try {
-            Waduck::sendText(
+            Whatsapp::sendText(
                 AttendantSetting::current(),
                 $data['to'],
                 $data['text'] ?? 'Teste do D_Med Atende ✅'
@@ -315,7 +378,7 @@ class AttendantController extends Controller
                     if (! is_array($m)) {
                         continue;
                     }
-                    $p = Waduck::parseInbound($m);
+                    $p = Whatsapp::parseInbound($m);
                     if (! $p || $p['from_me']) {
                         continue; // ignora mensagens enviadas pela própria clínica
                     }

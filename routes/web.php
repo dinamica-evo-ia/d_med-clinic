@@ -62,6 +62,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('atendente', [\App\Http\Controllers\AttendantController::class, 'index'])->name('attendant.index');
         Route::put('atendente', [\App\Http\Controllers\AttendantController::class, 'update'])->name('attendant.update');
         Route::post('atendente/whatsapp/connect', [\App\Http\Controllers\AttendantController::class, 'connectWhatsapp'])->name('attendant.whatsapp.connect');
+        Route::post('atendente/whatsapp/pair', [\App\Http\Controllers\AttendantController::class, 'pairWhatsapp'])->name('attendant.whatsapp.pair');
         Route::post('atendente/whatsapp/disconnect', [\App\Http\Controllers\AttendantController::class, 'disconnectWhatsapp'])->name('attendant.whatsapp.disconnect');
         Route::post('atendente/whatsapp/test', [\App\Http\Controllers\AttendantController::class, 'testWhatsapp'])->name('attendant.whatsapp.test');
         // Inbox — acompanhar/assumir conversas

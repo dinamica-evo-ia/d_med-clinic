@@ -11,8 +11,8 @@ class AttendantSetting extends Model
 {
     protected $fillable = [
         'enabled', 'bot_name', 'persona', 'tone', 'welcome_message', 'offhours_message',
-        'business_hours', 'autonomy', 'waduck_instance', 'waduck_api_url', 'waduck_api_key',
-        'waduck_phone', 'webhook_token', 'connected_at',
+        'business_hours', 'autonomy', 'provider', 'waduck_instance', 'waduck_api_url',
+        'waduck_api_key', 'instance_token', 'waduck_phone', 'webhook_token', 'connected_at',
     ];
 
     protected function casts(): array
@@ -24,10 +24,13 @@ class AttendantSetting extends Model
         ];
     }
 
-    /** Base da API do provedor de WhatsApp (WADuck), com default. */
+    /**
+     * Base da API do provedor. Delegado ao provider (cada um tem seu default).
+     * Mantido por compatibilidade — prefira `Whatsapp::for($s)`.
+     */
     public function apiBaseUrl(): string
     {
-        return rtrim($this->waduck_api_url ?: 'https://api.waduck.pro', '/');
+        return \App\Support\Whatsapp\Whatsapp::for($this)->baseUrl();
     }
 
     /** Config da clínica atual, criando a linha padrão se ainda não existe. */
@@ -37,6 +40,7 @@ class AttendantSetting extends Model
             'enabled' => false,
             'bot_name' => 'Atendente',
             'autonomy' => 'suggest',
+            'provider' => 'waduck',
         ]);
     }
 
