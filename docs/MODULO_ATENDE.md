@@ -198,6 +198,25 @@ Medido:
 
 **Padrão agora é 21** (garante ~3 ocorrências de qualquer dia da semana), máx 90.
 
+### 🔴 `take(20)` cortava o último dia no meio (e a IA repassava a mentira)
+
+`consultar_horarios` fazia `->take(20)` na lista **achatada** de horários. Com 3 quartas de 8
+horários (24 no total), a IA recebia o último dia com só **4** e concluía que a quarta 29/07
+**terminava às 09:30** — quando vai até 11:30. Diria isso ao paciente com toda a confiança.
+
+Corte silencioso é veneno pra ferramenta de IA: o modelo não tem como saber que a lista veio
+truncada, então trata o fim da lista como o fim da realidade.
+
+**Correção:** agrupa por **dia** e corta em **dias inteiros** (máx 4), nunca no meio de um dia,
+e devolve **`mais_dias`** com quantos ficaram de fora — assim a IA sabe que existe mais coisa
+em vez de concluir "acabou". O `inicio` em ISO continua indo por horário (é o que o
+`agendar_consulta` consome).
+
+```json
+{"dias":[{"dia":"qua 22/07","horarios":[{"hora":"08:00","inicio":"2026-07-22T08:00:00-03:00"}]}],
+ "mais_dias":0, "janela_dias":21}
+```
+
 ### 🔴 A IA não sabia os dias de atendimento — e errava as datas
 
 Ela ofereceu *"Segunda (22/07), terça (23/07), quarta (24/07)"*. **22/07/2026 é quarta**, não

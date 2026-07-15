@@ -541,16 +541,33 @@ TXT;
             ->get(['starts_at', 'ends_at'])
             ->map(fn ($a) => ['start' => $a->starts_at, 'end' => $a->ends_at])->all();
 
-        $slots = collect(DoctorSchedule::freeSlots($doctor, $from, $days, $busy))
-            ->take(20)
-            ->map(fn ($s) => [
-                'inicio' => $s['start'],
-                'quando' => Carbon::parse($s['start'])->setTimezone(self::TZ)->isoFormat('ddd D/MM HH:mm'),
-            ])->all();
+        /*
+         * Agrupa por DIA e corta em dias inteiros — nunca no meio de um dia.
+         *
+         * Antes era um ->take(20) na lista achatada: com 3 quartas de 8 horários (24), a IA
+         * recebia o último dia com só 4 e achava que ele acabava às 09:30. Diria isso ao
+         * paciente com toda a confiança, e é mentira — o dia vai até 11:30.
+         *
+         * `mais_dias` diz quantos dias ficaram de fora, pra IA saber que existe mais coisa em
+         * vez de concluir "acabou".
+         */
+        $porDia = collect(DoctorSchedule::freeSlots($doctor, $from, $days, $busy))
+            ->groupBy(fn ($s) => Carbon::parse($s['start'])->setTimezone(self::TZ)->isoFormat('ddd D/MM'));
+
+        $maxDias = 4;
+        $mostrar = $porDia->take($maxDias);
 
         return [
             'medico' => ['id' => $doctor->id, 'nome' => $doctor->name],
-            'horarios_livres' => $slots,
+            'dias' => $mostrar->map(fn ($slots, $dia) => [
+                'dia' => $dia,
+                'horarios' => collect($slots)->map(fn ($s) => [
+                    'hora' => Carbon::parse($s['start'])->setTimezone(self::TZ)->format('H:i'),
+                    'inicio' => $s['start'], // ISO — é ISTO que vai pro agendar_consulta
+                ])->values()->all(),
+            ])->values()->all(),
+            'mais_dias' => max(0, $porDia->count() - $mostrar->count()),
+            'janela_dias' => $days,
         ];
     }
 
