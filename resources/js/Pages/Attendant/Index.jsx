@@ -139,11 +139,16 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
   );
 }
 
+const MAX_CONTENT = 2000; // igual à validação do AttendantController
+
 function KnowledgeSection({ knowledge }) {
   const add = useForm({ title: '', content: '' });
+  const [editando, setEditando] = useState(null);
   const submit = (e) => { e.preventDefault(); add.post('/atendente/knowledge', { preserveScroll: true, onSuccess: () => add.reset() }); };
   const toggle = (k) => router.put(`/atendente/knowledge/${k.id}`, { is_active: !k.is_active }, { preserveScroll: true });
   const remove = (k) => { if (confirm('Remover este item da base de conhecimento?')) router.delete(`/atendente/knowledge/${k.id}`, { preserveScroll: true }); };
+
+  const excedeu = add.data.content.length > MAX_CONTENT;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
@@ -152,11 +157,23 @@ function KnowledgeSection({ knowledge }) {
         <p className="text-xs text-slate-500 mt-0.5">Ensine o bot sobre a clínica: endereço, convênios, preços, preparo de exames, estacionamento… Ele usa isso para responder.</p>
       </div>
 
-      <form onSubmit={submit} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto] items-start">
-        <input value={add.data.title} onChange={(e) => add.setData('title', e.target.value)} placeholder="Tópico (ex.: Convênios)" className={field} />
-        <input value={add.data.content} onChange={(e) => add.setData('content', e.target.value)} placeholder="Resposta (ex.: Atendemos Unimed, Bradesco e particular)" className={field} />
-        <button type="submit" disabled={add.processing || !add.data.title.trim() || !add.data.content.trim()}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">Adicionar</button>
+      <form onSubmit={submit} className="space-y-2">
+        <input value={add.data.title} onChange={(e) => add.setData('title', e.target.value)}
+          placeholder="Tópico (ex.: Convênios)" className={field} />
+        <textarea value={add.data.content} onChange={(e) => add.setData('content', e.target.value)} rows={5}
+          placeholder={'Resposta completa — pode escrever à vontade, o bot usa esse texto pra responder.\n\nEx.: Atendemos Unimed, Bradesco Saúde e SulAmérica. Particular: consulta R$ 400, retorno em 30 dias sem custo. Não atendemos IPE nem Cassi.'}
+          className={`${field} leading-relaxed`} />
+        <div className="flex items-center justify-between gap-3">
+          <span className={`text-[11px] ${excedeu ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>
+            {add.data.content.length}/{MAX_CONTENT} caracteres
+          </span>
+          <button type="submit" disabled={add.processing || !add.data.title.trim() || !add.data.content.trim() || excedeu}
+            className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {add.processing ? 'Adicionando…' : 'Adicionar'}
+          </button>
+        </div>
+        {add.errors.title && <p className="text-xs text-red-600">{add.errors.title}</p>}
+        {add.errors.content && <p className="text-xs text-red-600">{add.errors.content}</p>}
       </form>
 
       {knowledge.length === 0 ? (
@@ -164,20 +181,54 @@ function KnowledgeSection({ knowledge }) {
       ) : (
         <ul className="divide-y divide-slate-100">
           {knowledge.map((k) => (
-            <li key={k.id} className="py-2.5 flex items-start justify-between gap-3">
-              <div className={`min-w-0 ${k.is_active ? '' : 'opacity-50'}`}>
-                <div className="text-sm font-semibold text-slate-800">{k.title}</div>
-                <div className="text-xs text-slate-500 break-words">{k.content}</div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={() => toggle(k)} className="text-[11px] font-semibold text-slate-500 hover:text-slate-700">{k.is_active ? 'Desativar' : 'Ativar'}</button>
-                <button onClick={() => remove(k)} className="text-[11px] font-semibold text-red-600 hover:text-red-700">Remover</button>
-              </div>
+            <li key={k.id} className="py-3">
+              {editando === k.id ? (
+                <KnowledgeEdit item={k} onDone={() => setEditando(null)} />
+              ) : (
+                <div className="flex items-start justify-between gap-3">
+                  <div className={`min-w-0 ${k.is_active ? '' : 'opacity-50'}`}>
+                    <div className="text-sm font-semibold text-slate-800">{k.title}</div>
+                    {/* texto inteiro, respeitando quebras de linha — antes ficava espremido numa linha */}
+                    <div className="text-xs text-slate-600 whitespace-pre-wrap break-words mt-0.5 leading-relaxed">{k.content}</div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button onClick={() => setEditando(k.id)} className="text-[11px] font-semibold text-blue-600 hover:text-blue-700">Editar</button>
+                    <button onClick={() => toggle(k)} className="text-[11px] font-semibold text-slate-500 hover:text-slate-700">{k.is_active ? 'Desativar' : 'Ativar'}</button>
+                    <button onClick={() => remove(k)} className="text-[11px] font-semibold text-red-600 hover:text-red-700">Remover</button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function KnowledgeEdit({ item, onDone }) {
+  const frm = useForm({ title: item.title, content: item.content });
+  const save = (e) => { e.preventDefault(); frm.put(`/atendente/knowledge/${item.id}`, { preserveScroll: true, onSuccess: onDone }); };
+  const excedeu = frm.data.content.length > MAX_CONTENT;
+
+  return (
+    <form onSubmit={save} className="space-y-2">
+      <input value={frm.data.title} onChange={(e) => frm.setData('title', e.target.value)} className={field} />
+      <textarea value={frm.data.content} onChange={(e) => frm.setData('content', e.target.value)} rows={6} className={`${field} leading-relaxed`} />
+      <div className="flex items-center justify-between gap-3">
+        <span className={`text-[11px] ${excedeu ? 'text-red-600 font-semibold' : 'text-slate-400'}`}>
+          {frm.data.content.length}/{MAX_CONTENT} caracteres
+        </span>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onDone} className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700">Cancelar</button>
+          <button type="submit" disabled={frm.processing || !frm.data.title.trim() || !frm.data.content.trim() || excedeu}
+            className="px-4 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50">
+            {frm.processing ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+      {frm.errors.content && <p className="text-xs text-red-600">{frm.errors.content}</p>}
+    </form>
   );
 }
 
