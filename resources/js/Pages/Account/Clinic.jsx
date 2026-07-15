@@ -37,7 +37,7 @@ export default function Clinic({ doctors = [], doctor, clinic, users, grantableP
   };
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Médico / Clínica / Usuários</h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -110,7 +110,7 @@ function DoctorTab({ doctors, doctor, states }) {
     <form onSubmit={submit} className="space-y-5">
       {doctors.length > 1 && (
         <Card title="Profissional">
-          <Field label="Editando" full>
+          <Field label="Editando" span={2}>
             <select
               value={doctor.id}
               onChange={(e) => router.get('/account/clinica', { tab: 'medico', doctor_id: e.target.value })}
@@ -125,7 +125,7 @@ function DoctorTab({ doctors, doctor, states }) {
       )}
 
       <Card title="Dados profissionais">
-        <Field label="Nome" required full error={errors.name}>
+        <Field label="Nome" required span={2} error={errors.name}>
           <input value={form.name || ''} onChange={(e) => set('name', e.target.value)} className={inputClass} required />
         </Field>
         <Field label="Especialidade" error={errors.specialty}>
@@ -152,7 +152,7 @@ function DoctorTab({ doctors, doctor, states }) {
       </Card>
 
       <Card title="Contato">
-        <Field label="E-mail" error={errors.email}>
+        <Field label="E-mail" span={2} error={errors.email}>
           <input type="email" value={form.email || ''} onChange={(e) => set('email', e.target.value)} className={inputClass} />
         </Field>
         <Field label="Telefone" error={errors.phone}>
@@ -206,7 +206,7 @@ function ClinicTab({ clinic, tenant, states }) {
           <input value={tenant?.slug || tenant?.id?.slice(0, 8) || ''} disabled
             className={`${inputClass} bg-slate-50 text-slate-400`} />
         </Field>
-        <Field label="Nome completo / Razão social" error={errors.legal_name}>
+        <Field label="Nome completo / Razão social" span={2} error={errors.legal_name}>
           <input value={form.legal_name || ''} onChange={(e) => set('legal_name', e.target.value)} className={inputClass} />
         </Field>
         <Field label="Natureza" error={errors.nature}>
@@ -241,16 +241,7 @@ function ClinicTab({ clinic, tenant, states }) {
         <Field label="CEP" error={errors.zip}>
           <input value={form.zip || ''} onChange={(e) => set('zip', e.target.value)} placeholder="89251-702" className={inputClass} />
         </Field>
-        <Field label="Estado" error={errors.state}>
-          <select value={form.state || ''} onChange={(e) => set('state', e.target.value)} className={inputClass}>
-            <option value="">—</option>
-            {states.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </Field>
-        <Field label="Cidade" error={errors.city}>
-          <input value={form.city || ''} onChange={(e) => set('city', e.target.value)} className={inputClass} />
-        </Field>
-        <Field label="Logradouro" full error={errors.street}>
+        <Field label="Logradouro" span={2} error={errors.street}>
           <input value={form.street || ''} onChange={(e) => set('street', e.target.value)}
             placeholder="Avenida Marechal Deodoro da Fonseca" className={inputClass} />
         </Field>
@@ -260,14 +251,23 @@ function ClinicTab({ clinic, tenant, states }) {
         <Field label="Bairro" error={errors.district}>
           <input value={form.district || ''} onChange={(e) => set('district', e.target.value)} className={inputClass} />
         </Field>
-        <Field label="Complemento" full error={errors.complement}>
+        <Field label="Cidade" error={errors.city}>
+          <input value={form.city || ''} onChange={(e) => set('city', e.target.value)} className={inputClass} />
+        </Field>
+        <Field label="Estado" error={errors.state}>
+          <select value={form.state || ''} onChange={(e) => set('state', e.target.value)} className={inputClass}>
+            <option value="">—</option>
+            {states.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </Field>
+        <Field label="Complemento" error={errors.complement}>
           <input value={form.complement || ''} onChange={(e) => set('complement', e.target.value)}
             placeholder="Salas 208/209" className={inputClass} />
         </Field>
       </Card>
 
       <Card title="Logo">
-        <div className="col-span-2 flex items-center gap-4">
+        <div className="col-span-full flex items-center gap-4">
           {form.logo_url ? (
             <img src={form.logo_url} alt="Logo da clínica" className="h-16 w-16 rounded-xl object-contain border border-slate-200 bg-white p-1" />
           ) : (
@@ -382,14 +382,22 @@ function Card({ title, children }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6">
       {title && <h2 className="mb-5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</h2>}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
     </div>
   );
 }
 
-function Field({ label, children, required, full, hint, error }) {
+/* Tailwind não monta classe dinâmica (col-span-${n} não existe no build) — mapa fixo. */
+const SPAN = {
+  1: '',
+  2: 'sm:col-span-2',
+  3: 'sm:col-span-2 xl:col-span-3',
+  full: 'col-span-full',
+};
+
+function Field({ label, children, required, span = 1, full, hint, error }) {
   return (
-    <div className={full ? 'sm:col-span-2' : ''}>
+    <div className={full ? SPAN.full : SPAN[span]}>
       <label className="mb-1.5 block text-sm font-medium text-slate-700">
         {required && <span className="text-rose-500">* </span>}{label}
       </label>
