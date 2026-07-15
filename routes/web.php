@@ -191,9 +191,25 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         // era um placeholder "em breve"; virou a aba Médico
         Route::redirect('/doctor', '/account/clinica')->name('doctor');
 
+        // Livres pra qualquer papel: mexem só na própria conta / não tocam dado da clínica.
         Route::get('/password', [\App\Http\Controllers\AccountController::class, 'password'])->name('password');
         Route::put('/password', [\App\Http\Controllers\AccountController::class, 'passwordUpdate'])->name('password.update');
-        Route::get('/plan', [\App\Http\Controllers\AccountController::class, 'plan'])->name('plan');
+        Route::get('/suggestions', [\App\Http\Controllers\AccountController::class, 'suggestions'])->name('suggestions');
+        Route::get('/referral', [\App\Http\Controllers\AccountController::class, 'referral'])->name('referral');
+
+        // Assinatura/cobrança é do dono. O dono é SEMPRE admin (signup e criação pelo master
+        // gravam role=admin), então trancar aqui não deixa ninguém de fora.
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/plan', [\App\Http\Controllers\AccountController::class, 'plan'])->name('plan');
+        });
+
+        /*
+         * Configurações do médico/clínica + importação. Estava TUDO aberto: a secretária
+         * conseguia abrir e AGIR — mudar a agenda do médico, o certificado digital de
+         * assinatura, e importar paciente/receita/fórmula em massa. Não era só o menu
+         * aparecendo demais; a rota respondia.
+         */
+        Route::middleware('role:admin,doctor')->group(function () {
         Route::get('/settings/doctor', [\App\Http\Controllers\AccountController::class, 'settingsDoctor'])->name('settings.doctor');
         Route::get('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'settingsSchedule'])->name('settings.schedule');
         Route::put('/settings/schedule', [\App\Http\Controllers\AccountController::class, 'scheduleUpdate'])->name('settings.schedule.update');
@@ -221,9 +237,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::get('/settings/import-export/formulas', [\App\Http\Controllers\ImportExportController::class, 'formulasForm'])->name('settings.import-export.formulas');
         Route::post('/settings/import-export/formulas/preview', [\App\Http\Controllers\ImportExportController::class, 'formulasPreview'])->name('settings.import-export.formulas.preview');
         Route::post('/settings/import-export/formulas', [\App\Http\Controllers\ImportExportController::class, 'formulasStore'])->name('settings.import-export.formulas.store');
-
-        Route::get('/suggestions', [\App\Http\Controllers\AccountController::class, 'suggestions'])->name('suggestions');
-        Route::get('/referral', [\App\Http\Controllers\AccountController::class, 'referral'])->name('referral');
+        }); // fim role:admin,doctor
     });
 
     // Reports

@@ -17,13 +17,27 @@ direito), não na sidebar. A sidebar é pro trabalho do dia (pacientes, agenda, 
 
 A aba ativa vai na URL (`?tab=medico|clinica|usuarios`) — dá pra linkar direto.
 
-### Quem vê o quê
+### Quem vê o quê — o menu do avatar inteiro
 
-- **Item no menu do avatar**: escondido pra secretária.
-- **Rota**: `role:admin,doctor` — secretária leva 403 mesmo digitando a URL.
+| Item | Quem acessa |
+|---|---|
+| Médico / Clínica / Usuários | `admin`, `doctor` |
+| Configurações (Médico · Agenda · Impressão · Modelos de anamnese · Certificado) | `admin`, `doctor` |
+| Importar & Exportar | `admin`, `doctor` |
+| Planos e pagamentos | **`admin`** (assinatura é do dono; o dono é sempre admin — signup e criação pelo master gravam `role=admin`) |
+| Alterar senha · Sugestões · Indique um colega | todos |
+
 - **Aba Usuários**: só **admin**. O backend nem manda a prop `users` pros outros — não é
   só a UI escondendo.
-- **Mutações de usuário** (`POST/PUT/DELETE /users`): seguem com `role:admin`.
+- **Mutações de usuário** (`POST/PUT/DELETE /users`): `role:admin`.
+
+> 🔴 **Só `/account/clinica` era gated.** Todo o resto de `/account/*` estava **aberto**: a
+> secretária não só via o menu cheio — ela **entrava e agia**. Dava pra mudar a **agenda do
+> médico**, o **certificado digital de assinatura** e usar o **Importar & Exportar** (carga em
+> massa de paciente/receita/fórmula). Não era poluição visual; a rota respondia 200.
+>
+> **Regra:** item do menu que a pessoa não pode abrir **não aparece** — e a rota **também**
+> fecha. Menu escondido sem middleware é decoração.
 
 ### Papéis
 

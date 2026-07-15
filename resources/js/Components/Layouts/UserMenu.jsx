@@ -8,6 +8,8 @@ const planLabel = { solo: 'Solo', pro: 'Pro', clinica: 'Clínica', enterprise: '
 export default function UserMenu({ user, role, tenant, isMaster, dark = false }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const isAdmin = role === 'admin';
+  const podeConfigurar = role === 'admin' || role === 'doctor';
   useEffect(() => {
     const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', close);
@@ -43,25 +45,35 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
             )}
           </div>
 
+          {/* O menu espelha as rotas (routes/web.php, prefixo account):
+              - clinica/settings/import → role:admin,doctor
+              - plan                    → role:admin (assinatura é do dono)
+              - password/sugestões/indique → livres
+              Item que a pessoa não pode abrir não aparece: nada de menu que dá 403. */}
           <Section>
-            {/* secretária não entra (a rota é role:admin,doctor) — não mostra o item pra ela */}
-            {role !== 'receptionist' && (
+            {podeConfigurar && (
               <MItem href="/account/clinica" onClick={() => setOpen(false)} label="Médico / Clínica / Usuários" icon="user-edit" />
             )}
             <MItem href="/account/password" onClick={() => setOpen(false)} label="Alterar senha" icon="lock" />
-            <MItem href="/account/plan" onClick={() => setOpen(false)} label="Planos e pagamentos" icon="card" />
+            {isAdmin && (
+              <MItem href="/account/plan" onClick={() => setOpen(false)} label="Planos e pagamentos" icon="card" />
+            )}
           </Section>
 
-          <Section title="Configurações">
-            <MItem href="/account/settings/doctor" onClick={() => setOpen(false)} label="Médico" icon="stethoscope" />
-            <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
-            <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />
-            <MItem href="/account/settings/anamnese-templates" onClick={() => setOpen(false)} label="Modelos de anamnese" icon="template" />
-            <MItem href="/account/settings/certificate" onClick={() => setOpen(false)} label="Certificado digital (assinatura)" icon="seal" />
-          </Section>
+          {podeConfigurar && (
+            <Section title="Configurações">
+              <MItem href="/account/settings/doctor" onClick={() => setOpen(false)} label="Médico" icon="stethoscope" />
+              <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
+              <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />
+              <MItem href="/account/settings/anamnese-templates" onClick={() => setOpen(false)} label="Modelos de anamnese" icon="template" />
+              <MItem href="/account/settings/certificate" onClick={() => setOpen(false)} label="Certificado digital (assinatura)" icon="seal" />
+            </Section>
+          )}
 
           <Section>
-            <MItem href="/account/settings/import-export" onClick={() => setOpen(false)} label="Importar & Exportar" icon="swap" />
+            {podeConfigurar && (
+              <MItem href="/account/settings/import-export" onClick={() => setOpen(false)} label="Importar & Exportar" icon="swap" />
+            )}
             <MItem href="/account/suggestions" onClick={() => setOpen(false)} label="Sugestões" icon="bulb" />
             <MItem href="/account/referral" onClick={() => setOpen(false)} label="Indique um colega" icon="gift" />
           </Section>
