@@ -79,8 +79,9 @@ Os dois falam a **mesma API** (a WADuck é uma Evolution hospedada): header `api
 6. **`hash`** (token da instância) vem string na v2; versões antigas devolviam `{apikey:...}`.
 
 > Tudo acima foi conferido **no código do repo** (`webhook.schema.ts`, `event.controller.ts`,
-> `instance.controller.ts`), não em blog post — a doc oficial `doc.evolution-api.com` estava
-> 404 em 2026-07-15.
+> `instance.controller.ts`), não em blog post. Doc oficial:
+> **https://docs.evolutionfoundation.com.br** — o domínio antigo (`doc.evolution-api.com`)
+> responde 404, e é pra ele que quase todo tutorial de Evolution ainda aponta.
 
 ### Armadilha de namespace
 
