@@ -13,6 +13,17 @@ Coluna **`medical_records.type`**: `anamnese` | `evolucao`.
 | Conceito | **Documento único vivo** do paciente | Registro **daquela** consulta |
 | Onde aparece | Aba **Anamnese** (a atual em destaque + histórico) | Aba **Evoluções** (lista) |
 | Como cria | "Nova consulta" → *Nova anamnese*, ou **Studio Med** (sempre anamnese) | "Nova consulta" → *Nova evolução* |
+| Formulário | **SOAP completo** (SOAPEditor) | **Texto corrido** (`notes`), com botão de **ditar pelo Studio Med** |
+
+> A Evolução usava o **mesmo SOAPEditor** da anamnese. Preencher SOAP inteiro pra registrar um
+> retorno de 5 minutos não fazia sentido — agora é um campo de texto e pronto.
+>
+> **Ditado:** `Components/shared/StudioDictation.jsx` reaproveita o MESMO token/embed do Studio
+> (`/studio-med/token` → iframe → postMessage `dmed:anamnese`). A diferença é o destino: em vez
+> de `POST /studio-med/anamnese-ia` (que cria prontuário de anamnese), o **`resumo`** volta pro
+> campo e o médico revisa antes de salvar. Por isso **não precisou mexer no EVO** — o resumo que
+> ele já produz é exatamente o que uma evolução quer. O texto é **acrescentado**, não substitui
+> o que já estava digitado.
 
 `origem`: `manual` · `studio_med` (gravada pelo EVO) · `importado` (migração).
 
