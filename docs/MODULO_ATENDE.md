@@ -151,6 +151,35 @@ cadastro antigo (que estava sem).
 > ⚠️ A coluna do CPF é **`document`**, não `cpf` — e guarda **só dígitos**, sem máscara.
 > A busca normaliza os dois lados.
 
+### 🔴 Fuso: a consulta caía 3h antes (bug do CRM inteiro, não só da IA)
+
+Paciente pediu **10:00**, a agenda mostrou **07:00** — exatamente o offset de São Paulo.
+Não era a IA: **o CRM tinha duas convenções brigando na mesma coluna**.
+
+- `config/app.php` tinha `'timezone' => 'UTC'` **hardcoded** (nem lia do `.env`).
+- Mas todo mundo **gravava hora de parede de São Paulo**: o `datetime-local` do form manda
+  `"2026-07-22T14:00"` cru, e a IA montava um Carbon em SP.
+- O Laravel então serializava esse `14:00` como **`"14:00:00.000000Z"`** no JSON — com o `Z`
+  de UTC — e o navegador convertia pra `11:00`.
+
+Ou seja: **criar consulta pelo formulário do CRM também caía 3h antes**. Só o arrastar-pra-
+reagendar acertava, porque mandava `toISOString()` (UTC de verdade).
+
+**Correção:** `APP_TIMEZONE=America/Sao_Paulo` (o produto é fuso único) + o reschedule passou
+a mandar **hora de parede** via `spWall()`. As consultas que já existiam estavam gravadas em
+hora de parede, então **passaram a exibir certo sem migrar dado**.
+
+> ⚠️ **O Laravel IGNORA o sufixo `Z`** e lê o valor como hora do fuso do app. Quem escrever
+> data-hora tem que mandar hora de parede de São Paulo — `toISOString()` faz pular +3h.
+> Foi medido, não deduzido: com o app em SP, `"...T17:00:00.000Z"` virou `17:00` no banco.
+
+### Scroll do Inbox pulando sozinho
+
+`useEffect(..., [messages])` + polling de 6s = o Inertia devolve um **array novo** a cada
+recarga mesmo sem mensagem nova, a dependência dispara e o `scrollIntoView` jogava a tela pro
+fim a cada 6 segundos — impossível ler a conversa. Agora compara o **id da última mensagem**
+(identidade de array não serve) e só rola se você já estiver no fim.
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo

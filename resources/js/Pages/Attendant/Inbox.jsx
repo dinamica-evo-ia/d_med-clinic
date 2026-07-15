@@ -11,6 +11,8 @@ export default function Inbox({ conversations, selected, messages }) {
   const { flash } = usePage().props;
   const reply = useForm({ text: '' });
   const bottomRef = useRef(null);
+  const listRef = useRef(null);
+  const lastIdRef = useRef(null);
 
   // Polling suave (a cada 6s) — só recarrega lista + mensagens, preserva o que você digitou.
   useEffect(() => {
@@ -20,7 +22,31 @@ export default function Inbox({ conversations, selected, messages }) {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ block: 'end' }); }, [messages]);
+  /*
+   * Rolar pro fim SÓ quando muda de conversa ou chega mensagem NOVA — e, mesmo assim, só se
+   * você já estiver no fim.
+   *
+   * Antes a dependência era [messages], e o polling devolve um array NOVO a cada 6s mesmo sem
+   * mensagem nenhuma: o scrollIntoView disparava sozinho e jogava a tela pro fim enquanto
+   * você lia. Comparar pelo id da última mensagem mata isso (identidade do array não serve).
+   */
+  useEffect(() => {
+    const lastId = messages?.length ? messages[messages.length - 1].id : null;
+    const trocouDeConversa = lastIdRef.current === undefined;
+    if (lastId === lastIdRef.current) return; // polling sem novidade: não encosta no scroll
+
+    const primeiraCarga = lastIdRef.current === null || trocouDeConversa;
+    lastIdRef.current = lastId;
+
+    const el = listRef.current;
+    const noFim = !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (primeiraCarga || noFim) {
+      bottomRef.current?.scrollIntoView({ block: 'end', behavior: primeiraCarga ? 'auto' : 'smooth' });
+    }
+  }, [messages]);
+
+  // conversa trocou: zera o marcador pra rolar pro fim na abertura
+  useEffect(() => { lastIdRef.current = undefined; }, [selected?.id]);
 
   const open = (id) => router.get('/atendente/conversas', { c: id }, { preserveState: true, preserveScroll: true, only: ['selected', 'messages'] });
   const setStatus = (status) => selected && router.post(`/atendente/conversas/${selected.id}/status`, { status }, { preserveScroll: true });
@@ -89,7 +115,7 @@ export default function Inbox({ conversations, selected, messages }) {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50">
+              <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-2 bg-slate-50/50">
                 {messages.map((m) => <Bubble key={m.id} m={m} />)}
                 <div ref={bottomRef} />
               </div>

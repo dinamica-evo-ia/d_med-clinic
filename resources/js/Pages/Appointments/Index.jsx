@@ -31,6 +31,8 @@ const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() ==
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parse = (s) => new Date(String(s).replace(' ', 'T'));
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+/* Instante -> "AAAA-MM-DD HH:mm:ss" na hora de parede de São Paulo (o que o back espera). */
+const spWall = (d) => { const x = toSP(d); return `${ymd(x)} ${hhmm(x)}:00`; };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const patientOf = (ev) => (ev.title || '').split(' - ')[0] || 'Consulta';
 const hhmmToMin = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
@@ -93,8 +95,10 @@ export default function Index() {
     setEvents((list) => list.map((x) => x.id === ev.id
       ? { ...x, _utcS: ns, _utcE: ne, _s: toSP(ns), _e: toSP(ne) } : x));
     try {
+      // Manda HORA DE PAREDE de São Paulo, não toISOString(): o back roda em
+      // America/Sao_Paulo e IGNORA o sufixo Z — mandar UTC faria a consulta pular +3h.
       await window.axios.patch(`/appointments/${ev.id}/reschedule`, {
-        start: ns.toISOString(), end: ne.toISOString(),
+        start: spWall(ns), end: spWall(ne),
       });
     } catch (err) {
       // backend rejeitou (fora do expediente, almoço, etc) → reverte + avisa

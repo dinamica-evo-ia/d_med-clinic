@@ -65,7 +65,19 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    /*
+     * America/Sao_Paulo (via APP_TIMEZONE no .env.runtime), não UTC.
+     *
+     * O produto é 100% Brasil, fuso único — e TODO mundo aqui já gravava hora de parede de
+     * São Paulo (form da agenda, IA do Atendente). Com o app em UTC, o Laravel serializava
+     * esse "14:00" como "14:00Z" no JSON e o navegador convertia pra 11:00: a consulta
+     * aparecia 3h antes na agenda. Com o fuso do app igual ao dos dados, tudo fecha.
+     *
+     * ⚠️ Quem escreve data-hora tem que mandar HORA DE PAREDE de São Paulo. O Laravel IGNORA
+     * o sufixo Z e lê o valor como hora do fuso do app — mandar toISOString() (UTC) faz a
+     * hora pular +3h. Ver o reschedule em Pages/Appointments/Index.jsx.
+     */
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------
