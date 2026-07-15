@@ -40,10 +40,30 @@ sem o paciente, a linha é ignorada.
 ## Apelidos de coluna (PT/EN)
 
 O `CsvImport` recebe um mapa plano `cabeçalho normalizado → chave canônica`. Ex. fórmulas:
-`Finalidade→purpose`, `Nome/Ativos/Fórmula→name`, `Composição/Posologia→content`,
-`Forma→form`, `Via→route`, `Categoria/Tipo→category`.
+`Finalidade→purpose`, `Nome/Ativos/Fórmula→name`, `Composição/Conteúdo→content`,
+`Posologia/Modo de usar→posology`, `Forma→form`, `Via→route`, `Categoria/Tipo→category`.
 
 Export de sistema antigo costuma vir com `;` e acentuação ISO-8859-1 — **já tratado**.
+
+### 🔴 O mapa é plano: dois apelidos pra mesma chave = a última coluna vence
+
+`posologia` **já apontou** pra `content` junto com `conteudo`. Funcionava com export de
+*receitas* (que só tem uma das colunas). Quando chegou um export de **catálogo**, que traz
+`Conteudo` **e** `Posologia` separadas, a última venceu e o conteúdo — a composição inteira —
+virou `"Tomar 1 cápsula ao dia"`. **Em silêncio**: 42 fórmulas importadas, `errors: []`,
+resultado destruído. Hoje `posology` tem chave própria e o helper junta:
+
+```php
+private function formulaContent(array $row): string   // composição + posologia, sem HTML
+```
+
+**Regra:** ao adicionar um apelido, procurar se a chave canônica já tem outro apelido que possa
+aparecer **na mesma planilha**. Se puder, são chaves diferentes.
+
+### Conteúdo pode vir com HTML
+
+O `store` gravava cru — `<br/>` aparecia literal na receita. Passa pelo `htmlToText()` (o
+`preview` já fazia; a divergência entre os dois é o cheiro clássico desse bug).
 
 ---
 

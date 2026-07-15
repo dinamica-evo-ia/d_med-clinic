@@ -41,8 +41,14 @@ uma clínica, tem que semear/importar naquele tenant.
 | `formulas:tidy <tenant> [--dry] [--batch=8]` | IA reconstrói **nome** (ativos + concentração) e **conteúdo** legível, **removendo PII** (CPF, CID, nome/endereço de paciente e do médico) |
 | `formulas:dedupe <tenant> [--dry] [--junk=IDs]` | Remove não-fórmulas (`--junk`), deduplica por nome (mantém o conteúdo mais completo), normaliza casing, reporta PII residual |
 | `formulas:purposes <tenant> [--dry]` | Preenche via IA a **finalidade** das que estão sem (não sobrescreve as preenchidas) |
+| `formulas:classify <tenant> [--dry] [--batch=20]` | IA separa **manipulado × industrializado**. Necessário porque export de *receitas* mistura os dois e o import marca tudo como `manipulado` |
 
-Ordem de uso numa importação bagunçada: **tidy → purposes → dedupe --dry → dedupe --junk=…**
+Ordem de uso numa importação bagunçada:
+**tidy → purposes → classify --dry → classify → dedupe --dry → dedupe --junk=…**
+
+⚠️ **A IA não é determinística.** Casos de fronteira (Undecilato de Testosterona, Citrato de
+Clomifeno) trocaram de categoria entre duas rodadas do `classify`. Rode `--dry`, confira, e
+trate o resultado como sugestão — não como verdade.
 
 ---
 
@@ -87,6 +93,31 @@ O export de receitas do sistema antigo é **texto cru de prescrição**, não um
 
 Resultado do pipeline: **168 receitas → 150 únicas → IA → dedupe → 119 fórmulas**, 0 PII,
 0 nomes repetidos, 0 sem finalidade.
+
+### Segunda leva: o catálogo do próprio médico (2026-07-15)
+
+Depois veio um CSV que **é catálogo de verdade** (não export de receitas): 42 fórmulas com a
+**finalidade escrita pelo próprio médico** ("Menopausa 3, Tratamento dos calores sem TRH"),
+composição em pontilhado, referência bibliográfica e observação clínica. Qualidade muito
+superior à do que a IA remontou. Foi importado **pelo controller real** (não por script), o que
+expôs dois bugs — ver [MODULO_IMPORTAR_EXPORTAR.md](MODULO_IMPORTAR_EXPORTAR.md).
+
+Estado final da Clínica RF: **161 → 153 fórmulas · 109 manipulados · 44 industrializados.**
+
+**Como os duplicados foram achados** (casar por **composição**, nunca por nome — a IA inventou
+nomes completamente diferentes pra mesma fórmula):
+
+1. Extrair o conjunto de **ativos normalizados** (sem acento, sem dose, sem posologia).
+2. Comparar com casamento **fuzzy** (tolera `terrestres`/`terrestris`, prefixo, posologia colada).
+3. Só é duplicado com **mesmos ativos E mesmas doses**. Deu **8 pares** — apagou-se a versão da IA.
+
+🔴 **Score alto ≠ duplicado.** Os 5 pares entre 0.55 e 0.86 pareciam duplicados e **não eram**:
+o registro antigo é uma **receita inteira com 2-3 fórmulas coladas**, e uma delas por acaso é a
+do catálogo. Ex.: `#143` = a fórmula de adaptógenos **+ L-Lisina + Citrato de Clomifeno**. Apagar
+teria perdido as outras duas. **Sempre abrir o conteúdo dos pares antes de apagar.**
+
+Sobra disso: parte das 119 antigas não são fórmulas de biblioteca, são prescrições inteiras.
+Quebrar em fórmulas separadas é trabalho pendente (nada quebra por causa disso — só polui a busca).
 
 ---
 
