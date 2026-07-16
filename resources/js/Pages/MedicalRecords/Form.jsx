@@ -2,6 +2,7 @@ import { useForm, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import SOAPEditor from '../../Components/MedicalRecords/SOAPEditor';
 import StudioDictation from '@/Components/shared/StudioDictation';
+import AutoTextarea from '@/Components/shared/AutoTextarea';
 
 /*
  * Anamnese e Evolução são coisas diferentes e o formulário reflete isso:
@@ -98,15 +99,24 @@ export default function Form({ patient, record, doctors, type = 'evolucao' }) {
                                 🎤 Gravar pelo Studio Med
                             </button>
                         </div>
-                        <textarea value={data.notes} onChange={e => setData('notes', e.target.value)}
-                            rows={20}
+                        {/* Cresce com o conteúdo: transcrição de consulta é longa, e caixa de
+                            altura fixa vira rolagem interna brigando com a da página. */}
+                        <AutoTextarea value={data.notes} onChange={e => setData('notes', e.target.value)}
+                            minRows={18}
                             className="w-full rounded-xl border border-gray-300 px-4 py-3 text-[15px] leading-relaxed outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15"
                             placeholder="Relato da consulta: como o paciente está, o que mudou desde a última vez, conduta…" />
                         {errors.notes && <p className="mt-1 text-xs text-red-500">{errors.notes}</p>}
-                        <p className="mt-2 text-xs text-slate-400">
-                            Texto livre. Para o documento completo do paciente (histórico, exame físico,
-                            diagnósticos), use a <b>Anamnese</b>.
-                        </p>
+                        <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-400">
+                            <p>
+                                Texto livre. Para o documento completo do paciente (histórico, exame físico,
+                                diagnósticos), use a <b>Anamnese</b>.
+                            </p>
+                            {data.notes.trim() && (
+                                <span className="shrink-0 tabular-nums">
+                                    {data.notes.trim().split(/\s+/).length} palavras
+                                </span>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <SOAPEditor data={data} setData={setData} errors={errors} patientId={patient.id} />

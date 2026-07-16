@@ -2,6 +2,7 @@ import { useForm, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import PatientPicker from '@/Components/shared/PatientPicker';
 import FileDrop from '@/Components/shared/FileDrop';
+import AutoTextarea from '@/Components/shared/AutoTextarea';
 import ExamTabs from './Partials/ExamTabs';
 
 const input = 'w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15';
@@ -70,8 +71,9 @@ export default function Form({ patients = [], doctors = [] }) {
 
             <div className="col-span-full">
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Descrição</label>
-              <textarea value={data.description} onChange={(e) => setData('description', e.target.value)}
-                rows={12} className={`${input} font-normal leading-relaxed`}
+              {/* cresce com o conteúdo: laudo colado do laboratório é longo */}
+              <AutoTextarea value={data.description} onChange={(e) => setData('description', e.target.value)}
+                minRows={12} className={`${input} font-normal leading-relaxed`}
                 placeholder="Valores, laudo, observações do médico…" />
               {errors.description && <p className="mt-1 text-xs text-rose-600">{errors.description}</p>}
             </div>
