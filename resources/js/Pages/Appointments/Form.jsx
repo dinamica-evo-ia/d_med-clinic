@@ -37,10 +37,11 @@ function violation(schedule, startsAt, endsAt) {
     return null;
 }
 
-export default function Form({ appointment, patients, doctors, preselectedDoctorId }) {
+export default function Form({ appointment, patients, doctors, preselectedDoctorId, convenios = [] }) {
     const isEditing = !!appointment;
     const { props } = usePage();
     const preselectedPatient = props.query?.patient_id || '';
+    const [avisoConvenio, setAvisoConvenio] = useState(null);
 
     const { data, setData, post, put, processing, errors } = useForm({
         patient_id: appointment?.patient_id || preselectedPatient || '',
@@ -48,8 +49,31 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
         starts_at: appointment?.starts_at?.slice(0, 16) || '',
         ends_at: appointment?.ends_at?.slice(0, 16) || '',
         type: appointment?.type || 'consultation',
+        payment_type: appointment?.payment_type || 'particular',
+        insurance_name: appointment?.insurance_name || '',
         notes: appointment?.notes || '',
     });
+
+    /*
+     * Ao escolher o paciente, pré-preenche o pagamento com o convênio do CADASTRO.
+     * É sugestão, não decisão: o mesmo paciente pode vir particular hoje mesmo tendo convênio
+     * registrado, e a recepção troca com um clique.
+     */
+    const onPatient = (id, patient) => {
+        setData((cur) => {
+            const next = { ...cur, patient_id: id };
+            if (patient?.insurance_name) {
+                next.payment_type = 'convenio';
+                next.insurance_name = patient.insurance_name;
+            } else if (patient) {
+                // paciente sem convênio no cadastro (ou recém-criado): começa particular
+                next.payment_type = 'particular';
+                next.insurance_name = '';
+            }
+            return next;
+        });
+        setAvisoConvenio(patient?.insurance_name ? 'Veio do cadastro do paciente — confirme ou troque.' : null);
+    };
 
     const selectedDoctor = useMemo(() => doctors.find((d) => d.id === data.doctor_id), [doctors, data.doctor_id]);
     const schedule = selectedDoctor?.schedule;
@@ -95,10 +119,47 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
                         <PatientPicker
                             value={data.patient_id}
                             initial={patients.find((p) => p.id === data.patient_id) || null}
-                            onChange={(id) => setData('patient_id', id)}
+                            onChange={onPatient}
                         />
                         {errors.patient_id && <p className="text-red-500 text-xs mt-1">{errors.patient_id}</p>}
                     </div>
+
+                    {/* Particular ou convênio — perguntado SEMPRE, paciente novo ou antigo.
+                        Quando o cadastro tem convênio, já vem marcado; a recepção só confirma. */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pagamento *</label>
+                        <div className="flex gap-2">
+                            {[['particular', 'Particular'], ['convenio', 'Convênio']].map(([v, label]) => (
+                                <button key={v} type="button"
+                                    onClick={() => setData('payment_type', v)}
+                                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                                        data.payment_type === v
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                                    }`}>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        {errors.payment_type && <p className="text-red-500 text-xs mt-1">{errors.payment_type}</p>}
+                    </div>
+
+                    {data.payment_type === 'convenio' && (
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Qual convênio? *</label>
+                            <input list="convenios-conhecidos"
+                                value={data.insurance_name}
+                                onChange={e => setData('insurance_name', e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="Ex.: Unimed, Bradesco Saúde…" />
+                            {/* datalist com os que a clínica já usou — evita 'Unimed'/'unimed'/'UNIMED' */}
+                            <datalist id="convenios-conhecidos">
+                                {(convenios || []).map((c) => <option key={c} value={c} />)}
+                            </datalist>
+                            {errors.insurance_name && <p className="text-red-500 text-xs mt-1">{errors.insurance_name}</p>}
+                            {avisoConvenio && <p className="mt-1 text-xs text-blue-600">{avisoConvenio}</p>}
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>

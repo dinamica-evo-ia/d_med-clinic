@@ -90,7 +90,12 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    /*
+     * pt_BR: o CRM inteiro é em português, mas o locale vinha 'en' e não havia pasta lang/ —
+     * todo erro de validação aparecia em inglês pro médico e pra secretária.
+     * O fallback continua 'en': regra sem tradução mostra o texto do Laravel em vez de sumir.
+     */
+    'locale' => env('APP_LOCALE', 'pt_BR'),
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 

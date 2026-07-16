@@ -44,14 +44,16 @@ export default function PatientPicker({ value, initial = null, onChange }) {
     return () => clearTimeout(id);
   }, [q, novo]);
 
+  // entrega o paciente INTEIRO (não só o id): o agendamento precisa do convênio do
+  // cadastro pra pré-preencher particular/convênio.
   const escolher = (p) => {
     setSelected(p);
-    onChange(p.id);
+    onChange(p.id, p);
     setOpen(false);
     setQ('');
   };
 
-  const limpar = () => { setSelected(null); onChange(''); setQ(''); setOpen(true); };
+  const limpar = () => { setSelected(null); onChange('', null); setQ(''); setOpen(true); };
 
   const abrirCadastro = () => {
     setNovo({ name: q.trim(), phone: '', document: '' });

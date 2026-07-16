@@ -18,6 +18,7 @@ class Appointment extends Model
         'patient_id', 'doctor_id', 'user_id',
         'starts_at', 'ends_at',
         'status', 'type', 'notes',
+        'payment_type', 'insurance_name',
         'source', 'external_ref', 'reminded_at',
         'cancelled_at', 'cancellation_reason',
     ];

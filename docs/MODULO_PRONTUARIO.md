@@ -52,6 +52,22 @@ Receitas identificadas pela IA aparecem como **sugestão** — nada é emitido s
 Componente `Components/shared/CidAutocomplete.jsx` — usado no SOAP e no atestado.
 ⚠️ O dataset **não inclui U07** (COVID-19).
 
+### Particular ou convênio — perguntado no agendamento
+
+`appointments.payment_type` (`particular` | `convenio`) + `appointments.insurance_name`.
+
+Fica na **consulta**, não no paciente: o mesmo paciente vem particular hoje e por convênio na
+próxima. O `patients.insurance` (JSON) continua sendo o convênio do **cadastro** — serve pra
+**pré-preencher**, não pra decidir. Ao escolher o paciente, o form já marca convênio + nome se
+o cadastro tiver; a recepção confirma ou troca num clique.
+
+`insurance_name` é **obrigatório quando** `payment_type = convenio` (`required_if`). Vale pra
+paciente novo também: o campo é da consulta, não do cadastro.
+
+O campo tem **datalist** com os convênios que a clínica já usou (das consultas + dos cadastros,
+deduplicados sem diferenciar maiúscula) — pra não virar "Unimed", "unimed" e "UNIMED" como se
+fossem três.
+
 ### Exames: Solicitar × Resultados
 
 Duas coisas diferentes, que viravam confusão numa lista só:

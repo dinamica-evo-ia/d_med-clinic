@@ -53,7 +53,31 @@ class AppointmentController extends Controller
                 'schedule' => DoctorSchedule::normalize($d->schedule),
             ])->values(),
             'preselectedDoctorId' => $request->get('doctor_id'),
+            'convenios' => $this->conveniosConhecidos(),
         ]);
+    }
+
+    /**
+     * Convênios que a clínica já usou — alimenta o datalist do agendamento pra a recepção
+     * não digitar 'Unimed', 'unimed' e 'UNIMED' como se fossem três convênios diferentes.
+     * Junta o que veio das consultas com o que está nos cadastros de paciente.
+     */
+    private function conveniosConhecidos(): array
+    {
+        $deConsultas = Appointment::whereNotNull('insurance_name')
+            ->where('insurance_name', '!=', '')
+            ->distinct()->pluck('insurance_name');
+
+        $deCadastros = Patient::whereNotNull('insurance')
+            ->pluck('insurance')
+            ->map(fn ($i) => is_array($i) ? ($i['name'] ?? null) : null)
+            ->filter();
+
+        return $deConsultas->merge($deCadastros)
+            ->map(fn ($n) => trim((string) $n))
+            ->filter()
+            ->unique(fn ($n) => mb_strtolower($n)) // 'Unimed' e 'unimed' são o mesmo
+            ->sort()->values()->all();
     }
 
     public function store(Request $request)
@@ -63,6 +87,9 @@ class AppointmentController extends Controller
             'doctor_id' => 'required|exists:doctors,id',
             'starts_at' => 'required|date',
             'ends_at' => 'required|date|after:starts_at',
+            'payment_type' => 'required|in:particular,convenio',
+            // o nome do convênio só é exigido quando É convênio
+            'insurance_name' => 'nullable|required_if:payment_type,convenio|string|max:120',
             'type' => 'nullable|string|in:consultation,followup,exam,other',
             'notes' => 'nullable|string',
         ]);
@@ -108,6 +135,9 @@ class AppointmentController extends Controller
             'doctor_id' => 'required|exists:doctors,id',
             'starts_at' => 'required|date',
             'ends_at' => 'required|date|after:starts_at',
+            'payment_type' => 'required|in:particular,convenio',
+            // o nome do convênio só é exigido quando É convênio
+            'insurance_name' => 'nullable|required_if:payment_type,convenio|string|max:120',
             'type' => 'nullable|string|in:consultation,followup,exam,other',
             'notes' => 'nullable|string',
         ]);

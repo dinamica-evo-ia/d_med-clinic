@@ -229,7 +229,16 @@ class PatientController extends Controller
         $patients = Patient::search($search)
             ->orderBy('name')
             ->limit(20)
-            ->get(['id', 'name', 'email', 'phone', 'document']);
+            ->get(['id', 'name', 'email', 'phone', 'document', 'insurance'])
+            ->map(fn ($p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'email' => $p->email,
+                'phone' => $p->phone,
+                'document' => $p->document,
+                // convênio do CADASTRO — o agendamento usa só pra pré-preencher
+                'insurance_name' => $p->insurance['name'] ?? null,
+            ]);
 
         return response()->json($patients);
     }
@@ -261,7 +270,10 @@ class PatientController extends Controller
 
             if ($existente) {
                 return response()->json([
-                    'patient' => ['id' => $existente->id, 'name' => $existente->name, 'phone' => $existente->phone],
+                    'patient' => [
+                        'id' => $existente->id, 'name' => $existente->name, 'phone' => $existente->phone,
+                        'insurance_name' => $existente->insurance['name'] ?? null,
+                    ],
                     'ja_existia' => true,
                 ]);
             }
@@ -277,7 +289,10 @@ class PatientController extends Controller
         ]);
 
         return response()->json([
-            'patient' => ['id' => $patient->id, 'name' => $patient->name, 'phone' => $patient->phone],
+            'patient' => [
+                'id' => $patient->id, 'name' => $patient->name, 'phone' => $patient->phone,
+                'insurance_name' => null, // paciente novo: a recepção informa no agendamento
+            ],
             'ja_existia' => false,
         ]);
     }
