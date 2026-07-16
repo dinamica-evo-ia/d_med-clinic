@@ -54,10 +54,35 @@ export default function Index({ patients, templates = [], defaultTemplateId = nu
         if (pid) setPatientId(pid);
     }, []);
 
+    // O embed avisa quando há áudio não enviado ou transcrição em curso
+    // (o áudio vive só no IndexedDB do iframe — sair da página o perde).
+    const ocupadoRef = useRef(false);
+
+    useEffect(() => {
+        const AVISO = 'A consulta ainda está sendo processada — sair agora PERDE o áudio gravado. Sair mesmo assim?';
+        // Navegação SPA (links/router do Inertia) não dispara beforeunload: bloqueia aqui.
+        const offBefore = router.on('before', (e) => {
+            if (ocupadoRef.current && !window.confirm(AVISO)) e.preventDefault();
+        });
+        // Fechar/recarregar a aba de verdade.
+        const onUnload = (e) => {
+            if (ocupadoRef.current) { e.preventDefault(); e.returnValue = ''; }
+        };
+        window.addEventListener('beforeunload', onUnload);
+        return () => { offBefore(); window.removeEventListener('beforeunload', onUnload); };
+    }, []);
+
     useEffect(() => {
         function onMsg(e) {
             if (e.origin !== EVO_ORIGIN) return;
+            if (e.data?.type === 'dmed:ocupado') {
+                ocupadoRef.current = !!e.data.ocupado;
+                return;
+            }
             if (e.data?.type === 'dmed:anamnese') {
+                // Sucesso: o áudio já foi processado — libera a navegação ANTES
+                // do router.visit, senão o guard dispara no caminho feliz.
+                ocupadoRef.current = false;
                 const payload = {
                     ...e.data,
                     templateSnapshot: templateSnapshotRef.current,
