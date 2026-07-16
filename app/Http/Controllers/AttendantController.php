@@ -6,6 +6,7 @@ use App\Models\AttendantConversation;
 use App\Models\AttendantKnowledge;
 use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
+use App\Models\ClinicProfile;
 use App\Models\Patient;
 use App\Models\Tenant;
 use App\Support\AttendantAI;
@@ -43,6 +44,9 @@ class AttendantController extends Controller
                 'offhours_message' => $s->offhours_message,
                 'business_hours' => is_array($s->business_hours) ? $s->business_hours : ['open' => '', 'close' => '', 'weekends' => false],
                 'autonomy' => $s->autonomy,
+                // Da clínica, não do bot — mas é aqui que a secretária configura, porque é isto
+                // que decide se a IA pergunta "particular ou convênio?" ou nem toca no assunto.
+                'payment_types' => ClinicProfile::current()->aceita(),
             ],
             'whatsapp' => [
                 'connected' => $s->isWhatsappConnected(),
@@ -77,6 +81,9 @@ class AttendantController extends Controller
             'business_hours.close' => 'nullable|date_format:H:i',
             'business_hours.weekends' => 'nullable|boolean',
             'autonomy' => 'nullable|in:suggest,auto_reply,auto_schedule',
+            // min:1 de propósito: clínica sem nenhuma forma de pagamento não consegue marcar nada.
+            'payment_types' => 'nullable|array|min:1',
+            'payment_types.*' => 'in:'.implode(',', ClinicProfile::PAYMENT_TYPES),
         ]);
 
         $bh = $data['business_hours'] ?? null;
@@ -95,6 +102,12 @@ class AttendantController extends Controller
             'business_hours' => $bh,
             'autonomy' => $data['autonomy'] ?? $s->autonomy,
         ]);
+
+        if (! empty($data['payment_types'])) {
+            ClinicProfile::current()->update([
+                'payment_types' => array_values(array_unique($data['payment_types'])),
+            ]);
+        }
 
         return back()->with('success', 'Configurações do atendente salvas.');
     }

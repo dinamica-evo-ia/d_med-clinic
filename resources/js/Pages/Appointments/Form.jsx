@@ -37,11 +37,16 @@ function violation(schedule, startsAt, endsAt) {
     return null;
 }
 
-export default function Form({ appointment, patients, doctors, preselectedDoctorId, convenios = [] }) {
+export default function Form({ appointment, patients, doctors, preselectedDoctorId, convenios = [], paymentTypes = ['particular', 'convenio'] }) {
     const isEditing = !!appointment;
     const { props } = usePage();
     const preselectedPatient = props.query?.patient_id || '';
     const [avisoConvenio, setAvisoConvenio] = useState(null);
+
+    // Clínica que aceita uma forma só (nutri particular, p.ex.) não vê o seletor: não há escolha
+    // a fazer. Configurável em /atendente. O backend também força, então o campo só vai junto.
+    const aceitaConvenio = paymentTypes.includes('convenio');
+    const pagamentoUnico = paymentTypes.length === 1 ? paymentTypes[0] : null;
 
     const { data, setData, post, put, processing, errors } = useForm({
         patient_id: appointment?.patient_id || preselectedPatient || '',
@@ -49,7 +54,7 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
         starts_at: appointment?.starts_at?.slice(0, 16) || '',
         ends_at: appointment?.ends_at?.slice(0, 16) || '',
         type: appointment?.type || 'consultation',
-        payment_type: appointment?.payment_type || 'particular',
+        payment_type: appointment?.payment_type || pagamentoUnico || 'particular',
         insurance_name: appointment?.insurance_name || '',
         notes: appointment?.notes || '',
     });
@@ -62,7 +67,11 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
     const onPatient = (id, patient) => {
         setData((cur) => {
             const next = { ...cur, patient_id: id };
-            if (patient?.insurance_name) {
+            if (pagamentoUnico) {
+                // Sem escolha: o convênio do cadastro não muda nada aqui.
+                next.payment_type = pagamentoUnico;
+                next.insurance_name = pagamentoUnico === 'convenio' ? (patient?.insurance_name || '') : '';
+            } else if (patient?.insurance_name) {
                 next.payment_type = 'convenio';
                 next.insurance_name = patient.insurance_name;
             } else if (patient) {
@@ -72,7 +81,7 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
             }
             return next;
         });
-        setAvisoConvenio(patient?.insurance_name ? 'Veio do cadastro do paciente — confirme ou troque.' : null);
+        setAvisoConvenio(patient?.insurance_name && aceitaConvenio ? 'Veio do cadastro do paciente — confirme ou troque.' : null);
     };
 
     const selectedDoctor = useMemo(() => doctors.find((d) => d.id === data.doctor_id), [doctors, data.doctor_id]);
@@ -124,25 +133,28 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
                         {errors.patient_id && <p className="text-red-500 text-xs mt-1">{errors.patient_id}</p>}
                     </div>
 
-                    {/* Particular ou convênio — perguntado SEMPRE, paciente novo ou antigo.
-                        Quando o cadastro tem convênio, já vem marcado; a recepção só confirma. */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Pagamento *</label>
-                        <div className="flex gap-2">
-                            {[['particular', 'Particular'], ['convenio', 'Convênio']].map(([v, label]) => (
-                                <button key={v} type="button"
-                                    onClick={() => setData('payment_type', v)}
-                                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                                        data.payment_type === v
-                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                                    }`}>
-                                    {label}
-                                </button>
-                            ))}
+                    {/* Particular ou convênio — perguntado SEMPRE que a clínica aceita as duas,
+                        paciente novo ou antigo. Quando o cadastro tem convênio, já vem marcado;
+                        a recepção só confirma. */}
+                    {!pagamentoUnico && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Pagamento *</label>
+                            <div className="flex gap-2">
+                                {[['particular', 'Particular'], ['convenio', 'Convênio']].map(([v, label]) => (
+                                    <button key={v} type="button"
+                                        onClick={() => setData('payment_type', v)}
+                                        className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                                            data.payment_type === v
+                                                ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                                        }`}>
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            {errors.payment_type && <p className="text-red-500 text-xs mt-1">{errors.payment_type}</p>}
                         </div>
-                        {errors.payment_type && <p className="text-red-500 text-xs mt-1">{errors.payment_type}</p>}
-                    </div>
+                    )}
 
                     {data.payment_type === 'convenio' && (
                         <div className="md:col-span-2">

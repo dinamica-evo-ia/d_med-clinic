@@ -7,6 +7,7 @@ use App\Models\AttendantConversation;
 use App\Models\AttendantKnowledge;
 use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
+use App\Models\ClinicProfile;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Support\Whatsapp\Whatsapp;
@@ -32,6 +33,16 @@ class AttendantAI
         private AttendantSetting $s,
         private AttendantConversation $conv,
     ) {}
+
+    /**
+     * Formas de pagamento que a clínica aceita (config da secretária). O prompt, o schema da
+     * ferramenta e a trava do agendar_consulta leem TODOS daqui — se divergirem, a IA pergunta
+     * uma coisa e o backend exige outra, e a conversa trava sem o paciente entender por quê.
+     */
+    private function pagamentosAceitos(): array
+    {
+        return ClinicProfile::current()->aceita();
+    }
 
     /** Responde se as condições permitirem (ligado, conectado, autonomia, chave configurada). */
     public static function maybeRespond(AttendantConversation $conv): void
@@ -196,6 +207,35 @@ class AttendantAI
             })->implode("\n");
         $medicosBlock = $medicos ? "\n\nMédicos ativos:\n{$medicos}" : '';
 
+        /*
+         * Convênio só entra na conversa se a clínica aceitar convênio. Nutricionista/psicólogo
+         * que só atende particular não tem por que perguntar isso em 100% das conversas — e o
+         * paciente que responde "convênio" pra quem não aceita só gera frustração.
+         */
+        $aceitos = $this->pagamentosAceitos();
+        if (count($aceitos) > 1) {
+            $pagamentoRule = <<<'P'
+- 🔴 SEMPRE pergunte se a consulta é **particular** ou por **convênio** (e QUAL convênio) antes
+  de marcar. Não chute nem assuma particular — a recepção confia nesse dado.
+  - Se identificar_paciente trouxe `convenio_no_cadastro`, CONFIRME em vez de perguntar do
+    zero: "Vejo que você tem Unimed — a consulta é por ele ou particular?". Ter convênio no
+    cadastro NÃO quer dizer que hoje é por ele.
+  - Sem convênio no cadastro, pergunte aberto: "A consulta é particular ou por convênio?".
+P;
+        } elseif ($aceitos[0] === 'particular') {
+            $pagamentoRule = <<<'P'
+- 🔴 Esta clínica atende **somente particular** — NÃO aceita convênio. Não pergunte "particular
+  ou convênio?": já marque como particular. Se o paciente perguntar sobre convênio ou disser o
+  nome de um plano, avise com educação que o atendimento é particular e siga com a marcação se
+  ele quiser.
+P;
+        } else {
+            $pagamentoRule = <<<'P'
+- 🔴 Esta clínica atende **somente por convênio** — não faz atendimento particular. Não pergunte
+  "particular ou convênio?"; pergunte apenas QUAL é o convênio do paciente antes de marcar.
+P;
+        }
+
         $persona = $this->s->persona ? "\n\nInstruções da clínica:\n{$this->s->persona}" : '';
         $tone = $this->s->tone ? " Tom: {$this->s->tone}." : '';
         $welcome = trim((string) $this->s->welcome_message) !== ''
@@ -231,12 +271,7 @@ Regras:
   cadastro duplicado. Se encontrar, trate a pessoa pelo nome do cadastro e siga.
 - Peça UM dado por vez (é WhatsApp): primeiro o nome, na mensagem seguinte o CPF. Não peça os
   dois de uma vez — a pessoa responde só um e você acaba perguntando de novo.
-- 🔴 SEMPRE pergunte se a consulta é **particular** ou por **convênio** (e QUAL convênio) antes
-  de marcar. Não chute nem assuma particular — a recepção confia nesse dado.
-  - Se identificar_paciente trouxe `convenio_no_cadastro`, CONFIRME em vez de perguntar do
-    zero: "Vejo que você tem Unimed — a consulta é por ele ou particular?". Ter convênio no
-    cadastro NÃO quer dizer que hoje é por ele.
-  - Sem convênio no cadastro, pergunte aberto: "A consulta é particular ou por convênio?".
+{$pagamentoRule}
 - Ao oferecer horários, dê poucas opções claras (dia + hora).
 - Não peça dados que já tem.
 - Mensagens entre colchetes como [Áudio recebido] ou [Imagem recebida] significam que o paciente mandou uma mídia que você NÃO consegue ver/ouvir — peça gentilmente que ele escreva em texto.
@@ -311,24 +346,42 @@ TXT;
         ];
 
         if ($this->s->autonomy === 'auto_schedule') {
+            // O enum acompanha o que a clínica aceita: numa clínica só-particular o campo some do
+            // schema, então a IA não tem nem como mandar "convenio" — e "pagamento" sai do
+            // required, senão ela ficaria obrigada a perguntar o que o prompt manda não perguntar.
+            $aceitos = $this->pagamentosAceitos();
+            $props = [
+                'medico_id' => ['type' => 'string'],
+                'inicio' => ['type' => 'string', 'description' => 'Início em ISO 8601, ex 2026-07-10T14:30:00. '
+                    .'Use exatamente o campo "inicio" que consultar_horarios devolveu.'],
+                'duracao_min' => ['type' => 'integer', 'description' => 'Duração em minutos (padrão 30).'],
+                'nome_paciente' => ['type' => 'string', 'description' => 'Nome completo, se ainda não cadastrado.'],
+                'cpf' => ['type' => 'string', 'description' => 'CPF do paciente. Evita cadastro duplicado.'],
+            ];
+            $required = ['medico_id', 'inicio'];
+
+            if (count($aceitos) > 1) {
+                $props['pagamento'] = ['type' => 'string', 'enum' => $aceitos,
+                    'description' => 'Como o paciente vai pagar. PERGUNTE — não chute.'];
+                $required[] = 'pagamento';
+            }
+            if (in_array('convenio', $aceitos, true)) {
+                $props['convenio'] = ['type' => 'string', 'description' => count($aceitos) > 1
+                    ? 'Nome do convênio. Obrigatório quando pagamento=convenio.'
+                    : 'Nome do convênio do paciente. Obrigatório — a clínica só atende por convênio.'];
+                if (count($aceitos) === 1) {
+                    $required[] = 'convenio';
+                }
+            }
+
             $tools[] = [
                 'name' => 'agendar_consulta',
                 'description' => 'Marca a consulta na agenda DE VERDADE. Só depois de o paciente confirmar '
                     .'médico, dia e horário. A consulta só existe se esta ferramenta devolver sucesso.',
                 'input_schema' => [
                     'type' => 'object',
-                    'properties' => [
-                        'medico_id' => ['type' => 'string'],
-                        'inicio' => ['type' => 'string', 'description' => 'Início em ISO 8601, ex 2026-07-10T14:30:00. '
-                            .'Use exatamente o campo "inicio" que consultar_horarios devolveu.'],
-                        'duracao_min' => ['type' => 'integer', 'description' => 'Duração em minutos (padrão 30).'],
-                        'nome_paciente' => ['type' => 'string', 'description' => 'Nome completo, se ainda não cadastrado.'],
-                        'cpf' => ['type' => 'string', 'description' => 'CPF do paciente. Evita cadastro duplicado.'],
-                        'pagamento' => ['type' => 'string', 'enum' => ['particular', 'convenio'],
-                            'description' => 'Como o paciente vai pagar. PERGUNTE — não chute.'],
-                        'convenio' => ['type' => 'string', 'description' => 'Nome do convênio. Obrigatório quando pagamento=convenio.'],
-                    ],
-                    'required' => ['medico_id', 'inicio', 'pagamento'],
+                    'properties' => $props,
+                    'required' => $required,
                 ],
             ];
             $tools[] = [
@@ -655,18 +708,25 @@ TXT;
         }
 
         /*
-         * Particular ou convênio — a IA TEM que perguntar. Sem esta trava, o Appointment::create
-         * caía no default 'particular' do banco e toda consulta marcada pelo WhatsApp aparecia
-         * como particular sem ninguém ter perguntado: dado que PARECE preenchido, e a recepção
-         * confia. Pior que vazio. Prompt sozinho não segura isso — por isso valida aqui.
+         * Particular ou convênio. Sem esta trava, o Appointment::create caía no default
+         * 'particular' do banco e toda consulta marcada pelo WhatsApp aparecia como particular
+         * sem ninguém ter perguntado: dado que PARECE preenchido, e a recepção confia. Pior que
+         * vazio. Prompt sozinho não segura isso — por isso valida aqui também.
+         *
+         * Quando a clínica aceita UMA forma só, não há o que perguntar nem o que validar: a
+         * resposta é conhecida, então preenche. Exigir a pergunta aí seria travar a marcação por
+         * um dado que a própria clínica já respondeu na configuração.
          */
-        $pagamento = $input['pagamento'] ?? null;
-        if (! in_array($pagamento, ['particular', 'convenio'], true)) {
+        $aceitos = $this->pagamentosAceitos();
+        $unico = count($aceitos) === 1 ? $aceitos[0] : null;
+        $pagamento = $unico ?? ($input['pagamento'] ?? null);
+
+        if (! in_array($pagamento, $aceitos, true)) {
             return ['erro' => 'Pergunte ao paciente se a consulta é PARTICULAR ou por CONVÊNIO antes de marcar.'];
         }
         $convenio = trim((string) ($input['convenio'] ?? ''));
         if ($pagamento === 'convenio' && $convenio === '') {
-            return ['erro' => 'Pergunte QUAL é o convênio antes de marcar.'];
+            return ['erro' => 'Pergunte QUAL é o convênio do paciente antes de marcar.'];
         }
 
         $appt = Appointment::create([

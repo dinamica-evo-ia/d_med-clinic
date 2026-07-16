@@ -70,7 +70,8 @@
       "mcp__claude-in-chrome__list_connected_browsers",
       "mcp__visualize__show_widget",
       "WebFetch(domain:doc.evolution-api.com)",
-      "WebFetch(domain:gist.github.com)"
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:crm.dmedclinic.com.br)"
     ]
   }
 }

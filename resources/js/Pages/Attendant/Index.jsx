@@ -7,6 +7,18 @@ const AUTONOMY = [
   { v: 'auto_schedule', label: 'Responder e agendar', hint: 'Faz tudo, inclusive marcar a consulta na agenda.' },
 ];
 
+const PAGAMENTOS = [
+  { v: 'particular', label: 'Particular', hint: 'O paciente paga direto pra clínica.' },
+  { v: 'convenio', label: 'Convênio', hint: 'A clínica aceita planos de saúde.' },
+];
+
+/** O que a IA vai perguntar (ou não) — a secretária vê o efeito antes de salvar. */
+const previewPagamento = (tipos) => {
+  if (tipos.length > 1) return 'A IA vai perguntar: "A consulta é particular ou por convênio?"';
+  if (tipos[0] === 'particular') return 'A IA não pergunta nada: marca tudo como particular.';
+  return 'A IA vai perguntar só qual é o convênio do paciente.';
+};
+
 const field = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500';
 
 const STATE_LABEL = {
@@ -27,8 +39,21 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
     offhours_message: settings.offhours_message || '',
     business_hours: { open: bh.open || '', close: bh.close || '', weekends: !!bh.weekends },
     autonomy: settings.autonomy || 'suggest',
+    payment_types: settings.payment_types?.length ? settings.payment_types : ['particular', 'convenio'],
   });
   const setBh = (k, v) => cfg.setData('business_hours', { ...cfg.data.business_hours, [k]: v });
+
+  // Desmarcar a última forma deixaria a clínica sem como marcar consulta — clicar na única
+  // marcada não faz nada (em vez de deixar salvar e a agenda quebrar depois).
+  const togglePagamento = (v) => {
+    const atual = cfg.data.payment_types;
+    if (atual.includes(v)) {
+      if (atual.length === 1) return;
+      cfg.setData('payment_types', atual.filter((x) => x !== v));
+    } else {
+      cfg.setData('payment_types', PAGAMENTOS.map((p) => p.v).filter((x) => x === v || atual.includes(x)));
+    }
+  };
   const saveCfg = (e) => { e.preventDefault(); cfg.put('/atendente', { preserveScroll: true }); };
 
   return (
@@ -103,6 +128,32 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
             <label className="text-xs text-slate-600">Fecha <input type="time" value={cfg.data.business_hours.close} onChange={(e) => setBh('close', e.target.value)} className="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-sm" /></label>
             <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={cfg.data.business_hours.weekends} onChange={(e) => setBh('weekends', e.target.checked)} /> atende fim de semana</label>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Formas de pagamento que a clínica aceita</label>
+          <p className="text-xs text-slate-500 mb-2">
+            Define o que a IA pergunta ao marcar. Clínica que só atende particular não precisa perguntar
+            nada — vale também no cadastro de consulta feito aqui no CRM.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {PAGAMENTOS.map((p) => {
+              const on = cfg.data.payment_types.includes(p.v);
+              const unico = on && cfg.data.payment_types.length === 1;
+              return (
+                <button key={p.v} type="button" onClick={() => togglePagamento(p.v)} aria-pressed={on}
+                  title={unico ? 'A clínica precisa aceitar ao menos uma forma de pagamento.' : undefined}
+                  className={`text-left rounded-lg border p-3 transition ${on ? 'border-blue-500 bg-blue-50' : 'border-slate-200 hover:border-slate-300'} ${unico ? 'cursor-default' : ''}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`flex h-4 w-4 items-center justify-center rounded border text-[10px] font-bold ${on ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 text-transparent'}`}>✓</span>
+                    <span className="text-sm font-semibold text-slate-800">{p.label}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 pl-6">{p.hint}</div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-slate-500 mt-2">{previewPagamento(cfg.data.payment_types)}</p>
         </div>
 
         <div>

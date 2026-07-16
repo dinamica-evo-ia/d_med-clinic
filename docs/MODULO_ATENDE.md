@@ -273,6 +273,36 @@ depois → antes vinha `null`, agora vem.
 perguntar do zero ("Vejo que você tem Unimed — é por ele ou particular?"). Ter convênio no
 cadastro **não** quer dizer que hoje é por ele.
 
+#### …mas só quando há o que perguntar (2026-07-16)
+
+`clinic_profiles.payment_types` (JSON) diz o que a clínica **aceita**. A secretária configura em
+**`/atendente`** (checkboxes Particular / Convênio, com preview do que a IA vai perguntar).
+
+Mora no **perfil da clínica**, não no `attendant_settings`: não é config do bot, é fato da
+clínica, e quem consome são dois — a IA **e** o formulário da agenda. Se divergissem, a recepção
+veria um campo que a IA ignora.
+
+Fonte única: `ClinicProfile::aceita()` (nulo/vazio → as duas) e `pagamentoUnico()`. Os três
+pontos leem daí — **prompt**, **schema da tool** e **trava** — porque se divergirem a IA pergunta
+uma coisa, o backend exige outra, e a conversa trava sem o paciente entender por quê.
+
+| Config | Prompt | Schema `agendar_consulta` | Trava |
+|---|---|---|---|
+| Particular + Convênio | "SEMPRE pergunte…" | `pagamento` obrigatório, enum com as duas | recusa sem `pagamento` |
+| Só particular | "NÃO aceita convênio, já marque como particular" | campo `pagamento` **não existe** | assume `particular` |
+| Só convênio | "pergunte só QUAL convênio" | `convenio` obrigatório, sem `pagamento` | assume `convenio` |
+
+O campo some do schema de propósito: numa clínica só-particular a IA **não tem como** mandar
+`convenio` nem inventar a pergunta — não depende de ela lembrar do prompt.
+
+Retrocompat: `payment_types` nulo (clínica que nunca configurou) = as duas = comportamento
+anterior. Medido nos 4 casos em tenant descartável — ver `AttendantAI::pagamentosAceitos()`.
+
+**No CRM:** `AppointmentController@create` manda `paymentTypes` pro `Appointments/Form`, que
+esconde o seletor quando só há uma forma; o `store` força a única aceita (o `update` **não**
+força — reescreveria em silêncio o pagamento de consultas antigas se a clínica mudasse a config
+depois).
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo

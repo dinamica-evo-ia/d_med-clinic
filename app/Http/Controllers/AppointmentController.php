@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
+use App\Models\ClinicProfile;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Support\AttendantNotifier;
@@ -54,6 +55,9 @@ class AppointmentController extends Controller
             ])->values(),
             'preselectedDoctorId' => $request->get('doctor_id'),
             'convenios' => $this->conveniosConhecidos(),
+            // Clínica só-particular não vê o seletor: o campo já vem resolvido. Configurável em
+            // /atendente (é a mesma config que decide o que a IA pergunta no WhatsApp).
+            'paymentTypes' => ClinicProfile::current()->aceita(),
         ]);
     }
 
@@ -82,12 +86,23 @@ class AppointmentController extends Controller
 
     public function store(Request $request)
     {
+        /*
+         * Aceita uma forma só? Então o formulário nem mostrou o seletor — resolve aqui em vez de
+         * exigir um campo que a tela não pediu. Só no store: no update seria pior, porque
+         * reescreveria em silêncio o pagamento de consultas antigas se a clínica mudasse a
+         * configuração depois.
+         */
+        $aceitos = ClinicProfile::current()->aceita();
+        if (count($aceitos) === 1) {
+            $request->merge(['payment_type' => $aceitos[0]]);
+        }
+
         $validated = $request->validate([
             'patient_id' => 'required|exists:patients,id',
             'doctor_id' => 'required|exists:doctors,id',
             'starts_at' => 'required|date',
             'ends_at' => 'required|date|after:starts_at',
-            'payment_type' => 'required|in:particular,convenio',
+            'payment_type' => 'required|in:'.implode(',', $aceitos),
             // o nome do convênio só é exigido quando É convênio
             'insurance_name' => 'nullable|required_if:payment_type,convenio|string|max:120',
             'type' => 'nullable|string|in:consultation,followup,exam,other',
