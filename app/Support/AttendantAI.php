@@ -231,6 +231,12 @@ Regras:
   cadastro duplicado. Se encontrar, trate a pessoa pelo nome do cadastro e siga.
 - Peça UM dado por vez (é WhatsApp): primeiro o nome, na mensagem seguinte o CPF. Não peça os
   dois de uma vez — a pessoa responde só um e você acaba perguntando de novo.
+- 🔴 SEMPRE pergunte se a consulta é **particular** ou por **convênio** (e QUAL convênio) antes
+  de marcar. Não chute nem assuma particular — a recepção confia nesse dado.
+  - Se identificar_paciente trouxe `convenio_no_cadastro`, CONFIRME em vez de perguntar do
+    zero: "Vejo que você tem Unimed — a consulta é por ele ou particular?". Ter convênio no
+    cadastro NÃO quer dizer que hoje é por ele.
+  - Sem convênio no cadastro, pergunte aberto: "A consulta é particular ou por convênio?".
 - Ao oferecer horários, dê poucas opções claras (dia + hora).
 - Não peça dados que já tem.
 - Mensagens entre colchetes como [Áudio recebido] ou [Imagem recebida] significam que o paciente mandou uma mídia que você NÃO consegue ver/ouvir — peça gentilmente que ele escreva em texto.
@@ -318,8 +324,11 @@ TXT;
                         'duracao_min' => ['type' => 'integer', 'description' => 'Duração em minutos (padrão 30).'],
                         'nome_paciente' => ['type' => 'string', 'description' => 'Nome completo, se ainda não cadastrado.'],
                         'cpf' => ['type' => 'string', 'description' => 'CPF do paciente. Evita cadastro duplicado.'],
+                        'pagamento' => ['type' => 'string', 'enum' => ['particular', 'convenio'],
+                            'description' => 'Como o paciente vai pagar. PERGUNTE — não chute.'],
+                        'convenio' => ['type' => 'string', 'description' => 'Nome do convênio. Obrigatório quando pagamento=convenio.'],
                     ],
-                    'required' => ['medico_id', 'inicio'],
+                    'required' => ['medico_id', 'inicio', 'pagamento'],
                 ],
             ];
             $tools[] = [
@@ -422,6 +431,9 @@ TXT;
                 'nascimento' => $patient->birth_date
                     ? Carbon::parse($patient->birth_date)->format('d/m/Y')
                     : null,
+                // convênio do CADASTRO: serve pra CONFIRMAR ("é pelo Unimed?"), não pra decidir.
+                // O paciente pode ter convênio registrado e querer vir particular hoje.
+                'convenio_no_cadastro' => $patient->insurance['name'] ?? null,
             ],
         ];
     }
@@ -642,6 +654,21 @@ TXT;
             return ['erro' => 'Esse horário acabou de ficar ocupado. Ofereça outro.'];
         }
 
+        /*
+         * Particular ou convênio — a IA TEM que perguntar. Sem esta trava, o Appointment::create
+         * caía no default 'particular' do banco e toda consulta marcada pelo WhatsApp aparecia
+         * como particular sem ninguém ter perguntado: dado que PARECE preenchido, e a recepção
+         * confia. Pior que vazio. Prompt sozinho não segura isso — por isso valida aqui.
+         */
+        $pagamento = $input['pagamento'] ?? null;
+        if (! in_array($pagamento, ['particular', 'convenio'], true)) {
+            return ['erro' => 'Pergunte ao paciente se a consulta é PARTICULAR ou por CONVÊNIO antes de marcar.'];
+        }
+        $convenio = trim((string) ($input['convenio'] ?? ''));
+        if ($pagamento === 'convenio' && $convenio === '') {
+            return ['erro' => 'Pergunte QUAL é o convênio antes de marcar.'];
+        }
+
         $appt = Appointment::create([
             'patient_id' => $patient->id,
             'doctor_id' => $doctor->id,
@@ -650,6 +677,8 @@ TXT;
             'ends_at' => $end,
             'status' => 'scheduled',
             'type' => 'consultation',
+            'payment_type' => $pagamento,
+            'insurance_name' => $pagamento === 'convenio' ? $convenio : null,
             'source' => 'atende',
             'external_ref' => 'wa:'.$this->conv->contact_phone,
         ]);

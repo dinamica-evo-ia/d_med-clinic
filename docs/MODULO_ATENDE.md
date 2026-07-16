@@ -259,6 +259,20 @@ já saiu se estivesse `open`: nunca derruba um WhatsApp funcionando.
 Medido nos dois caminhos: instância nova com número → código na hora; QR primeiro e código
 depois → antes vinha `null`, agora vem.
 
+### Particular ou convênio — a IA pergunta (e o backend obriga)
+
+`agendar_consulta` exige **`pagamento`** (`particular`|`convenio`) e, quando é convênio, o
+**`convenio`**. Não é só prompt: o `toolAgendarConsulta` **recusa** sem isso.
+
+> 🔴 Por que a trava no backend e não só no prompt: sem ela, o `Appointment::create` caía no
+> default `particular` do banco e **toda consulta marcada pelo WhatsApp aparecia como
+> particular sem ninguém ter perguntado**. Dado que *parece* preenchido, e a recepção confia —
+> pior que vazio. Prompt sozinho não segura; o modelo esquece.
+
+`identificar_paciente` devolve **`convenio_no_cadastro`** pra IA **confirmar** em vez de
+perguntar do zero ("Vejo que você tem Unimed — é por ele ou particular?"). Ter convênio no
+cadastro **não** quer dizer que hoje é por ele.
+
 ### Armadilha de namespace
 
 `AttendantAI` e `AttendantNotifier` vivem em `App\Support`, o mesmo namespace do antigo
