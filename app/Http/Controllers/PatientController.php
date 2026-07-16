@@ -58,7 +58,8 @@ class PatientController extends Controller
         $query->orderBy('name', $direction);
 
         return Inertia::render('Patients/Index', [
-            'patients' => $query->paginate(15)->withQueryString(),
+            // 30 por página: com 15 a Clínica RF (2.4k pacientes) dava 165 páginas de rolagem.
+            'patients' => $query->paginate(30)->withQueryString(),
             'filters' => [
                 'search' => $request->get('search', ''),
                 'status' => $status,
