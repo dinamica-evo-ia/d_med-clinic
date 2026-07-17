@@ -47,6 +47,10 @@ Route::post('/parceria-farmacias', [\App\Http\Controllers\PharmacyPartnerControl
 Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // PWA — superfície mobile do médico (v0: agenda do dia). Sem shell de desktop.
+    Route::get('/app', [\App\Http\Controllers\MobileController::class, 'agenda'])
+        ->middleware('role:admin,doctor')->name('mobile.agenda');
+
     Route::resource('patients', PatientController::class);
     Route::patch('patients/{patient}/notes', [PatientController::class, 'updateNotes'])->name('patients.notes');
     Route::patch('patients/{patient}/status', [PatientController::class, 'updateStatus'])->name('patients.status');

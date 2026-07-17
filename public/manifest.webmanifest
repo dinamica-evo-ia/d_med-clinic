@@ -1,0 +1,16 @@
+{
+  "name": "D_Med Clinic",
+  "short_name": "D_Med",
+  "description": "Agenda e pacientes da clínica, no bolso.",
+  "start_url": "/app?fonte=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

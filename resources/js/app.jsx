@@ -41,10 +41,11 @@ createInertiaApp({
             page = pages[`./Pages/${name}.jsx`];
         }
 
-        // Layout: Auth e TenantSelect ficam sem shell; Master/* usa MasterLayout; resto usa AppLayout
+        // Layout: Auth, Public, TenantSelect e Mobile/* (PWA) ficam SEM o shell de desktop;
+        // Master/* usa MasterLayout; resto usa AppLayout. As telas Mobile trazem o próprio chrome.
         if (name.startsWith('Master/')) {
             page.default.layout = page.default.layout || ((p) => <MasterLayout>{p}</MasterLayout>);
-        } else if (!name.startsWith('Auth/') && !name.startsWith('Public/') && name !== 'TenantSelect') {
+        } else if (!name.startsWith('Auth/') && !name.startsWith('Public/') && !name.startsWith('Mobile/') && name !== 'TenantSelect') {
             page.default.layout = page.default.layout || ((p) => <AppLayout>{p}</AppLayout>);
         }
 
@@ -58,3 +59,10 @@ createInertiaApp({
         color: '#2563EB',
     },
 });
+
+// PWA: registra o service worker (network-first — ver public/sw.js). Só em produção/HTTPS.
+if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('SW falhou:', e));
+    });
+}
