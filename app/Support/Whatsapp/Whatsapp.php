@@ -33,6 +33,11 @@ class Whatsapp
         return self::for($s)->sendText($toPhone, $text);
     }
 
+    public static function sendDocument(AttendantSetting $s, string $toPhone, string $base64, string $fileName, string $caption = ''): ?string
+    {
+        return self::for($s)->sendDocument($toPhone, $base64, $fileName, $caption);
+    }
+
     public static function connectionState(AttendantSetting $s): array
     {
         return self::for($s)->connectionState();

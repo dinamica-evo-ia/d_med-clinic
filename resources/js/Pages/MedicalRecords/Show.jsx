@@ -21,7 +21,7 @@ const CHAVES_META = new Set(['resumo', 'alertas', '_terceira_voz_alerta', '_temp
 // Fase 2: campos "<key>_fontes" são metadados de rastreabilidade — não são exibidos como campos.
 const isFonteMeta = (k) => k.endsWith('_fontes');
 
-export default function Show({ patient, record }) {
+export default function Show({ patient, record, pdfModeloConfigurado = true }) {
     const isStudio = record.origem === 'studio_med';
     const transcricao = Array.isArray(record.transcricao) ? record.transcricao : [];
     const anamnesis = record.anamnesis && typeof record.anamnesis === 'object' ? record.anamnesis : null;
@@ -32,6 +32,29 @@ export default function Show({ patient, record }) {
     const terceiraVozAlerta = !!anamnesis?._terceira_voz_alerta;
     const identificacaoPorVoz = !!anamnesis?._identificacao_por_voz;
     const templateNome = anamnesis?._template_nome || null;
+
+    // Envio do resumo em PDF pro WhatsApp do paciente
+    const [envioResumo, setEnvioResumo] = useState('idle'); // idle | enviando | enviado
+    const [erroEnvio, setErroEnvio] = useState(null);
+
+    function enviarResumo() {
+        if (envioResumo === 'enviando') return;
+        const tel = patient.whatsapp || patient.phone;
+        if (!tel) {
+            setErroEnvio('O paciente não tem WhatsApp/telefone no cadastro.');
+            return;
+        }
+        if (!window.confirm(`Enviar o resumo em PDF para o WhatsApp do paciente (${tel})?`)) return;
+        setEnvioResumo('enviando');
+        setErroEnvio(null);
+        window.axios
+            .post(`/patients/${patient.id}/records/${record.id}/enviar-resumo`)
+            .then(() => setEnvioResumo('enviado'))
+            .catch((e) => {
+                setEnvioResumo('idle');
+                setErroEnvio(e?.response?.data?.error || 'Falha ao enviar. Tente de novo.');
+            });
+    }
 
     // N1 — turnos sociais colapsados por padrão (transcrição nunca é apagada)
     const [showSocial, setShowSocial] = useState(false);
@@ -78,15 +101,41 @@ export default function Show({ patient, record }) {
                     )}
                 </div>
                 {resumo && (
-                    <a
-                        href={`/patients/${patient.id}/records/${record.id}/patient-summary`}
-                        target="_blank"
-                        rel="noopener"
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-sm font-semibold rounded-lg shrink-0"
-                        title="Abre em nova aba com o resumo pronto pra imprimir e entregar ao paciente"
-                    >
-                        🖨️ Imprimir resumo para o paciente
-                    </a>
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                        <button
+                            type="button"
+                            onClick={enviarResumo}
+                            disabled={envioResumo === 'enviando'}
+                            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg ${
+                                envioResumo === 'enviado'
+                                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                                    : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60'
+                            }`}
+                            title="Gera o PDF do resumo e envia pro WhatsApp do paciente"
+                        >
+                            {envioResumo === 'enviando' ? '⏳ Enviando…'
+                                : envioResumo === 'enviado' ? '✓ Resumo enviado no WhatsApp'
+                                : '📤 Enviar Resumo ao Paciente'}
+                        </button>
+                        <div className="flex items-center gap-3">
+                            {!pdfModeloConfigurado && (
+                                <Link href="/account/settings/print" className="text-xs font-semibold text-amber-700 hover:text-amber-900">
+                                    ⚙️ Configurar modelo de PDF
+                                </Link>
+                            )}
+                            <a
+                                href={`/patients/${patient.id}/records/${record.id}/patient-summary`}
+                                target="_blank"
+                                rel="noopener"
+                                className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                                🖨️ Imprimir
+                            </a>
+                        </div>
+                        {erroEnvio && (
+                            <p className="text-xs text-rose-600 max-w-xs text-right">{erroEnvio}</p>
+                        )}
+                    </div>
                 )}
             </div>
 

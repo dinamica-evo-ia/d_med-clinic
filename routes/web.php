@@ -89,6 +89,7 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::post('patients/{patient}/records', [MedicalRecordController::class, 'store'])->name('patients.records.store');
         Route::get('patients/{patient}/records/{record}', [MedicalRecordController::class, 'show'])->name('patients.records.show');
         Route::get('patients/{patient}/records/{record}/patient-summary', [MedicalRecordController::class, 'patientSummary'])->name('patients.records.patient-summary');
+        Route::post('patients/{patient}/records/{record}/enviar-resumo', [MedicalRecordController::class, 'enviarResumo'])->name('patients.records.enviar-resumo');
         Route::get('patients/{patient}/records/{record}/edit', [MedicalRecordController::class, 'edit'])->name('patients.records.edit');
         Route::put('patients/{patient}/records/{record}', [MedicalRecordController::class, 'update'])->name('patients.records.update');
 

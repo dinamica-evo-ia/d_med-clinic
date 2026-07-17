@@ -87,6 +87,35 @@ abstract class WhatsappProvider
         return data_get($j, 'key.id') ?? data_get($j, 'id') ?? data_get($j, 'messageId');
     }
 
+    /**
+     * Envia um DOCUMENTO (ex.: PDF do resumo da consulta). Mesmo endpoint nos dois
+     * provedores (ambos Evolution/Baileys): POST /message/sendMedia/{instancia}.
+     * $base64 SEM o prefixo data-uri. Retorna o id externo (ou null). Lança em erro.
+     */
+    public function sendDocument(string $toPhone, string $base64, string $fileName, string $caption = '', string $mimetype = 'application/pdf'): ?string
+    {
+        if (! $this->s->isWhatsappConnected()) {
+            throw new \RuntimeException('WhatsApp não conectado (instância/chave ausente).');
+        }
+
+        $res = $this->http()->timeout(60)->post($this->url('/message/sendMedia/'.$this->instance()), [
+            'number' => preg_replace('/\D/', '', $toPhone),
+            'mediatype' => 'document',
+            'mimetype' => $mimetype,
+            'media' => $base64,
+            'fileName' => $fileName,
+            'caption' => $caption,
+        ]);
+
+        if ($res->failed()) {
+            throw new \RuntimeException($this->label().' '.$res->status().': '.substr($res->body(), 0, 300));
+        }
+
+        $j = $res->json() ?? [];
+
+        return data_get($j, 'key.id') ?? data_get($j, 'id') ?? data_get($j, 'messageId');
+    }
+
     /** Estado real da instância no provedor (open/close/connecting). Best-effort. */
     public function connectionState(): array
     {
