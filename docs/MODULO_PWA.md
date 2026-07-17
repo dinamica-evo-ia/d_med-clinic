@@ -194,6 +194,35 @@ cru não existe no banco.
 QR: **bacon/bacon-qr-code** (v3) gerando **SVG** — o container não tem `gd` nem `imagick`, e SVG
 não precisa. Vai inline como data-URI, sem rota de imagem nem storage.
 
+---
+
+## Um computador + um celular por usuário (regra do plano)
+
+Regra do dono (2026-07-17). Limites em `plans.web_sessions` / `plans.app_devices` (`null` = ∞,
+mesma convenção de `doctors`/`staff`), editáveis em **`/master/planos`**. Todos nascem **1 e 1** —
+a régua comercial ainda vai ser revista; a estrutura é que precisava existir.
+
+`App\Support\SessionLimit::aplicar($user, $sessionId, $userAgent)` roda **depois** do
+`session()->regenerate()` (o id muda ali e é ele que tem que sobreviver) nos **dois** logins:
+`AuthenticatedSessionController@store` e `InstallAppController@entrar` (QR).
+
+**Como sabe quem é quem:** a tabela `sessions` do Laravel **já guarda o `user_agent`** — dá pra
+classificar celular × computador sem tabela nova, sem parsear o payload da sessão, e sem depender
+de *como* a pessoa logou (formulário ou QR). Também cobre sessões que já existiam antes da regra.
+`ipad` conta como **celular**: pro médico é "o aparelho", não o computador.
+
+> 🔴 O ponto que importa: **cada classe tem sua vaga.** Entrar no computador **não** derruba o
+> celular, e vice-versa. Só o computador antigo cai quando ele loga num computador novo.
+
+Detalhes: **master é isento** (impersona e usa várias telas — limitar só atrapalha o suporte) ·
+exige `SESSION_DRIVER=database` (é o caso; com outro driver não há o que derrubar, e a função sai
+sem fazer nada em vez de falhar em silêncio) · resolver o plano nunca pode impedir alguém de
+logar, então erro ali cai no padrão 1+1.
+
+**Testado (2026-07-17)** com sessões sintéticas e restaurando as reais depois: classificação
+(PC/iPhone/Android/iPad) ✓ · login no PC derruba PC velho e **mantém o celular** ✓ · login no
+celular derruba celular velho e **mantém o PC** ✓ · master isento ✓.
+
 ## Como instalar (o que dizer pro médico)
 
 1. No computador, menu do avatar → **Instalar app no celular**.

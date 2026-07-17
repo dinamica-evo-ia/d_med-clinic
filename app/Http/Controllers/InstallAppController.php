@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AttendantSetting;
 use App\Models\Doctor;
 use App\Models\LoginToken;
+use App\Support\SessionLimit;
 use App\Support\Whatsapp\Whatsapp;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
 use BaconQrCode\Renderer\ImageRenderer;
@@ -99,6 +100,10 @@ class InstallAppController extends Controller
             session(['tenant_slug' => $t->tenant_slug]);
         }
         $request->session()->regenerate();
+
+        // Um celular por usuário (regra do plano): este aparelho assume, o anterior cai.
+        // Não mexe na sessão do computador — são classes diferentes.
+        SessionLimit::aplicar($t->user, $request->session()->getId(), $request->userAgent());
 
         return redirect('/app');
     }

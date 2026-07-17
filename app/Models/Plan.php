@@ -14,7 +14,9 @@ class Plan extends Model
     use CentralConnection;
 
     protected $fillable = [
-        'key', 'name', 'description', 'price', 'doctors', 'staff', 'features', 'sort_order', 'is_active',
+        'key', 'name', 'description', 'price', 'doctors', 'staff',
+        'web_sessions', 'app_devices', // logins simultâneos: computador e celular
+        'features', 'sort_order', 'is_active',
     ];
 
     protected function casts(): array

@@ -27,6 +27,7 @@ export default function Index({ plans }) {
             <p className="text-xs text-slate-400 mt-0.5">{p.description}</p>
             <div className="mt-3 text-2xl font-bold text-amber-300">{brl(p.price)}<span className="text-xs font-normal text-slate-400">{p.price != null ? '/mês' : ''}</span></div>
             <div className="mt-2 text-xs text-slate-400">{lim(p.doctors)} médico(s) · {lim(p.staff)} staff</div>
+            <div className="text-xs text-slate-400">{lim(p.web_sessions)} login(s) no PC · {lim(p.app_devices)} celular(es)</div>
             <ul className="mt-3 space-y-1 text-xs text-slate-300 flex-1">
               {(p.features || []).map((f, i) => <li key={i} className="flex gap-1.5"><span className="text-amber-400">•</span>{f}</li>)}
             </ul>
@@ -44,6 +45,7 @@ function EditModal({ plan, onClose }) {
   const [form, setForm] = useState({
     name: plan.name, description: plan.description || '',
     price: plan.price ?? '', doctors: plan.doctors ?? '', staff: plan.staff ?? '',
+    web_sessions: plan.web_sessions ?? '', app_devices: plan.app_devices ?? '',
     features: (plan.features || []).join('\n'), is_active: plan.is_active,
   });
   const [saving, setSaving] = useState(false);
@@ -57,6 +59,8 @@ function EditModal({ plan, onClose }) {
       price: form.price === '' ? null : Number(form.price),
       doctors: form.doctors === '' ? null : parseInt(form.doctors, 10),
       staff: form.staff === '' ? null : parseInt(form.staff, 10),
+      web_sessions: form.web_sessions === '' ? null : parseInt(form.web_sessions, 10),
+      app_devices: form.app_devices === '' ? null : parseInt(form.app_devices, 10),
       features: form.features.split('\n').map((s) => s.trim()).filter(Boolean),
       is_active: form.is_active,
     }, { preserveScroll: true, onFinish: () => { setSaving(false); onClose(); } });
@@ -72,6 +76,9 @@ function EditModal({ plan, onClose }) {
           <F label="Preço (R$/mês)"><input type="number" step="0.01" min="0" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="vazio = sob consulta" className={inp} /></F>
           <F label="Médicos"><input type="number" min="1" value={form.doctors} onChange={(e) => setForm({ ...form, doctors: e.target.value })} placeholder="vazio = ∞" className={inp} /></F>
           <F label="Staff"><input type="number" min="0" value={form.staff} onChange={(e) => setForm({ ...form, staff: e.target.value })} placeholder="vazio = ∞" className={inp} /></F>
+          {/* Logins simultâneos POR USUÁRIO — não por clínica. Regra: 1 computador + 1 celular. */}
+          <F label="Logins no computador"><input type="number" min="1" value={form.web_sessions} onChange={(e) => setForm({ ...form, web_sessions: e.target.value })} placeholder="vazio = ∞" className={inp} /></F>
+          <F label="Celulares (app)"><input type="number" min="1" value={form.app_devices} onChange={(e) => setForm({ ...form, app_devices: e.target.value })} placeholder="vazio = ∞" className={inp} /></F>
         </div>
         <F label="Serviços (um por linha)">
           <textarea rows={6} value={form.features} onChange={(e) => setForm({ ...form, features: e.target.value })} className={inp} />

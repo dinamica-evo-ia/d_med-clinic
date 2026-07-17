@@ -26,6 +26,8 @@ class Plans
                 'description' => $p->description,
                 'doctors' => $p->doctors,          // null = ilimitado
                 'staff' => $p->staff,              // null = ilimitado
+                'web_sessions' => $p->web_sessions, // logins simultâneos no computador (null = ∞)
+                'app_devices' => $p->app_devices,   // celulares logados ao mesmo tempo (null = ∞)
                 'price' => $p->price !== null ? (float) $p->price : null,
                 'features' => $p->features ?? [],
                 'is_active' => (bool) $p->is_active,
