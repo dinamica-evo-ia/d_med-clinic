@@ -103,24 +103,44 @@ export default function AtivarAvisos({ chavePublica }) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5">
-      <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-slate-800">
-          {estado === 'on' ? '🔔 Avisos ativos neste aparelho' : '🔕 Avisos desligados'}
-        </p>
-        <p className="text-[12px] text-slate-500">
-          {estado === 'on' ? 'Você é avisado quando marcarem consulta.' : 'Ative pra saber quando marcarem consulta.'}
-        </p>
+    <div className="rounded-2xl border border-slate-200 bg-white p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-slate-800">
+            {estado === 'on' ? '🔔 Avisos ativos neste aparelho' : '🔕 Avisos desligados'}
+          </p>
+          <p className="text-[12px] text-slate-500">
+            {estado === 'on'
+              ? 'Avisamos quando a secretária ou a IA marcar consulta pra você.'
+              : 'Ative pra saber quando marcarem consulta.'}
+          </p>
+        </div>
+        <button
+          onClick={estado === 'on' ? desligar : ligar}
+          disabled={ocupado}
+          className={`shrink-0 rounded-lg px-3 py-2 text-[13px] font-semibold disabled:opacity-50 ${
+            estado === 'on' ? 'bg-slate-100 text-slate-600' : 'bg-blue-600 text-white'
+          }`}
+        >
+          {ocupado ? '…' : estado === 'on' ? 'Desligar' : 'Ativar'}
+        </button>
       </div>
-      <button
-        onClick={estado === 'on' ? desligar : ligar}
-        disabled={ocupado}
-        className={`shrink-0 rounded-lg px-3 py-2 text-[13px] font-semibold disabled:opacity-50 ${
-          estado === 'on' ? 'bg-slate-100 text-slate-600' : 'bg-blue-600 text-white'
-        }`}
-      >
-        {ocupado ? '…' : estado === 'on' ? 'Desligar' : 'Ativar'}
-      </button>
+
+      {estado === 'on' && (
+        <div className="mt-3 border-t border-slate-100 pt-2.5">
+          <button
+            onClick={() => router.post('/app/push/test', {}, { preserveScroll: true })}
+            className="text-[12px] font-semibold text-blue-600 underline underline-offset-2"
+          >
+            Enviar um aviso de teste
+          </button>
+          {/* Sem isto o médico não tem como provar que funciona: quando ELE marca a própria
+              consulta a gente não avisa de propósito — então o teste óbvio não dispara nada. */}
+          <p className="mt-1 text-[11px] text-slate-400">
+            Marcar consulta pra si mesmo não gera aviso — só quando outra pessoa (ou a IA) marca.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

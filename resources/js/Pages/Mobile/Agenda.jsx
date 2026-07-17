@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AtivarAvisos from '@/Components/mobile/AtivarAvisos';
 
 // Rótulo/cor por status. Fallback discreto pro que não estiver mapeado.
@@ -12,6 +12,7 @@ const statusDe = (s) => STATUS[s] || { label: s || '—', cls: 'bg-slate-50 text
 
 export default function Agenda({ dia, medico, consultas = [], push = {} }) {
   const total = consultas.length;
+  const { flash } = usePage().props;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -46,6 +47,13 @@ export default function Agenda({ dia, medico, consultas = [], push = {} }) {
 
       {/* Lista */}
       <main className="px-4 py-4 space-y-2.5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}>
+        {flash?.success && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[13px] text-emerald-700">{flash.success}</div>
+        )}
+        {flash?.error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">{flash.error}</div>
+        )}
+
         {/* Avisos: só aparece pra quem tem ficha de médico (o aviso é sobre a agenda DELE) */}
         {push.disponivel && <AtivarAvisos chavePublica={push.chave_publica} />}
 
