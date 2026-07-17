@@ -37,6 +37,7 @@ conexão/FK — ver as armadilhas no `CLAUDE.md`.
 | **Importar & Exportar** | [MODULO_IMPORTAR_EXPORTAR.md](MODULO_IMPORTAR_EXPORTAR.md) | Migração de sistema antigo: pacientes, anamneses, receitas, fórmulas |
 | **Parceria com farmácias** | [MODULO_PARCERIA_FARMACIAS.md](MODULO_PARCERIA_FARMACIAS.md) | Página pública onde laboratórios enviam suas fórmulas |
 | **D_Med Atende** | [MODULO_ATENDE.md](MODULO_ATENDE.md) | Atendente de WhatsApp com IA (agenda, FAQ, inbox) |
+| **PWA (app do médico)** | [MODULO_PWA.md](MODULO_PWA.md) | `/app` instalável no iPhone/Android: agenda do dia + push de consulta marcada |
 | **Integração D_Agent** | [integracao-d-agent.md](integracao-d-agent.md) | API de agenda/agendamento consumida por fora |
 | Progresso histórico | [PROGRESSO.md](PROGRESSO.md) | Checklist das fases iniciais (histórico) |
 

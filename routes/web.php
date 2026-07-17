@@ -47,9 +47,13 @@ Route::post('/parceria-farmacias', [\App\Http\Controllers\PharmacyPartnerControl
 Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // PWA — superfície mobile do médico (v0: agenda do dia). Sem shell de desktop.
-    Route::get('/app', [\App\Http\Controllers\MobileController::class, 'agenda'])
-        ->middleware('role:admin,doctor')->name('mobile.agenda');
+    // PWA — superfície mobile do médico (v0: agenda do dia + avisos). Sem shell de desktop.
+    Route::middleware('role:admin,doctor')->group(function () {
+        Route::get('/app', [\App\Http\Controllers\MobileController::class, 'agenda'])->name('mobile.agenda');
+        Route::post('/app/push/subscribe', [\App\Http\Controllers\MobileController::class, 'pushSubscribe'])->name('mobile.push.subscribe');
+        Route::delete('/app/push/subscribe', [\App\Http\Controllers\MobileController::class, 'pushUnsubscribe'])->name('mobile.push.unsubscribe');
+        Route::post('/app/push/test', [\App\Http\Controllers\MobileController::class, 'pushTest'])->name('mobile.push.test');
+    });
 
     Route::resource('patients', PatientController::class);
     Route::patch('patients/{patient}/notes', [PatientController::class, 'updateNotes'])->name('patients.notes');

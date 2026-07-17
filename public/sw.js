@@ -62,3 +62,44 @@ self.addEventListener("fetch", (event) => {
     })()
   );
 });
+
+/* ---------- Web Push ---------- */
+
+// Chegou um aviso do servidor (ex.: "consulta marcada"). O payload vem do App\Support\WebPush.
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch {
+    d = { title: "D_Med Clinic", body: event.data ? event.data.text() : "" };
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(d.title || "D_Med Clinic", {
+      body: d.body || "",
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      // tag+renotify: aviso novo do mesmo assunto substitui o anterior em vez de empilhar
+      // 5 notificações iguais na tela do médico.
+      tag: d.tag || "dmed",
+      renotify: true,
+      data: { url: d.url || "/app" },
+    })
+  );
+});
+
+// Tocou na notificação → foca a aba do app se já estiver aberta, senão abre.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const alvo = (event.notification.data && event.notification.data.url) || "/app";
+
+  event.waitUntil(
+    (async () => {
+      const abas = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const aba of abas) {
+        if (aba.url.includes(alvo) && "focus" in aba) return aba.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(alvo);
+    })()
+  );
+});

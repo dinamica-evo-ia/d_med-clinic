@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
+import AtivarAvisos from '@/Components/mobile/AtivarAvisos';
 
 // Rótulo/cor por status. Fallback discreto pro que não estiver mapeado.
 const STATUS = {
@@ -9,7 +10,7 @@ const STATUS = {
 };
 const statusDe = (s) => STATUS[s] || { label: s || '—', cls: 'bg-slate-50 text-slate-500 ring-slate-200' };
 
-export default function Agenda({ dia, medico, consultas = [] }) {
+export default function Agenda({ dia, medico, consultas = [], push = {} }) {
   const total = consultas.length;
 
   return (
@@ -45,6 +46,9 @@ export default function Agenda({ dia, medico, consultas = [] }) {
 
       {/* Lista */}
       <main className="px-4 py-4 space-y-2.5" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}>
+        {/* Avisos: só aparece pra quem tem ficha de médico (o aviso é sobre a agenda DELE) */}
+        {push.disponivel && <AtivarAvisos chavePublica={push.chave_publica} />}
+
         {total === 0 && (
           <div className="mt-16 text-center">
             <div className="text-4xl">🗓️</div>

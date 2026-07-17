@@ -14,6 +14,9 @@ use App\Support\Whatsapp\Whatsapp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
+// (DoctorNotifier e WebPush vivem no mesmo namespace App\Support — sem import, ver a
+// armadilha de namespace documentada em docs/MODULO_ATENDE.md)
+
 /**
  * Cérebro do "D_Med Atende": lê a conversa, usa Claude (com ferramentas de agenda) pra
  * responder o paciente no WhatsApp e, se autorizado, marcar a consulta na agenda do CRM.
@@ -742,6 +745,10 @@ TXT;
             'source' => 'atende',
             'external_ref' => 'wa:'.$this->conv->contact_phone,
         ]);
+
+        // Avisa o médico no celular. É AQUI que isso mais importa: a IA marca sozinha, a
+        // qualquer hora, e sem o push o médico só descobriria abrindo o CRM.
+        DoctorNotifier::consultaMarcada($appt->fresh(['doctor', 'patient']));
 
         return [
             'ok' => true,

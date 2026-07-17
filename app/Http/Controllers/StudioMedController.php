@@ -153,8 +153,8 @@ class StudioMedController extends Controller
             }
         }
 
-        // Resolve doctor_id — match by email ou primeiro médico ativo
-        $doctor = Doctor::where('email', auth()->user()->email)->first()
+        // Resolve doctor_id — pelo vínculo user_id (com fallback de e-mail), ou 1º médico ativo
+        $doctor = Doctor::paraUsuario(auth()->user())
             ?? Doctor::where('is_active', true)->first();
 
         // Constrói anamnesis: guarda resumo + alertas + TODOS os campos do template como vieram.
@@ -251,8 +251,7 @@ class StudioMedController extends Controller
 
     protected function resolveDoctor(): ?Doctor
     {
-        $email = auth()->user()?->email;
-        return Doctor::where('email', $email)->first()
+        return Doctor::paraUsuario(auth()->user())
             ?? Doctor::where('is_active', true)->orderBy('name')->first();
     }
 }

@@ -7,6 +7,7 @@ use App\Models\ClinicProfile;
 use App\Models\Doctor;
 use App\Models\Patient;
 use App\Support\AttendantNotifier;
+use App\Support\DoctorNotifier;
 use App\Support\DoctorSchedule;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -129,7 +130,10 @@ class AppointmentController extends Controller
         $validated['user_id'] = auth()->id();
         $validated['status'] = 'scheduled';
 
-        Appointment::create($validated);
+        $appt = Appointment::create($validated);
+
+        // Avisa o médico no celular (PWA). Não avisa se foi ele mesmo quem marcou.
+        DoctorNotifier::consultaMarcada($appt);
 
         return redirect()->route('appointments.index')
             ->with('success', 'Consulta agendada com sucesso.');

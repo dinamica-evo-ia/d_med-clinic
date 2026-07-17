@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Appointment;
 use App\Models\Doctor;
+use App\Models\PushSubscription;
+use App\Support\WebPush;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 /**
  * Superfície mobile (PWA) — telas enxutas pro médico no celular. Reaproveita models e queries
- * do CRM; só a camada de tela é nova. v0: Agenda do Dia. Roda dentro do tenant (tenancy.by_user).
+ * do CRM; só a camada de tela é nova. v0: Agenda do Dia + aviso de consulta marcada.
+ * Roda dentro do tenant (tenancy.by_user).
  */
 class MobileController extends Controller
 {
@@ -22,9 +25,9 @@ class MobileController extends Controller
         $ini = $dia->copy()->startOfDay();
         $fim = $dia->copy()->endOfDay();
 
-        // Médico logado: o vínculo é por e-mail (doctors não tem user_id — ver pendência do handoff).
+        // Médico logado (vínculo por user_id, ver Doctor::paraUsuario).
         // Achou → filtra a agenda dele; não achou (ex.: admin sem ficha) → mostra a clínica toda.
-        $doctor = Doctor::where('email', $request->user()->email)->first();
+        $doctor = Doctor::paraUsuario($request->user());
 
         $q = Appointment::whereBetween('starts_at', [$ini, $fim])
             ->where('status', '!=', 'cancelled')
@@ -57,6 +60,55 @@ class MobileController extends Controller
                 'tipo' => $a->type,
                 'is_proxima' => $proxima && $a->id === $proxima->id,
             ])->values(),
+            // Push: só oferece se houver chave VAPID E o usuário tiver ficha de médico
+            // (o aviso é "marcaram consulta PRA VOCÊ" — não faz sentido pra quem não atende).
+            'push' => [
+                'disponivel' => WebPush::configurado() && (bool) $doctor,
+                'chave_publica' => WebPush::configurado() ? config('webpush.public_key') : null,
+            ],
         ]);
+    }
+
+    /** O aparelho aceitou receber avisos — guarda/atualiza a inscrição. */
+    public function pushSubscribe(Request $request)
+    {
+        $data = $request->validate([
+            'endpoint' => 'required|string|max:500',
+            'keys.p256dh' => 'required|string',
+            'keys.auth' => 'required|string',
+        ]);
+
+        // updateOrCreate pelo endpoint: o mesmo aparelho reinscrevendo não vira linha duplicada,
+        // e uma inscrição que trocou de dono (aparelho compartilhado) passa pro usuário certo.
+        PushSubscription::updateOrCreate(
+            ['endpoint' => $data['endpoint']],
+            [
+                'user_id' => $request->user()->id,
+                'p256dh' => $data['keys']['p256dh'],
+                'auth' => $data['keys']['auth'],
+                'user_agent' => substr((string) $request->userAgent(), 0, 255),
+            ]
+        );
+
+        return back()->with('success', 'Avisos ativados neste aparelho.');
+    }
+
+    /** O médico desligou os avisos neste aparelho. */
+    public function pushUnsubscribe(Request $request)
+    {
+        $data = $request->validate(['endpoint' => 'required|string|max:500']);
+        PushSubscription::where('endpoint', $data['endpoint'])
+            ->where('user_id', $request->user()->id)->delete();
+
+        return back()->with('success', 'Avisos desligados neste aparelho.');
+    }
+
+    /** Dispara um aviso de teste pro próprio médico — prova que a corrente inteira funciona. */
+    public function pushTest(Request $request)
+    {
+        $n = WebPush::paraUsuario($request->user(), 'D_Med Clinic', 'Funcionou! Avisos estão ativos neste aparelho.', '/app');
+
+        return back()->with($n > 0 ? 'success' : 'error',
+            $n > 0 ? "Aviso enviado ({$n} aparelho(s))." : 'Nenhum aparelho inscrito recebeu.');
     }
 }
