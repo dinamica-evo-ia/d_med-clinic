@@ -54,6 +54,10 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
             {podeConfigurar && (
               <MItem href="/account/clinica" onClick={() => setOpen(false)} label="Médico / Clínica / Usuários" icon="user-edit" />
             )}
+            {/* Mesmo gate da rota (role:admin,doctor) — o app é a agenda DELE no bolso. */}
+            {podeConfigurar && (
+              <MItem href="/account/instalar-app" onClick={() => setOpen(false)} label="Instalar app no celular" icon="phone" />
+            )}
             <MItem href="/account/password" onClick={() => setOpen(false)} label="Alterar senha" icon="lock" />
             {isAdmin && (
               <MItem href="/account/plan" onClick={() => setOpen(false)} label="Planos e pagamentos" icon="card" />
@@ -125,6 +129,7 @@ function MiniIcon({ n }) {
     'user-edit': <><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-1.5-1.5"/></>,
     'lock': <><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></>,
     'card': <><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></>,
+    'phone': <><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></>,
     'stethoscope': <><path d="M4 4v6a4 4 0 008 0V4"/><circle cx="18" cy="14" r="2"/><path d="M8 14a8 8 0 008 0"/></>,
     'clock': <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
     'printer': <><path d="M6 9V3h12v6M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></>,

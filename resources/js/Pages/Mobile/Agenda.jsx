@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AtivarAvisos from '@/Components/mobile/AtivarAvisos';
+import BotaoInstalar from '@/Components/mobile/BotaoInstalar';
 
 // Rótulo/cor por status. Fallback discreto pro que não estiver mapeado.
 const STATUS = {
@@ -53,6 +54,9 @@ export default function Agenda({ dia, medico, consultas = [], push = {} }) {
         {flash?.error && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-700">{flash.error}</div>
         )}
+
+        {/* Android: some sozinho se já instalado ou se o navegador não suporta (iPhone) */}
+        <BotaoInstalar />
 
         {/* Avisos: só aparece pra quem tem ficha de médico (o aviso é sobre a agenda DELE) */}
         {push.disponivel && <AtivarAvisos chavePublica={push.chave_publica} />}

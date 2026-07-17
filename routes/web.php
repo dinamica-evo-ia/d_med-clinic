@@ -43,6 +43,15 @@ Route::get('/', function () {
 Route::get('/parceria-farmacias', [\App\Http\Controllers\PharmacyPartnerController::class, 'show'])->name('pharmacy.partner');
 Route::post('/parceria-farmacias', [\App\Http\Controllers\PharmacyPartnerController::class, 'store'])->name('pharmacy.partner.store');
 
+/*
+ * Entrada do app pelo QR/link — SEM auth de propósito: é o ponto onde o celular se autentica.
+ * A segurança está no token (sha256 + 2 min + uso único, ver App\Models\LoginToken).
+ * Fica FORA do grupo de tenancy: a sessão do celular nasce zerada e o próprio token traz o
+ * tenant_slug — inicializar o tenant antes de existir usuário logado quebraria.
+ */
+Route::get('/app/entrar/{token}', [\App\Http\Controllers\InstallAppController::class, 'entrar'])
+    ->middleware('web')->name('mobile.entrar');
+
 // Tenant-specific routes (after authentication + tenancy init)
 Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -53,6 +62,11 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::post('/app/push/subscribe', [\App\Http\Controllers\MobileController::class, 'pushSubscribe'])->name('mobile.push.subscribe');
         Route::delete('/app/push/subscribe', [\App\Http\Controllers\MobileController::class, 'pushUnsubscribe'])->name('mobile.push.unsubscribe');
         Route::post('/app/push/test', [\App\Http\Controllers\MobileController::class, 'pushTest'])->name('mobile.push.test');
+
+        // "Instalar app no celular" — QR com login de uma vez + envio do link no WhatsApp.
+        Route::get('/account/instalar-app', [\App\Http\Controllers\InstallAppController::class, 'show'])->name('install.app');
+        Route::post('/account/instalar-app/qr', [\App\Http\Controllers\InstallAppController::class, 'refresh'])->name('install.app.qr');
+        Route::post('/account/instalar-app/whatsapp', [\App\Http\Controllers\InstallAppController::class, 'enviarWhatsapp'])->name('install.app.whatsapp');
     });
 
     Route::resource('patients', PatientController::class);

@@ -147,12 +147,59 @@ uso). Já aplicado em `StudioMedController` (2 pontos) e `MobileController`.
 
 ---
 
+---
+
+## Instalar sem dor: QR com login de uma vez
+
+**A fricção que isto mata:** o médico precisava saber que o `/app` existe, digitar a URL no
+celular, **logar com e-mail e senha no teclado do telefone** e ainda descobrir sozinho o
+"Adicionar à Tela de Início". Quatro chances de desistir — e a pior era o login.
+
+**Menu do avatar → "Instalar app no celular"** (`/account/instalar-app`, `role:admin,doctor`) traz:
+
+1. **QR code** — aponta a câmera e o celular abre **já logado**.
+2. **"Enviar link pro meu WhatsApp"** — usa o telefone da ficha do médico + a conexão de WhatsApp
+   que a clínica já tem. Ele toca no link no próprio celular. Sem QR, sem digitar.
+3. **Passo a passo do iPhone** (Compartilhar → Adicionar à Tela de Início), com o aviso de que
+   sem instalar não há push.
+4. **Botão "Instalar"** nativo dentro do `/app` no Android (`beforeinstallprompt`) — 1 toque.
+   O Safari não tem equivalente; por isso o iPhone recebe instrução, não botão.
+
+### 🔴 Isto é uma superfície de LOGIN — as defesas não são decoração
+
+`LoginToken` (central, `CentralConnection`) + `GET /app/entrar/{token}` **sem auth** (é o ponto
+onde o celular se autentica). Mesmo padrão do WhatsApp Web. O que segura:
+
+| Defesa | Por quê |
+|---|---|
+| **sha256** — só o hash no banco | Banco vazou → tokens inúteis (igual `tenant_api_keys`) |
+| **2 min de validade** | Fotografar a tela do QR não vale de nada depois |
+| **Uso único** (`used_at` marcado *antes* de logar) | Dois aparelhos escaneando junto → só um entra |
+| **QR novo apaga o anterior** | Tela esquecida aberta não deixa porta aberta |
+| **Só gera pra si mesmo** | Quem gera já provou ser o dono da conta naquele momento |
+| **Erro genérico** | Não dizemos se expirou, foi usado ou nunca existiu — não vira oráculo |
+| `used_user_agent` | Auditoria: que aparelho consumiu |
+
+`tenant_slug` viaja no token porque a sessão do celular nasce zerada — sem ele o
+`tenancy.by_user` não saberia qual clínica abrir pra quem tem mais de uma. Por isso a rota fica
+**fora** do grupo de tenancy (inicializar tenant antes de existir usuário logado quebraria).
+
+**Testado (2026-07-17), os 5 casos incluindo ataque:** válido → loga na clínica certa · reuso →
+recusado · expirado → recusado · inventado → recusado · QR novo invalida o anterior. E o token
+cru não existe no banco.
+
+> Risco residual, honesto: **quem vir o QR nesses 2 minutos entra como o médico.** Não deixe a
+> tela exposta nem compartilhe a tela em call. A própria tela avisa isso.
+
+QR: **bacon/bacon-qr-code** (v3) gerando **SVG** — o container não tem `gd` nem `imagick`, e SVG
+não precisa. Vai inline como data-URI, sem rota de imagem nem storage.
+
 ## Como instalar (o que dizer pro médico)
 
-1. Abrir `https://crm.dmedclinic.com.br/app` no celular, logado.
-2. **iPhone (Safari):** Compartilhar → **Adicionar à Tela de Início**. Abrir **por lá** (senão o
-   push não existe).
-3. **Android (Chrome):** menu ⋮ → **Instalar app**.
+1. No computador, menu do avatar → **Instalar app no celular**.
+2. **Aponte a câmera** no QR (ou receba o link no WhatsApp). O app abre já logado.
+3. **iPhone:** Compartilhar → **Adicionar à Tela de Início**. Abrir **por lá** (senão não há push).
+   **Android:** toque em **Instalar**.
 4. Dentro do app: **Ativar** no card de avisos.
 
 ## Estado / próximos
