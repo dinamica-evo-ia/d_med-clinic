@@ -529,6 +529,10 @@ TXT;
             'cancellation_reason' => 'Cancelado pelo paciente via WhatsApp',
         ]);
 
+        // 🔴 Avisa o médico: sem isto o paciente cancela às 22h e o médico aparece na clínica
+        // no dia seguinte esperando atender.
+        DoctorNotifier::consultaCancelada($appt->fresh(['doctor', 'patient']));
+
         return ['ok' => true, 'cancelada' => [
             'quando' => Carbon::parse($appt->starts_at)->setTimezone(self::TZ)->isoFormat('dddd, D [de] MMMM [às] HH:mm'),
         ]];
@@ -566,7 +570,12 @@ TXT;
             return ['erro' => 'Esse horário já está ocupado. Ofereça outro.'];
         }
 
+        // Guarda o horário ANTES do update — depois dele o valor antigo já se perdeu, e é ele
+        // que faz o aviso dizer "de/para" em vez de só "mudou".
+        $horarioAntigo = $appt->getOriginal('starts_at');
         $appt->update(['starts_at' => $start, 'ends_at' => $end]);
+
+        DoctorNotifier::consultaRemarcada($appt->fresh(['doctor', 'patient']), $horarioAntigo);
 
         return ['ok' => true, 'remarcada' => [
             'quando' => $start->isoFormat('dddd, D [de] MMMM [às] HH:mm'),

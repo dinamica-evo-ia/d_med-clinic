@@ -94,23 +94,37 @@ try/catch: **aviso que falha nunca pode derrubar o agendamento**.
 Inscrição morta (404/410 = aparelho desinstalou) é **removida** no envio — senão a tabela vira
 lixo e todo envio futuro gasta tempo com endpoint que não existe.
 
-### Fluxo do aviso "consulta marcada"
+### Os 3 avisos e onde disparam
 
 ```
-Consulta criada (IA no WhatsApp OU secretária no CRM)
-  → DoctorNotifier::consultaMarcada($appt)
+Consulta muda (IA no WhatsApp OU secretária no CRM)
+  → DoctorNotifier::consultaMarcada|Remarcada|Cancelada($appt)
     → appointment.doctor_id → doctors.user_id → users (central)
       → WebPush::paraUsuario() → serviço de push → sw.js "push" → notificação
         → toque → abre /app?data=<dia da consulta>
 ```
 
-Gatilhos: `AppointmentController@store` e `AttendantAI::toolAgendarConsulta`.
-**Não avisa o médico quando foi ele mesmo quem marcou** (a consulta da IA vem com `user_id`
-null, então o aviso sai normal — que é o caso que mais importa).
+| Aviso | Gatilhos |
+|---|---|
+| **Marcada** | `AppointmentController@store` · `AttendantAI::toolAgendarConsulta` |
+| **Remarcada** (mostra de→para) | `AppointmentController@update` · `@reschedule` (arrastar) · `AttendantAI::toolRemarcarConsulta` |
+| **Cancelada** | `AppointmentController@updateStatus` · `AttendantAI::toolCancelarConsulta` |
+
+**Regra central (`DoctorNotifier::destinatario`): nunca avisa quem acabou de fazer a ação.**
+Ação da IA/paciente vem com `user_id` null → o aviso sai, que é o caso que importa.
+
+> ⚠️ Isso confunde no teste: o médico marca a **própria** consulta, não recebe nada e acha que
+> está quebrado. Por isso o card de avisos tem o botão **"Enviar um aviso de teste"**
+> (`/app/push/test`) e diz isso na tela.
 
 > 🔴 O buraco que isso fecha: o `AttendantNotifier` avisava só o **paciente**. **Não existia uma
 > única notificação indo pro médico em todo o sistema** — a IA marcava às 22h e ele só descobria
-> abrindo o CRM (levantado em 2026-07-16).
+> abrindo o CRM (levantado em 2026-07-16). Remarcar/cancelar pesa ainda mais que marcar: muda o
+> dia dele. O caso ruim que o "cancelada" evita — paciente cancela pela IA às 22h e o médico
+> aparece na clínica esperando atender.
+
+> Nota: a lib emite um *deprecation* do `guzzlehttp/psr7` que aparece no `tinker`. É cosmético —
+> `APP_DEBUG=false` em produção e a entrega funciona (medido).
 
 ---
 
@@ -146,7 +160,7 @@ uso). Já aplicado em `StudioMedController` (2 pontos) e `MobileController`.
 - ✅ Agenda do dia (lista, navegação de dia, próxima consulta destacada, toque abre a ficha)
 - ✅ Instalável (manifest + ícones + tipos MIME corretos)
 - ✅ Service worker network-first + handler de push
-- ✅ Push "consulta marcada" (IA e secretária) + `doctors.user_id`
-- ⏳ **Não testado com aparelho real** — falta o médico instalar e inscrever
-- ⏳ Buscar paciente, receita no celular, mais avisos (cancelou/remarcou)
+- ✅ Push **marcada · remarcada · cancelada** (IA e secretária) + `doctors.user_id`
+- ✅ **Entrega provada em aparelho real** (iPhone iOS 18.7, 2026-07-17): os 3 avisos = 1 entregue cada
+- ⏳ Buscar paciente e receita no celular
 - ⏳ Gravar consulta pelo celular (adiado — ver acima)

@@ -20,28 +20,91 @@ class DoctorNotifier
 {
     public static function consultaMarcada(Appointment $appt): void
     {
-        $user = self::usuarioDoMedico($appt);
-        if (! $user) {
+        if (! $user = self::destinatario($appt)) {
             return;
         }
 
-        // Não avisa o próprio médico quando FOI ELE quem marcou — ele acabou de fazer isso.
-        // (Consulta marcada pela IA vem com user_id null, então o aviso sai normalmente.)
-        if ($appt->user_id && $appt->user_id === $user->id) {
-            return;
-        }
-
-        $tz = config('app.timezone');
-        $quando = Carbon::parse($appt->starts_at)->setTimezone($tz);
-        $paciente = $appt->patient?->name ?? 'Paciente';
-        $origem = $appt->source === 'atende' ? ' (pelo WhatsApp)' : '';
+        $quando = self::quando($appt->starts_at);
 
         WebPush::paraUsuario(
             $user,
-            'Nova consulta marcada'.$origem,
-            $paciente.' — '.$quando->isoFormat('ddd D/MM [às] HH:mm'),
+            'Nova consulta marcada'.self::origem($appt),
+            self::paciente($appt).' — '.$quando->isoFormat('ddd D/MM [às] HH:mm'),
             '/app?data='.$quando->toDateString(), // abre o app já no dia da consulta
         );
+    }
+
+    /**
+     * Horário mudou. Pro médico isto costuma pesar MAIS que uma consulta nova — muda o dia dele.
+     * Mostra de/para: só "mudou" obrigaria ele a abrir o CRM pra descobrir o quê.
+     */
+    public static function consultaRemarcada(Appointment $appt, $horarioAntigo = null): void
+    {
+        if (! $user = self::destinatario($appt)) {
+            return;
+        }
+
+        $novo = self::quando($appt->starts_at);
+        $antes = $horarioAntigo ? self::quando($horarioAntigo)->isoFormat('ddd D/MM HH:mm').' → ' : '';
+
+        WebPush::paraUsuario(
+            $user,
+            'Consulta remarcada'.self::origem($appt),
+            self::paciente($appt).': '.$antes.$novo->isoFormat('ddd D/MM [às] HH:mm'),
+            '/app?data='.$novo->toDateString(),
+        );
+    }
+
+    /**
+     * Cancelou. O caso ruim que isto evita: paciente cancela pela IA às 22h e o médico aparece
+     * na clínica esperando atender.
+     */
+    public static function consultaCancelada(Appointment $appt): void
+    {
+        if (! $user = self::destinatario($appt)) {
+            return;
+        }
+
+        $quando = self::quando($appt->starts_at);
+
+        WebPush::paraUsuario(
+            $user,
+            'Consulta cancelada'.self::origem($appt),
+            self::paciente($appt).' — '.$quando->isoFormat('ddd D/MM [às] HH:mm'),
+            '/app?data='.$quando->toDateString(),
+        );
+    }
+
+    /**
+     * Quem deve receber o aviso — ou null se não há a quem avisar.
+     *
+     * Regra central dos 3 avisos: NUNCA avisa quem acabou de fazer a ação. Ação da IA ou do
+     * paciente vem com user_id null, então o aviso sai — que é justamente o caso que importa.
+     */
+    private static function destinatario(Appointment $appt): ?User
+    {
+        $user = self::usuarioDoMedico($appt);
+        if (! $user) {
+            return null;
+        }
+
+        return ($appt->user_id && $appt->user_id === $user->id) ? null : $user;
+    }
+
+    /** "(pelo WhatsApp)" quando veio do Atende — o médico saber a origem muda a leitura. */
+    private static function origem(Appointment $appt): string
+    {
+        return $appt->source === 'atende' ? ' (pelo WhatsApp)' : '';
+    }
+
+    private static function paciente(Appointment $appt): string
+    {
+        return $appt->patient?->name ?? 'Paciente';
+    }
+
+    private static function quando($valor): Carbon
+    {
+        return Carbon::parse($valor)->setTimezone(config('app.timezone'));
     }
 
     /** Dono da agenda: consulta → ficha do médico → usuário que loga (users, central). */
