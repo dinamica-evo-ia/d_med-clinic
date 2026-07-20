@@ -118,6 +118,8 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         // Prescriptions (standalone)
         Route::resource('prescriptions', PrescriptionController::class)->except(['edit', 'update']);
         Route::get('prescriptions/{prescription}/print', [PrescriptionController::class, 'print'])->name('prescriptions.print');
+        Route::get('prescriptions/{prescription}/pdf', [PrescriptionController::class, 'pdf'])->name('prescriptions.pdf');
+        Route::post('prescriptions/{prescription}/enviar-pdf', [PrescriptionController::class, 'enviarPdf'])->name('prescriptions.enviar-pdf');
 
         // Biblioteca de fórmulas magistrais (manipulados)
         Route::get('formulas/search', [\App\Http\Controllers\FormulaController::class, 'apiSearch'])->name('formulas.search');

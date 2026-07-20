@@ -71,7 +71,10 @@
       "mcp__visualize__show_widget",
       "WebFetch(domain:doc.evolution-api.com)",
       "WebFetch(domain:gist.github.com)",
-      "WebFetch(domain:crm.dmedclinic.com.br)"
+      "WebFetch(domain:crm.dmedclinic.com.br)",
+      "WebFetch(domain:www.gov.br)",
+      "WebFetch(domain:prescricaoeletronica.cfm.org.br)",
+      "WebFetch(domain:certificadodigital.cfm.org.br)"
     ]
   }
 }

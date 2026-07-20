@@ -134,6 +134,138 @@ class PrescriptionController extends Controller
         ]);
     }
 
+    /**
+     * Monta o PDF da receita (dompdf). Papel A5 paisagem (padrão) ou A4 retrato,
+     * conforme o modelo de impressão do médico. Cabeçalho reusa PrintSettings::forDoctor.
+     */
+    protected function buildPdf(Prescription $prescription)
+    {
+        $prescription->loadMissing(['patient', 'doctor']);
+
+        $settings = $prescription->doctor
+            ? PrintSettings::forDoctor($prescription->doctor)
+            : PrintSettings::defaults();
+
+        [$size, $orientation] = PrintSettings::paperFor($settings);
+        $compact = ($size === 'a5');
+
+        $logoAbs = ! empty($settings['header']['logo_path'])
+            && Storage::disk('public')->exists($settings['header']['logo_path'])
+            ? Storage::disk('public')->path($settings['header']['logo_path'])
+            : null;
+
+        // Evita "Dr. Dr. Fulano" quando o nome já vem com o prefixo.
+        $doctorName = trim((string) ($prescription->doctor->name ?? ''));
+        $prefixo = trim((string) ($settings['header']['prefix'] ?? ''));
+        if ($prefixo !== '' && str_starts_with(mb_strtolower($doctorName), mb_strtolower($prefixo))) {
+            $prefixo = '';
+        }
+
+        $clinic = \App\Models\ClinicProfile::first();
+        $endereco = trim(implode(', ', array_filter([
+            $settings['header']['address'] ?: ($clinic->street ?? null),
+            $settings['header']['city'] && $settings['header']['state']
+                ? $settings['header']['city'].'/'.$settings['header']['state']
+                : ($clinic && $clinic->city ? $clinic->city.'/'.$clinic->state : null),
+        ])));
+
+        $patient = $prescription->patient;
+        $addr = (array) ($patient->address ?? []);
+        $patientEndereco = trim(implode(', ', array_filter([
+            $addr['street'] ?? null, $addr['number'] ?? null,
+            $addr['neighborhood'] ?? $addr['district'] ?? null, $addr['city'] ?? null,
+        ])), ', ');
+
+        $cidade = $settings['header']['city'] ?: ($clinic->city ?? '');
+        $cidadeData = trim(($cidade ? $cidade.', ' : '').$prescription->created_at->format('d/m/Y'));
+
+        $footerText = ! empty($settings['footer']['enabled']) && ! empty($settings['footer']['text'])
+            ? $settings['footer']['text']
+            : trim(collect([$clinic->legal_name ?? tenant()?->name, $clinic->whatsapp ?? $clinic->phone ?? null, $endereco])->filter()->implode(' · '));
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.prescription', [
+            'h' => $settings['header'],
+            'compact' => $compact,
+            'logoAbs' => $logoAbs,
+            'doctorName' => $doctorName,
+            'prefixo' => $prefixo,
+            'endereco' => $endereco,
+            'title' => $settings['title'] ?: 'Receita Médica',
+            'showTitle' => (bool) $settings['show_title'],
+            'controlEspecial' => false, // gancho p/ receita de controlado (Portaria 344) — ainda não ativo
+            'cidadeData' => $cidadeData,
+            'patientEnabled' => (bool) $settings['patient_data']['enabled'],
+            'pf' => $settings['patient_data']['fields'],
+            'patient' => [
+                'name' => $patient->name ?? '',
+                'document' => $patient->document ?? '',
+                'rg' => $patient->rg ?? '',
+                'prontuario' => $patient ? substr($patient->id, 0, 8) : '',
+                'contato' => $patient->phone ?? $patient->whatsapp ?? '',
+                'endereco' => $patientEndereco,
+            ],
+            'bodyLivre' => trim((string) $prescription->body),
+            'prescTitle' => trim((string) $prescription->title),
+            'medicines' => $prescription->medicines ?? [],
+            'notes' => trim((string) $prescription->notes),
+            'signature' => (bool) $settings['signature'],
+            'footerText' => $footerText,
+            'assinaturaDigital' => null, // preenchido quando a assinatura ICP-Brasil (VIDaaS) entrar
+        ])->setPaper($size, $orientation);
+
+        return $pdf;
+    }
+
+    protected function pdfFileName(Prescription $prescription): string
+    {
+        $nome = str($prescription->patient->name ?? 'paciente')->slug('-')->limit(40, '');
+
+        return 'Receita-'.$nome.'-'.$prescription->created_at->format('d-m-Y').'.pdf';
+    }
+
+    /** Abre/baixa o PDF da receita. ?download=1 força download; senão, exibe inline. */
+    public function pdf(Request $request, Prescription $prescription)
+    {
+        $pdf = $this->buildPdf($prescription);
+        $file = $this->pdfFileName($prescription);
+
+        return $request->boolean('download')
+            ? $pdf->download($file)
+            : $pdf->stream($file);
+    }
+
+    /** Envia o PDF da receita para o WhatsApp do paciente (mesma conexão do Atendente IA). */
+    public function enviarPdf(Prescription $prescription)
+    {
+        $prescription->loadMissing('patient');
+
+        $phone = preg_replace('/\D/', '', (string) ($prescription->patient->whatsapp ?: $prescription->patient->phone));
+        if (strlen($phone) < 10) {
+            return response()->json(['error' => 'O paciente não tem WhatsApp/telefone válido no cadastro.'], 422);
+        }
+        if (strlen($phone) <= 11) {
+            $phone = '55'.$phone; // BR sem DDI
+        }
+
+        $s = \App\Models\AttendantSetting::current();
+        if (! $s->isWhatsappConnected()) {
+            return response()->json(['error' => 'O WhatsApp da clínica não está conectado. Conecte em Atendente IA → WhatsApp.'], 422);
+        }
+
+        $pdf = $this->buildPdf($prescription);
+        $file = $this->pdfFileName($prescription);
+        $primeiroNome = explode(' ', trim($prescription->patient->name ?? ''))[0] ?: 'paciente';
+        $caption = "Olá, {$primeiroNome}! Segue a sua receita de {$prescription->created_at->format('d/m/Y')}. Qualquer dúvida, estamos à disposição. 💙";
+
+        try {
+            \App\Support\Whatsapp\Whatsapp::sendDocument($s, $phone, base64_encode($pdf->output()), $file, $caption);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Falha no envio pelo WhatsApp: '.$e->getMessage()], 500);
+        }
+
+        return response()->json(['ok' => true, 'phone' => $phone]);
+    }
+
     public function destroy(Prescription $prescription)
     {
         $prescription->delete();

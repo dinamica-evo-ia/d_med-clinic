@@ -89,6 +89,14 @@ export default function Print() {
               <option value="receituario">Receituário</option>
             </select>
           </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Papel da receita</label>
+            <select value={s.paper || 'a5_portrait'} onChange={(e) => top('paper', e.target.value)} className={`${inp} w-48`}>
+              <option value="a5_portrait">A5 retrato (padrão)</option>
+              <option value="a5_landscape">A5 paisagem</option>
+              <option value="a4_portrait">A4 retrato</option>
+            </select>
+          </div>
           {doctors.length > 1 && (
             <div>
               <label className="block text-xs text-slate-500 mb-1">Médico</label>

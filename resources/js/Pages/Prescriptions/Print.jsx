@@ -57,6 +57,16 @@ export default function Print({ prescription, settings }) {
 
   const addr = [h.address, [h.city, h.state].filter(Boolean).join('/')].filter(Boolean).join(' - ');
   const F = s.patient_data.fields;
+  // Papel da receita — espelha o PDF. Padrão: A5 retrato (aproveita a página no vertical).
+  // A5 retrato = 148×210mm (folha estreita e alta); paisagem = 210×148 (larga e baixa).
+  const PAPER = {
+    a5_portrait:  { size: 'A5 portrait', margin: '10mm', sheetMax: 560, minHeight: 794 },
+    a5_landscape: { size: 'A5 landscape', margin: '8mm', sheetMax: 900, minHeight: 620 },
+    a4_portrait:  { size: 'A4 portrait', margin: '12mm', sheetMax: 760, minHeight: 1000 },
+  };
+  const paper = PAPER[s.paper] || PAPER.a5_portrait;
+  const pageSize = paper.size;
+  const sheetMax = paper.sheetMax;
 
   return (
     <div>
@@ -65,7 +75,7 @@ export default function Print({ prescription, settings }) {
           .no-print { display: none !important; }
           .sheet { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: 100% !important; }
           body { background: #fff; }
-          @page { margin: 12mm; }
+          @page { size: ${pageSize}; margin: ${paper.margin}; }
         }
       `}</style>
 
@@ -90,7 +100,7 @@ export default function Print({ prescription, settings }) {
 
       {/* Folha da receita */}
       <div className="bg-slate-100 py-6">
-        <div className="sheet mx-auto bg-white shadow border border-slate-200 p-10 text-slate-900" style={{ maxWidth: 760, minHeight: 1000 }}>
+        <div className="sheet mx-auto bg-white shadow border border-slate-200 p-10 text-slate-900" style={{ maxWidth: sheetMax, minHeight: paper.minHeight }}>
           {h.show_header && (
             <div className="flex items-start justify-between gap-6 border-b border-slate-300 pb-4">
               {h.logo_left && h.logo_url && <img src={h.logo_url} alt="" className="max-h-20 object-contain shrink-0" />}

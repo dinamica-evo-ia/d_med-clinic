@@ -13,11 +13,16 @@ class PrintSettings
 {
     public const PATIENT_FIELDS = ['nome', 'cpf', 'rg', 'prontuario', 'contato', 'endereco'];
 
+    // Formatos de papel da receita (Imprimir + PDF). Padrão: A5 RETRATO — aproveita melhor a
+    // página (mais espaço vertical pra lista de fórmulas do que o paisagem).
+    public const PAPERS = ['a5_portrait', 'a5_landscape', 'a4_portrait'];
+
     public static function defaults(): array
     {
         return [
             'title' => '',
             'print_type' => 'padrao',
+            'paper' => 'a5_portrait',
             'header' => [
                 'logo_left' => false,
                 'show_header' => true,
@@ -64,6 +69,8 @@ class PrintSettings
         $out = $d;
         $out['title'] = (string) ($value['title'] ?? $d['title']);
         $out['print_type'] = (string) ($value['print_type'] ?? $d['print_type']);
+        $paper = (string) ($value['paper'] ?? $d['paper']);
+        $out['paper'] = in_array($paper, self::PAPERS, true) ? $paper : $d['paper'];
         $out['show_title'] = (bool) ($value['show_title'] ?? $d['show_title']);
         $out['signature'] = (bool) ($value['signature'] ?? $d['signature']);
 
@@ -81,6 +88,18 @@ class PrintSettings
         $out['footer']['text'] = (string) ($value['footer']['text'] ?? $d['footer']['text']);
 
         return $out;
+    }
+
+    /** Traduz o formato de papel salvo para o par [size, orientation] que o dompdf entende. */
+    public static function paperFor(array $settings): array
+    {
+        $paper = $settings['paper'] ?? 'a5_portrait';
+
+        return match ($paper) {
+            'a4_portrait'   => ['a4', 'portrait'],
+            'a5_landscape'  => ['a5', 'landscape'],
+            default         => ['a5', 'portrait'], // a5_portrait (novo padrão)
+        };
     }
 
     /** Se ainda não há config salva, monta os defaults já com os dados do médico no cabeçalho. */
