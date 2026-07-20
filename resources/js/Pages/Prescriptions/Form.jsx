@@ -27,19 +27,37 @@ export default function Form({ prescription, patients, doctors, prefill }) {
         print: false,
     });
 
-    // Insere texto no cursor do editor (ou no fim).
+    /*
+     * Insere um bloco no cursor do editor (ou no fim), SEMPRE com linha em branco separando
+     * dos vizinhos.
+     *
+     * ⚠️ O bug que isto conserta: o separador antigo era `cur[s-1] !== '\n' ? '\n\n' : ''` —
+     * ou seja, "se já tem uma quebra, não põe nada". Só que depois de inserir, o cursor ficava
+     * logo APÓS um '\n'; então a fórmula seguinte caía com quebra simples e as duas grudavam.
+     * "Tem quebra de linha" não é a mesma coisa que "tem linha em branco".
+     */
     function insertText(text) {
         const el = bodyRef.current;
         const cur = data.body || '';
-        if (el && typeof el.selectionStart === 'number') {
-            const s = el.selectionStart, e = el.selectionEnd;
-            const sep = s > 0 && cur[s - 1] !== '\n' ? '\n\n' : '';
-            const next = cur.slice(0, s) + sep + text + '\n' + cur.slice(e);
-            setData('body', next);
-            requestAnimationFrame(() => { el.focus(); const p = s + sep.length + text.length + 1; el.setSelectionRange(p, p); });
-        } else {
-            setData('body', (cur ? cur + '\n\n' : '') + text);
-        }
+        const bloco = String(text).trim();
+        if (!bloco) return;
+
+        const temSel = el && typeof el.selectionStart === 'number';
+        const ini = temSel ? el.selectionStart : cur.length;
+        const fim = temSel ? el.selectionEnd : cur.length;
+        const antes = cur.slice(0, ini);
+        const depois = cur.slice(fim);
+
+        // Completa o que falta pra ter uma linha em branco de cada lado — sem empilhar quebras
+        // à toa quando o espaço já existe.
+        const sepAntes = antes === '' ? '' : antes.endsWith('\n\n') ? '' : antes.endsWith('\n') ? '\n' : '\n\n';
+        const sepDepois = depois === '' ? '\n' : depois.startsWith('\n\n') ? '' : depois.startsWith('\n') ? '\n' : '\n\n';
+
+        setData('body', antes + sepAntes + bloco + sepDepois + depois);
+
+        // Cursor logo depois do bloco inserido, pronto pra receber o próximo.
+        const p = (antes + sepAntes + bloco + sepDepois).length;
+        requestAnimationFrame(() => { el?.focus(); el?.setSelectionRange(p, p); });
     }
     function insertFormula(f) {
         const raw = String(f.content || '').trim();
