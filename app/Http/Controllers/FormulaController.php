@@ -71,7 +71,13 @@ class FormulaController extends Controller
             'content' => 'required|string',
             'form' => 'nullable|string|max:80',
             'route' => 'nullable|string|max:80',
-            'category' => 'nullable|in:manipulado,industrializado',
+            // Obrigatório: é o que separa a biblioteca em duas e o que a receita usa pra
+            // saber com o que está lidando. Deixar cair no default 'manipulado' classificaria
+            // industrializado errado sem ninguém perceber.
+            'category' => 'required|in:manipulado,industrializado',
+        ], [
+            'category.required' => 'Escolha se é Manipulado ou Industrializado.',
+            'category.in' => 'Escolha se é Manipulado ou Industrializado.',
         ]);
     }
 }

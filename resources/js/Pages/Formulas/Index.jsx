@@ -102,7 +102,9 @@ function FormulaModal({ formula, onClose }) {
     content: formula.content || '',
     form: formula.form || '',
     route: formula.route || '',
-    category: formula.category || 'manipulado',
+    // Vazio numa fórmula NOVA de propósito: se viesse marcado "manipulado", um
+    // industrializado seria salvo na categoria errada só porque ninguém reparou.
+    category: formula.category || '',
   });
   const submit = (e) => {
     e.preventDefault();
@@ -127,7 +129,17 @@ function FormulaModal({ formula, onClose }) {
       <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Editar fórmula' : 'Nova fórmula'}</h2>
 
-        {/* Os DOIS únicos obrigatórios — é tudo que o backend exige pra salvar. */}
+        {/* Os TRÊS obrigatórios — é tudo que o backend exige pra salvar. */}
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Tipo <span className="text-red-500">*</span></label>
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+            {[['manipulado', 'Manipulado'], ['industrializado', 'Industrializado']].map(([k, l]) => (
+              <button type="button" key={k} onClick={() => frm.setData('category', k)}
+                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${frm.data.category === k ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+            ))}
+          </div>
+          {frm.errors.category && <p className="text-xs text-red-600 mt-1">{frm.errors.category}</p>}
+        </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Título <span className="text-red-500">*</span></label>
           <input value={frm.data.name} onChange={(e) => frm.setData('name', e.target.value)} className={field} placeholder="Ex.: Minoxidil 5% + Finasterida 0,1%" />
@@ -144,20 +156,11 @@ function FormulaModal({ formula, onClose }) {
         {!verDetalhes ? (
           <button type="button" onClick={() => setVerDetalhes(true)}
             className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
-            + categoria, finalidade, forma e via de uso (opcional)
+            + finalidade, forma e via de uso (opcional)
           </button>
         ) : (
           <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Opcional</p>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
-              <div className="flex gap-1 rounded-lg bg-white p-1">
-                {[['manipulado', 'Manipulado'], ['industrializado', 'Industrializado']].map(([k, l]) => (
-                  <button type="button" key={k} onClick={() => frm.setData('category', k)}
-                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${frm.data.category === k ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
-                ))}
-              </div>
-            </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Finalidade <span className="text-slate-400 font-normal">(para que serve)</span></label>
               <input value={frm.data.purpose} onChange={(e) => frm.setData('purpose', e.target.value)} className={field} placeholder="Ex.: Antienvelhecimento facial / Emagrecimento" />
