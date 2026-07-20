@@ -88,16 +88,35 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
     const schedule = selectedDoctor?.schedule;
     const warning = useMemo(() => violation(schedule, data.starts_at, data.ends_at), [schedule, data.starts_at, data.ends_at]);
 
-    // Ao trocar a hora de início (e não estiver editando o fim manualmente), sugere o fim com base no slot do médico.
+    /*
+     * Duração em vez de "hora do fim". A recepção pensa em "consulta de 15 min", não em
+     * "termina às 09:15" — e a agenda já tem a duração padrão configurada. O `ends_at` continua
+     * existindo e indo pro backend; só parou de ser digitado.
+     */
+    const duracaoPadrao = schedule?.slot_minutes || 30;
+
+    // Duração atual = diferença entre início e fim (numa consulta que já existe, respeita o que
+    // foi gravado). Sem início/fim ainda, mostra a padrão da agenda como selecionada.
+    const duracaoAtual = useMemo(() => {
+        if (!data.starts_at || !data.ends_at) return duracaoPadrao;
+        const min = Math.round((new Date(data.ends_at) - new Date(data.starts_at)) / 60000);
+        return min > 0 ? min : duracaoPadrao;
+    }, [data.starts_at, data.ends_at, duracaoPadrao]);
+
+    const setDuracao = (min) => {
+        if (!data.starts_at) return; // sem início não há o que calcular
+        const start = new Date(data.starts_at);
+        if (isNaN(start)) return;
+        setData('ends_at', toLocalInput(new Date(start.getTime() + min * 60000)));
+    };
+
+    // Ao escolher o início, já calcula o fim mantendo a duração que estiver selecionada.
     const onStartChange = (value) => {
         setData((cur) => {
             const next = { ...cur, starts_at: value };
-            if (value && schedule?.slot_minutes) {
-                const start = new Date(value);
-                if (!isNaN(start)) {
-                    const end = new Date(start.getTime() + schedule.slot_minutes * 60000);
-                    next.ends_at = toLocalInput(end);
-                }
+            const start = new Date(value);
+            if (value && !isNaN(start)) {
+                next.ends_at = toLocalInput(new Date(start.getTime() + duracaoAtual * 60000));
             }
             return next;
         });
@@ -197,10 +216,28 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
                         {errors.starts_at && <p className="text-red-500 text-xs mt-1">{errors.starts_at}</p>}
                     </div>
 
+                    {/* Duração em vez de "data e hora do fim": a agenda já tem a duração padrão,
+                        então digitar data+hora de novo era trabalho repetido. O ends_at continua
+                        indo pro backend — só deixou de ser digitado à mão. */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Data e Hora Fim *</label>
-                        <input type="datetime-local" value={data.ends_at} onChange={e => setData('ends_at', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Duração</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {[15, 20, 30, 45, 60].map((min) => (
+                                <button key={min} type="button" onClick={() => setDuracao(min)}
+                                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                                        duracaoAtual === min
+                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                                    }`}>
+                                    {min}min
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                            {data.ends_at
+                                ? <>Termina às <strong>{data.ends_at.slice(11, 16)}</strong>{duracaoAtual && ![15, 20, 30, 45, 60].includes(duracaoAtual) ? ` (${duracaoAtual}min)` : ''}</>
+                                : 'Escolha o início — o fim é calculado pela duração.'}
+                        </p>
                         {errors.ends_at && <p className="text-red-500 text-xs mt-1">{errors.ends_at}</p>}
                     </div>
 

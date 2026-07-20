@@ -4,7 +4,19 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 const WD = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 // dayOfWeek (0=Dom..6=Sab) → key do schedule (mon..sun, ISO seg=1..dom=7)
 const DAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-const ROW = 56;
+/*
+ * Altura de 1 hora no calendário. NÃO é fixa: acompanha a duração padrão da agenda.
+ *
+ * Com 56px fixos e consulta de 15 min, cada bloco ficava com 14px (56/4) — abaixo do mínimo de
+ * 22px, então os blocos se sobrepunham e não cabiam 4 pacientes por hora. Agora cada consulta
+ * ganha ~30px de altura útil: 15 min → 120px/hora (4 cabem), 30 min → 60px, 60 min → 56px
+ * (o piso, pra clínica de consulta longa não virar uma página quilométrica).
+ */
+const ALTURA_POR_CONSULTA = 30;
+const rowDe = (slotMin) => {
+  const slot = Math.max(5, Number(slotMin) || 30);
+  return Math.max(56, Math.round((60 / slot) * ALTURA_POR_CONSULTA));
+};
 const TZ = 'America/Sao_Paulo';
 const STATUS = {
   scheduled: 'Agendado', confirmed: 'Confirmado', in_progress: 'Em andamento',
@@ -226,6 +238,8 @@ function layout(evs) {
 
 function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLOT, schedule }) {
   const hours = []; for (let h = H0; h <= H1; h++) hours.push(h);
+  // A hora "estica" conforme a duração da consulta — ver rowDe() lá em cima.
+  const ROW = rowDe(schedule?.slot_minutes ?? SLOT);
   const totalH = (H1 - H0) * ROW;
   const open = (ev) => router.visit(`/appointments/${ev.id}`);
   const minToTop = (mins) => ((mins - H0 * 60) / ((H1 - H0) * 60)) * totalH;
@@ -308,7 +322,9 @@ function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLO
                   )}
                   {evs.map((ev) => {
                     const top = Math.max(0, pos(d, ev._s));
-                    const h = Math.max(22, pos(d, ev._e) - pos(d, ev._s));
+                    // Piso menor que a altura de 1 consulta, senão um bloco de 15 min seria
+                    // esticado à força e invadiria o horário seguinte.
+                    const h = Math.max(20, pos(d, ev._e) - pos(d, ev._s));
                     const w = 100 / ev._cols;
                     return (
                       <button key={ev.id} draggable onDragStart={() => { dragRef.current = ev; }}
