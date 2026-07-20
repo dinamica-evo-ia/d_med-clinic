@@ -147,7 +147,8 @@ class PrescriptionController extends Controller
             : PrintSettings::defaults();
 
         [$size, $orientation] = PrintSettings::paperFor($settings);
-        $compact = ($size === 'a5');
+        // Compacto por FORMATO escolhido (inclui A5-em-A4, onde a folha é A4 mas o conteúdo é A5).
+        $compact = PrintSettings::isCompact($settings);
 
         $logoAbs = ! empty($settings['header']['logo_path'])
             && Storage::disk('public')->exists($settings['header']['logo_path'])

@@ -57,14 +57,17 @@ export default function Print({ prescription, settings }) {
 
   const addr = [h.address, [h.city, h.state].filter(Boolean).join('/')].filter(Boolean).join(' - ');
   const F = s.patient_data.fields;
-  // Papel da receita — espelha o PDF. Padrão: A5 retrato (aproveita a página no vertical).
-  // A5 retrato = 148×210mm (folha estreita e alta); paisagem = 210×148 (larga e baixa).
+  // Papel da receita — espelha o PDF.
+  //  - a5_on_a4 (padrão): FOLHA A4 (imprime em qualquer impressora), receita em tamanho A5 no
+  //    topo + guia de recorte. `fill:false` = a folha NÃO estica pra largura toda do A4.
+  //  - a5_*: A5 de verdade (precisa de papel A5 na bandeja). a4_portrait: A4 inteiro.
   const PAPER = {
-    a5_portrait:  { size: 'A5 portrait', margin: '10mm', sheetMax: 560, minHeight: 794 },
-    a5_landscape: { size: 'A5 landscape', margin: '8mm', sheetMax: 900, minHeight: 620 },
-    a4_portrait:  { size: 'A4 portrait', margin: '12mm', sheetMax: 760, minHeight: 1000 },
+    a5_on_a4:     { size: 'A4 portrait', margin: '10mm', sheetMax: 540, minHeight: 700, fill: false, cut: true },
+    a5_portrait:  { size: 'A5 portrait', margin: '10mm', sheetMax: 560, minHeight: 794, fill: true },
+    a5_landscape: { size: 'A5 landscape', margin: '8mm', sheetMax: 900, minHeight: 620, fill: true },
+    a4_portrait:  { size: 'A4 portrait', margin: '12mm', sheetMax: 760, minHeight: 1000, fill: true },
   };
-  const paper = PAPER[s.paper] || PAPER.a5_portrait;
+  const paper = PAPER[s.paper] || PAPER.a5_on_a4;
   const pageSize = paper.size;
   const sheetMax = paper.sheetMax;
 
@@ -76,7 +79,7 @@ export default function Print({ prescription, settings }) {
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .no-print { display: none !important; }
           .sheet-wrap { background: #fff !important; padding: 0 !important; }
-          .sheet { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: 100% !important; }
+          .sheet { box-shadow: none !important; border: none !important; margin: 0 auto !important; ${paper.fill ? 'max-width: 100% !important;' : `max-width: ${sheetMax}px !important;`} }
           /* garante que texto/cores saiam mesmo com "imprimir plano de fundo" desligado */
           .sheet, .sheet * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           @page { size: ${pageSize}; margin: ${paper.margin}; }
@@ -173,6 +176,17 @@ export default function Print({ prescription, settings }) {
             <div className="mt-10 pt-3 border-t border-slate-300 text-center text-xs text-slate-500">{s.footer.text}</div>
           )}
         </div>
+
+        {/* Guia de recorte: só no A5-em-A4. A receita ocupa o topo da folha A4; aqui é onde
+            o médico corta pra ficar do tamanho A5. Some nos formatos que preenchem a folha. */}
+        {paper.cut && (
+          <div className="mx-auto flex items-center gap-2 text-[10px] text-slate-400" style={{ maxWidth: sheetMax }}>
+            <span>✂</span>
+            <span className="flex-1 border-t border-dashed border-slate-300" />
+            <span>recorte aqui (A5)</span>
+            <span className="flex-1 border-t border-dashed border-slate-300" />
+          </div>
+        )}
       </div>
     </div>
   );

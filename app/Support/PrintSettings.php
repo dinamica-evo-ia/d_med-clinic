@@ -13,16 +13,25 @@ class PrintSettings
 {
     public const PATIENT_FIELDS = ['nome', 'cpf', 'rg', 'prontuario', 'contato', 'endereco'];
 
-    // Formatos de papel da receita (Imprimir + PDF). Padrão: A5 RETRATO — aproveita melhor a
-    // página (mais espaço vertical pra lista de fórmulas do que o paisagem).
-    public const PAPERS = ['a5_portrait', 'a5_landscape', 'a4_portrait'];
+    // Formatos de papel da receita (Imprimir + PDF).
+    //  - a5_on_a4  (PADRÃO): receita em tamanho A5 numa FOLHA A4 — imprime em qualquer impressora
+    //    (a maioria não puxa A5 da bandeja), compacta e com guia de recorte. Aproveita a página.
+    //  - a5_portrait / a5_landscape: A5 de verdade (exige papel A5 na impressora).
+    //  - a4_portrait: folha A4 inteira.
+    public const PAPERS = ['a5_on_a4', 'a5_portrait', 'a5_landscape', 'a4_portrait'];
+
+    /** Receita compacta (fonte menor) — todo formato baseado em A5, inclusive o A5-em-A4. */
+    public static function isCompact(array $settings): bool
+    {
+        return in_array($settings['paper'] ?? '', ['a5_on_a4', 'a5_portrait', 'a5_landscape'], true);
+    }
 
     public static function defaults(): array
     {
         return [
             'title' => '',
             'print_type' => 'padrao',
-            'paper' => 'a5_portrait',
+            'paper' => 'a5_on_a4',
             'header' => [
                 'logo_left' => false,
                 'show_header' => true,
@@ -93,12 +102,14 @@ class PrintSettings
     /** Traduz o formato de papel salvo para o par [size, orientation] que o dompdf entende. */
     public static function paperFor(array $settings): array
     {
-        $paper = $settings['paper'] ?? 'a5_portrait';
+        $paper = $settings['paper'] ?? 'a5_on_a4';
 
         return match ($paper) {
             'a4_portrait'   => ['a4', 'portrait'],
             'a5_landscape'  => ['a5', 'landscape'],
-            default         => ['a5', 'portrait'], // a5_portrait (novo padrão)
+            'a5_portrait'   => ['a5', 'portrait'],
+            // a5_on_a4 (padrão): a FOLHA é A4 — o que a impressora aceita; o conteúdo é A5.
+            default         => ['a4', 'portrait'],
         };
     }
 
