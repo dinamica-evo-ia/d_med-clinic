@@ -110,44 +110,70 @@ function FormulaModal({ formula, onClose }) {
     if (isEdit) frm.put(`/formulas/${formula.id}`, opts);
     else frm.post('/formulas', opts);
   };
+
+  /*
+   * Só TÍTULO e TEXTO são obrigatórios (é o que o backend exige). Os outros 4 são opcionais,
+   * mas apareciam iguais aos obrigatórios — dava a impressão de que tinha que preencher tudo.
+   * Agora ficam recolhidos: cadastro rápido = 2 campos.
+   *
+   * Numa fórmula que já tem esses dados preenchidos, abre expandido — senão a pessoa editaria
+   * sem ver o que já existe (e acharia que sumiu).
+   */
+  const [verDetalhes, setVerDetalhes] = useState(
+    !!(formula.purpose || formula.form || formula.route)
+  );
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 p-4" onClick={onClose}>
       <form onClick={(e) => e.stopPropagation()} onSubmit={submit} className="bg-white rounded-2xl w-full max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
         <h2 className="text-lg font-bold text-slate-900">{isEdit ? 'Editar fórmula' : 'Nova fórmula'}</h2>
+
+        {/* Os DOIS únicos obrigatórios — é tudo que o backend exige pra salvar. */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
-          <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
-            {[['manipulado', 'Manipulado'], ['industrializado', 'Industrializado']].map(([k, l]) => (
-              <button type="button" key={k} onClick={() => frm.setData('category', k)}
-                className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${frm.data.category === k ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Finalidade <span className="text-slate-400 font-normal">(para que serve)</span></label>
-          <input value={frm.data.purpose} onChange={(e) => frm.setData('purpose', e.target.value)} className={field} placeholder="Ex.: Antienvelhecimento facial / Emagrecimento" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Nome / ativos</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Título <span className="text-red-500">*</span></label>
           <input value={frm.data.name} onChange={(e) => frm.setData('name', e.target.value)} className={field} placeholder="Ex.: Minoxidil 5% + Finasterida 0,1%" />
           {frm.errors.name && <p className="text-xs text-red-600 mt-1">{frm.errors.name}</p>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Forma</label>
-            <input value={frm.data.form} onChange={(e) => frm.setData('form', e.target.value)} className={field} placeholder="Cápsula, Creme…" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Via de uso</label>
-            <input value={frm.data.route} onChange={(e) => frm.setData('route', e.target.value)} className={field} placeholder="Oral, Externo…" />
-          </div>
-        </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Conteúdo (composição + posologia)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Texto <span className="text-red-500">*</span></label>
           <textarea rows={9} value={frm.data.content} onChange={(e) => frm.setData('content', e.target.value)} className={`${field} font-mono text-xs`}
             placeholder={'Ativo 1 ......... X mg\nAtivo 2 ......... Y %\n\nMande: 30 cápsulas\nPosologia: Tomar 1 ao dia'} />
           {frm.errors.content && <p className="text-xs text-red-600 mt-1">{frm.errors.content}</p>}
         </div>
+
+        {/* Opcionais, recolhidos: só atrapalhavam o cadastro rápido. */}
+        {!verDetalhes ? (
+          <button type="button" onClick={() => setVerDetalhes(true)}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2">
+            + categoria, finalidade, forma e via de uso (opcional)
+          </button>
+        ) : (
+          <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Opcional</p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Categoria</label>
+              <div className="flex gap-1 rounded-lg bg-white p-1">
+                {[['manipulado', 'Manipulado'], ['industrializado', 'Industrializado']].map(([k, l]) => (
+                  <button type="button" key={k} onClick={() => frm.setData('category', k)}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition ${frm.data.category === k ? 'bg-blue-50 text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Finalidade <span className="text-slate-400 font-normal">(para que serve)</span></label>
+              <input value={frm.data.purpose} onChange={(e) => frm.setData('purpose', e.target.value)} className={field} placeholder="Ex.: Antienvelhecimento facial / Emagrecimento" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Forma</label>
+                <input value={frm.data.form} onChange={(e) => frm.setData('form', e.target.value)} className={field} placeholder="Cápsula, Creme…" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Via de uso</label>
+                <input value={frm.data.route} onChange={(e) => frm.setData('route', e.target.value)} className={field} placeholder="Oral, Externo…" />
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
           <button type="submit" disabled={frm.processing} className="px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60">{frm.processing ? 'Salvando…' : 'Salvar'}</button>
