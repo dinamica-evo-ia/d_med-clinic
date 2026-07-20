@@ -91,6 +91,7 @@ export default function Index({ patients, templates = [], defaultTemplateId = nu
                     acompanhanteSnapshot: acompanhanteSnapshotRef.current,
                     terceiraVozNaoIdentificada: !!e.data.terceiraVozNaoIdentificada,
                     identificacaoPorVoz: !!e.data.identificacaoPorVoz,
+                    anamneseFalhou: !!e.data.anamneseFalhou,
                 };
                 window.axios.post('/studio-med/anamnese-ia', payload).then((r) => {
                     if (r.data.teste) alert('Gravação de teste concluída (não foi salva).');

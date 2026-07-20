@@ -16,7 +16,7 @@ const ANAMNESE_LABELS = {
   conduta: 'Conduta',
   anamnese_importada: 'Anamnese (importada do sistema anterior)',
 };
-const CHAVES_META = new Set(['resumo', 'alertas', '_terceira_voz_alerta', '_template_nome', '_identificacao_por_voz']); // meta, exibidas à parte
+const CHAVES_META = new Set(['resumo', 'alertas', '_terceira_voz_alerta', '_template_nome', '_identificacao_por_voz', '_anamnese_falhou']); // meta, exibidas à parte
 
 // Fase 2: campos "<key>_fontes" são metadados de rastreabilidade — não são exibidos como campos.
 const isFonteMeta = (k) => k.endsWith('_fontes');
@@ -31,6 +31,7 @@ export default function Show({ patient, record, pdfModeloConfigurado = true }) {
         ? record.acompanhante_snapshot : null;
     const terceiraVozAlerta = !!anamnesis?._terceira_voz_alerta;
     const identificacaoPorVoz = !!anamnesis?._identificacao_por_voz;
+    const anamneseFalhou = !!anamnesis?._anamnese_falhou;
     const templateNome = anamnesis?._template_nome || null;
 
     // Envio do resumo em PDF pro WhatsApp do paciente
@@ -211,6 +212,17 @@ export default function Show({ patient, record, pdfModeloConfigurado = true }) {
             )}
 
             <div className="space-y-4">
+                {/* Degradação: transcrição preservada, anamnese não gerada pela IA */}
+                {anamneseFalhou && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
+                        <p className="font-semibold text-amber-900">⚠️ A IA não conseguiu gerar o resumo e a anamnese desta consulta</p>
+                        <p className="mt-1 text-sm text-amber-800">
+                            A transcrição foi preservada integralmente logo abaixo — <strong>nada do que foi dito se perdeu</strong>.
+                            Os campos da anamnese ficaram em branco: preencha manualmente a partir da transcrição.
+                        </p>
+                    </div>
+                )}
+
                 {/* 1) TRANSCRIÇÃO — protagonista no topo pra consultas gravadas */}
                 {isStudio && transcricao.length > 0 && (
                     <SOAPSection title="Transcrição da consulta" icon="🎙️" subtitle="O que foi dito, palavra por palavra — base de tudo que a IA gerou abaixo.">
