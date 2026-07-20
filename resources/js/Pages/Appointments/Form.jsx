@@ -94,6 +94,7 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
      * existindo e indo pro backend; só parou de ser digitado.
      */
     const duracaoPadrao = schedule?.slot_minutes || 30;
+    const [ajustando, setAjustando] = useState(false); // exceção, não o caso normal
 
     // Duração atual = diferença entre início e fim (numa consulta que já existe, respeita o que
     // foi gravado). Sem início/fim ainda, mostra a padrão da agenda como selecionada.
@@ -216,28 +217,44 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
                         {errors.starts_at && <p className="text-red-500 text-xs mt-1">{errors.starts_at}</p>}
                     </div>
 
-                    {/* Duração em vez de "data e hora do fim": a agenda já tem a duração padrão,
-                        então digitar data+hora de novo era trabalho repetido. O ends_at continua
-                        indo pro backend — só deixou de ser digitado à mão. */}
+                    {/* A duração JÁ foi respondida nas configurações da agenda — aqui ela só é
+                        APLICADA, não perguntada de novo. Vira texto informativo; o ajuste fica
+                        escondido atrás de um link, pro caso excepcional (1ª consulta, procedimento). */}
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Duração</label>
-                        <div className="flex flex-wrap gap-1.5">
-                            {[15, 20, 30, 45, 60].map((min) => (
-                                <button key={min} type="button" onClick={() => setDuracao(min)}
-                                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                                        duracaoAtual === min
-                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                                    }`}>
-                                    {min}min
-                                </button>
-                            ))}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Término</label>
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                            {data.starts_at && data.ends_at ? (
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-sm text-gray-700">
+                                        <strong>{data.ends_at.slice(11, 16)}</strong>
+                                        <span className="text-gray-400"> · {duracaoAtual} min</span>
+                                    </span>
+                                    {!ajustando && (
+                                        <button type="button" onClick={() => setAjustando(true)}
+                                            className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                                            ajustar
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <span className="text-sm text-gray-400">Escolha o início — calculamos o fim ({duracaoPadrao} min).</span>
+                            )}
+
+                            {ajustando && (
+                                <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-200 pt-2">
+                                    {[15, 20, 30, 45, 60].map((min) => (
+                                        <button key={min} type="button" onClick={() => { setDuracao(min); setAjustando(false); }}
+                                            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                                                duracaoAtual === min
+                                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                                    : 'border-gray-300 text-gray-600 hover:bg-white'
+                                            }`}>
+                                            {min}min
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                        <p className="mt-1 text-xs text-gray-500">
-                            {data.ends_at
-                                ? <>Termina às <strong>{data.ends_at.slice(11, 16)}</strong>{duracaoAtual && ![15, 20, 30, 45, 60].includes(duracaoAtual) ? ` (${duracaoAtual}min)` : ''}</>
-                                : 'Escolha o início — o fim é calculado pela duração.'}
-                        </p>
                         {errors.ends_at && <p className="text-red-500 text-xs mt-1">{errors.ends_at}</p>}
                     </div>
 
