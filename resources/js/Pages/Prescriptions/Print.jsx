@@ -72,9 +72,13 @@ export default function Print({ prescription, settings }) {
     <div>
       <style>{`
         @media print {
+          /* zera qualquer margem/fundo herdado que empurraria o conteúdo pra fora da página */
+          html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .no-print { display: none !important; }
+          .sheet-wrap { background: #fff !important; padding: 0 !important; }
           .sheet { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: 100% !important; }
-          body { background: #fff; }
+          /* garante que texto/cores saiam mesmo com "imprimir plano de fundo" desligado */
+          .sheet, .sheet * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           @page { size: ${pageSize}; margin: ${paper.margin}; }
         }
       `}</style>
@@ -99,7 +103,7 @@ export default function Print({ prescription, settings }) {
       </div>
 
       {/* Folha da receita */}
-      <div className="bg-slate-100 py-6">
+      <div className="sheet-wrap bg-slate-100 py-6">
         <div className="sheet mx-auto bg-white shadow border border-slate-200 p-10 text-slate-900" style={{ maxWidth: sheetMax, minHeight: paper.minHeight }}>
           {h.show_header && (
             <div className="flex items-start justify-between gap-6 border-b border-slate-300 pb-4">
