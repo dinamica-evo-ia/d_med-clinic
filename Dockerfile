@@ -20,6 +20,14 @@ RUN apk add --no-cache \
 # PHP extensions
 RUN apk add --no-cache sqlite-dev && docker-php-ext-install pdo_sqlite bcmath
 
+# GD — o dompdf precisa dela pra renderizar imagens (logo na receita/atestado/resumo em PDF).
+# Sem GD, o PDF quebra pra quem tem logo. As libs de runtime ficam; as -dev saem depois do build.
+RUN apk add --no-cache libpng libjpeg-turbo freetype \
+    && apk add --no-cache --virtual .gd-build-deps libpng-dev libjpeg-turbo-dev freetype-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" gd \
+    && apk del .gd-build-deps
+
 # Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
