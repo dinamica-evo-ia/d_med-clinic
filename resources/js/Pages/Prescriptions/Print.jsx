@@ -57,6 +57,12 @@ export default function Print({ prescription, settings }) {
 
   const addr = [h.address, [h.city, h.state].filter(Boolean).join('/')].filter(Boolean).join(' - ');
   const F = s.patient_data.fields;
+
+  // Nome do médico sem "Dr. Dr." quando o nome já vem com o prefixo (mesma regra do PDF).
+  const nomeMedico = (h.name || doctor?.name || '').trim();
+  const prefixo = (h.prefix || '').trim();
+  const medicoComPrefixo = prefixo && !nomeMedico.toLowerCase().startsWith(prefixo.toLowerCase())
+    ? `${prefixo} ${nomeMedico}` : nomeMedico;
   // Papel da receita — espelha o PDF. Padrão A5 retrato (papel A5 na impressora).
   const PAPER = {
     a5_portrait:  { size: 'A5 portrait', margin: '10mm', sheetMax: 560, minHeight: 794 },
@@ -75,7 +81,9 @@ export default function Print({ prescription, settings }) {
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
           .no-print { display: none !important; }
           .sheet-wrap { background: #fff !important; padding: 0 !important; }
-          .sheet { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: 100% !important; }
+          /* min-height: auto é o que faz caber em 1 folha — a altura fixa de A5 (~794px) somada
+             às margens estourava pra 2 páginas. Padding menor no papel também economiza. */
+          .sheet { box-shadow: none !important; border: none !important; margin: 0 !important; max-width: 100% !important; min-height: auto !important; padding: 0 !important; }
           /* garante que texto/cores saiam mesmo com "imprimir plano de fundo" desligado */
           .sheet, .sheet * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           @page { size: ${pageSize}; margin: ${paper.margin}; }
@@ -103,50 +111,51 @@ export default function Print({ prescription, settings }) {
 
       {/* Folha da receita */}
       <div className="sheet-wrap bg-slate-100 py-6">
-        <div className="sheet mx-auto bg-white shadow border border-slate-200 p-10 text-slate-900" style={{ maxWidth: sheetMax, minHeight: paper.minHeight }}>
+        <div className="sheet mx-auto bg-white shadow border border-slate-200 p-8 text-slate-900" style={{ maxWidth: sheetMax, minHeight: paper.minHeight }}>
           {h.show_header && (
-            <div className="flex items-start justify-between gap-6 border-b border-slate-300 pb-4">
-              {h.logo_left && h.logo_url && <img src={h.logo_url} alt="" className="max-h-20 object-contain shrink-0" />}
+            <div className="flex items-start justify-between gap-6 border-b border-slate-300 pb-3">
+              {h.logo_left && h.logo_url && <img src={h.logo_url} alt="" className="max-h-16 object-contain shrink-0" />}
               <div className="text-sm leading-snug flex-1">
-                <p className="font-bold text-base">{h.prefix} {h.name || doctor?.name}</p>
+                <p className="font-bold text-base">{medicoComPrefixo}</p>
                 {(h.specialty || h.rqe || doctor?.specialty) && <p>{h.specialty || doctor?.specialty}{h.rqe ? ` · RQE: ${h.rqe}` : ''}</p>}
                 {(h.cpf || doctor?.document) && <p>CPF: {h.cpf || doctor?.document}</p>}
                 {(h.council_number || doctor?.license_number) && <p>{h.council}: {h.council_number || doctor?.license_number}</p>}
                 {(h.phones || doctor?.phone) && <p>Telefones: {h.phones || doctor?.phone}</p>}
                 {addr && <p>{addr}</p>}
               </div>
-              {h.logo_right && h.logo_url && <img src={h.logo_url} alt="" className="max-h-20 object-contain shrink-0" />}
+              {h.logo_right && h.logo_url && <img src={h.logo_url} alt="" className="max-h-16 object-contain shrink-0" />}
             </div>
           )}
 
-          {s.show_title && <h1 className="text-center text-lg font-bold my-6 uppercase tracking-wide">{s.title || 'Receita médica'}</h1>}
+          {s.show_title && <h1 className="text-center text-lg font-bold my-4 uppercase tracking-wide">{s.title || 'Receita médica'}</h1>}
 
-          <div className="text-right text-sm mb-4">{dt(created_at)}</div>
+          <div className="text-right text-sm mb-2">{dt(created_at)}</div>
 
+          {/* Dados do paciente: sem borda, cada campo numa linha (nome numa linha, CPF embaixo). */}
           {s.patient_data.enabled && (
-            <div className="text-sm border border-slate-300 rounded p-3 mb-6 grid grid-cols-2 gap-x-6 gap-y-1">
+            <div className="text-sm mb-4 space-y-0.5">
               {F.nome && <p><strong>Paciente:</strong> {patient?.name || '—'}</p>}
               {F.cpf && <p><strong>CPF:</strong> {patient?.document || '—'}</p>}
               {F.rg && <p><strong>RG:</strong> {patient?.rg || '—'}</p>}
               {F.prontuario && <p><strong>Nº Prontuário:</strong> {patient?.id?.slice(0, 8) || '—'}</p>}
               {F.contato && <p><strong>Contato:</strong> {patient?.phone || patient?.whatsapp || '—'}</p>}
-              {F.endereco && <p className="col-span-2"><strong>Endereço:</strong> {[patient?.address?.street, patient?.address?.number, patient?.address?.neighborhood, patient?.address?.city].filter(Boolean).join(', ') || '—'}</p>}
+              {F.endereco && <p><strong>Endereço:</strong> {[patient?.address?.street, patient?.address?.number, patient?.address?.neighborhood, patient?.address?.city].filter(Boolean).join(', ') || '—'}</p>}
             </div>
           )}
 
           {prescription.body && prescription.body.trim() ? (
-            <div className="min-h-[260px]">
-              {prescription.title && <p className="text-sm font-semibold mb-2">{prescription.title}</p>}
+            <div>
+              {prescription.title && <p className="text-sm font-semibold mb-1.5">{prescription.title}</p>}
               <div className="text-sm whitespace-pre-wrap leading-relaxed">{prescription.body}</div>
             </div>
           ) : (
             <>
-              <p className="text-sm font-semibold mb-3">Prescrevo o(s) seguinte(s) medicamento(s):</p>
-              <div className="space-y-4 min-h-[260px]">
+              <p className="text-sm font-semibold mb-2">Prescrevo o(s) seguinte(s) medicamento(s):</p>
+              <div className="space-y-2.5">
                 {(medicines || []).map((med, i) => (
                   <div key={i} className="text-sm">
                     <p className="font-semibold">{i + 1}. {med.medication}{med.dosage ? ` — ${med.dosage}` : ''}</p>
-                    <div className="ml-4 text-slate-700">
+                    <div className="ml-4 text-slate-700 leading-snug">
                       {med.route && <span className="block">Via: {med.route}</span>}
                       {med.frequency && <span className="block">Frequência: {med.frequency}</span>}
                       {med.duration && <span className="block">Duração: {med.duration}</span>}
@@ -159,17 +168,17 @@ export default function Print({ prescription, settings }) {
             </>
           )}
 
-          {notes && <p className="text-sm italic mt-4"><strong>Observações:</strong> {notes}</p>}
+          {notes && <p className="text-sm italic mt-3"><strong>Observações:</strong> {notes}</p>}
 
           {s.signature && (
-            <div className="mt-20 ml-auto w-72 text-center">
-              <div className="border-t border-slate-500 pt-1 text-sm">{h.prefix} {h.name || doctor?.name}</div>
+            <div className="mt-12 ml-auto w-64 text-center">
+              <div className="border-t border-slate-500 pt-1 text-sm">{medicoComPrefixo}</div>
               {h.council_number && <div className="text-xs text-slate-500">{h.council}: {h.council_number}</div>}
             </div>
           )}
 
           {s.footer.enabled && s.footer.text && (
-            <div className="mt-10 pt-3 border-t border-slate-300 text-center text-xs text-slate-500">{s.footer.text}</div>
+            <div className="mt-6 pt-2 border-t border-slate-300 text-center text-xs text-slate-500">{s.footer.text}</div>
           )}
         </div>
       </div>
