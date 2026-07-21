@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Doctor;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -91,8 +92,13 @@ class TenantUserController extends Controller
     public function update(Request $request, User $user)
     {
         $tenantId = tenant()->id;
+        $centralConnection = config('tenancy.database.central_connection');
 
         $validated = $request->validate([
+            // nome e e-mail do login também editáveis (antes só dava pra trocar o papel).
+            // unique ignorando o próprio usuário, na conexão central (users vive no central).
+            'name' => 'required|string|max:255',
+            'email' => "required|email|max:255|unique:{$centralConnection}.users,email,{$user->id}",
             'role' => ['required', Rule::in(['admin', 'doctor', 'receptionist'])],
             'is_active' => 'boolean',
             'permissions' => ['sometimes', 'array'],
@@ -107,6 +113,19 @@ class TenantUserController extends Controller
 
         if (!$exists) {
             return back()->with('error', 'Usuário não pertence a esta clínica.');
+        }
+
+        // Usuário (login) — User tem CentralConnection, então update() vai pro banco certo.
+        $user->update([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+        ]);
+
+        // Se este usuário tem ficha de médico nesta clínica, mantém o nome DELA em sincronia —
+        // senão o nome do login e o nome que sai na receita ficariam diferentes sem a pessoa
+        // entender por quê. (A ficha do médico tem outros campos próprios; só o nome acompanha.)
+        if ($doctor = Doctor::paraUsuario($user)) {
+            $doctor->update(['name' => $validated['name']]);
         }
 
         $this->tenantUserTable()

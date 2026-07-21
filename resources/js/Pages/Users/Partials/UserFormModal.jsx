@@ -57,6 +57,8 @@ export default function UserFormModal({ show, onClose, user, grantablePermission
 
         if (user) {
             router.put(`/users/${user.id}`, {
+                name: form.name,
+                email: form.email,
                 role: form.role,
                 is_active: true,
                 permissions: form.permissions,
@@ -102,30 +104,31 @@ export default function UserFormModal({ show, onClose, user, grantablePermission
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-3">
+                    {/* Nome e Email agora aparecem TAMBÉM na edição (antes só na criação). */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
+                        <input type="text" value={form.name} onChange={e => update('name', e.target.value)}
+                            placeholder="Nome completo"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`} required />
+                        {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
+                        {user && <p className="mt-1 text-xs text-gray-400">Se este for um médico, o nome na receita também é atualizado.</p>}
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                        <input type="email" value={form.email} onChange={e => update('email', e.target.value)}
+                            placeholder="email@exemplo.com"
+                            className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-400' : 'border-gray-300'}`} required />
+                        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
+                    </div>
+                    {/* Senha só na criação — trocar senha de outro usuário é fluxo à parte. */}
                     {!user && (
-                        <>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-                                <input type="text" value={form.name} onChange={e => update('name', e.target.value)}
-                                    placeholder="Nome completo"
-                                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-400' : 'border-gray-300'}`} required />
-                                {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
-                                <input type="email" value={form.email} onChange={e => update('email', e.target.value)}
-                                    placeholder="email@exemplo.com"
-                                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-400' : 'border-gray-300'}`} required />
-                                {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Senha *</label>
-                                <input type="password" value={form.password} onChange={e => update('password', e.target.value)}
-                                    placeholder="Mínimo 6 caracteres"
-                                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-400' : 'border-gray-300'}`} required minLength={6} />
-                                {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
-                            </div>
-                        </>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Senha *</label>
+                            <input type="password" value={form.password} onChange={e => update('password', e.target.value)}
+                                placeholder="Mínimo 6 caracteres"
+                                className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-400' : 'border-gray-300'}`} required minLength={6} />
+                            {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
+                        </div>
                     )}
 
                     <div>
