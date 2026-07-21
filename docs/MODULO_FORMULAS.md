@@ -141,6 +141,20 @@ Ao arrastar/inserir (`insertFormula`):
 2. Usa a **finalidade** como título do bloco (fallback: nome).
 3. Preenche o **título da receita** com a finalidade, se estiver vazio.
 
+## Cadastro manual (2026-07-20)
+
+O CRUD (Fórmulas → **+ Nova fórmula**) sempre existiu, mas o formulário mostrava 6 campos com a
+mesma cara — parecia tudo obrigatório. Reorganizado:
+
+- **Obrigatórios (o que o backend exige):** **Tipo** (Manipulado/Industrializado), **Título**, **Texto**.
+- **Opcionais, recolhidos** atrás de "+ finalidade, forma e via de uso": finalidade, forma, via.
+  Editar uma fórmula que já tem esses dados abre expandido (senão pareceria que sumiram).
+- **Tipo é obrigatório e não vem pré-marcado** numa fórmula nova — antes iniciava em "manipulado"
+  e um industrializado ia pra categoria errada sem ninguém reparar. `category` = `required` no
+  `FormulaController::validated`, com mensagem em pt-BR.
+- **Import não passa por aqui:** o `ImportExportController` tem validação própria (já exigia
+  categoria) e cria direto — mudar o form manual não afeta a importação.
+
 ---
 
 ## Pontos de troca

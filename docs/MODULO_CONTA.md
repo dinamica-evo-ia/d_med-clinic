@@ -89,3 +89,31 @@ seats separados).
   de dígito verificador.
 - **Perfil da clínica no Painel Master**: o master hoje não lê `clinic_profiles` (está no banco
   do tenant; exigiria inicializar o tenant pra ler).
+
+---
+
+## Impressão da receita (2026-07-20)
+
+Configurada em **Configurações → Impressão** (`doctors.print_settings`, JSON; helper
+`App\Support\PrintSettings`). Vale nos dois caminhos: **Imprimir pelo navegador**
+(`Prescriptions/Print.jsx` + CSS `@page`) e **PDF** (dompdf, `PrescriptionController::buildPdf`).
+
+**Papel:** `a5_portrait` (**padrão**) · `a5_landscape` · `a4_portrait`. `PrintSettings::paperFor`
+traduz pro par `[size, orientation]` do dompdf; `isCompact()` liga a fonte menor nos formatos A5.
+Editável por médico.
+
+> Idas e vindas de 2026-07-20 (registro pra não repetir): tentei "A5 em folha A4 com recorte"
+> achando que a impressora do dono não fazia A5 — **fazia**. O certo era A5 retrato puro. Lição:
+> confirmar o fato (a impressora imprime A5?) antes de construir a solução.
+
+**⚠️ GD é obrigatório pro PDF com logo.** O dompdf precisa da extensão **GD** pra renderizar
+imagem; sem ela o PDF da receita (download + envio WhatsApp) **quebra pra todo médico com logo**
+— e o "Enviar Resumo ao Paciente" também. A impressão pelo navegador NÃO usa dompdf, então passava
+despercebido. Instalada em dois níveis: no **Dockerfile** (`docker-php-ext-install gd`, durável) e
+no container atual (destrava sem rebuild; sobrevive a restart, um recreate perderia → o Dockerfile
+cobre). Recarga de extensão em php-fpm exige **restart do processo** (USR2/reload não pega).
+
+**Compactação da receita impressa:** na impressão o `.sheet` usa `min-height:auto` — a altura fixa
+de A5 (~794px) + margens estourava pra 2ª página. Bloco do paciente **sem borda**, um campo por
+linha (nome numa linha, CPF embaixo). Nome do médico sem **"Dr. Dr."** quando o prefixo já vem no
+nome (cabeçalho e assinatura; o PDF já fazia isso).
