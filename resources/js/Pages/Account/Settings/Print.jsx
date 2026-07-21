@@ -91,16 +91,11 @@ export default function Print() {
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-1">Papel da receita</label>
-            <select value={s.paper || 'a5_on_a4'} onChange={(e) => top('paper', e.target.value)} className={`${inp} w-64`}>
-              <option value="a5_on_a4">A5 em folha A4 — recortar (padrão)</option>
-              <option value="a4_portrait">A4 retrato (folha inteira)</option>
-              <option value="a5_portrait">A5 retrato (exige papel A5)</option>
-              <option value="a5_landscape">A5 paisagem (exige papel A5)</option>
+            <select value={s.paper || 'a5_portrait'} onChange={(e) => top('paper', e.target.value)} className={`${inp} w-48`}>
+              <option value="a5_portrait">A5 retrato (padrão)</option>
+              <option value="a5_landscape">A5 paisagem</option>
+              <option value="a4_portrait">A4 retrato</option>
             </select>
-            <p className="mt-1 text-[11px] text-slate-400 max-w-xs">
-              O padrão imprime a receita em tamanho A5 numa folha A4 (qualquer impressora aceita) e
-              marca onde recortar. Só escolha A5 puro se sua impressora tiver papel A5.
-            </p>
           </div>
           {doctors.length > 1 && (
             <div>
