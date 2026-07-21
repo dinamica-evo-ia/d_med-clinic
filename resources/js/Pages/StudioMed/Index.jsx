@@ -47,7 +47,12 @@ export default function Index({ patients, templates = [], defaultTemplateId = nu
         templateSnapshotRef.current = data.templateSnapshot || null;
         templateInfoRef.current = { id: templateId || null, name: data.templateName || null };
         acompanhanteSnapshotRef.current = data.acompanhanteSnapshot || null;
+        // Guarda o contexto pra reemitir o token se ele expirar durante a consulta.
+        ultimaAberturaRef.current = { pacienteId: idOuTeste, templateId: templateId || null, acompanhante };
     }
+
+    // Contexto da última abertura do estúdio — usado pra renovar o token expirado.
+    const ultimaAberturaRef = useRef(null);
 
     useEffect(() => {
         const pid = new URLSearchParams(window.location.search).get('patient_id');
@@ -77,6 +82,23 @@ export default function Index({ patients, templates = [], defaultTemplateId = nu
             if (e.origin !== EVO_ORIGIN) return;
             if (e.data?.type === 'dmed:ocupado') {
                 ocupadoRef.current = !!e.data.ocupado;
+                return;
+            }
+            if (e.data?.type === 'dmed:token-expirado') {
+                // O token do embed expirou durante a consulta. Reemite com o mesmo
+                // contexto e devolve pro iframe — sem recarregar, sem perder o áudio.
+                const ctx = ultimaAberturaRef.current;
+                const iframe = e.source;
+                if (!ctx || !iframe) return;
+                window.axios.post('/studio-med/token', {
+                    pacienteId: ctx.pacienteId,
+                    templateId: ctx.templateId,
+                    acompanhante: ctx.acompanhante,
+                }).then((r) => {
+                    if (r.data?.token) {
+                        iframe.postMessage({ type: 'dmed:token-novo', token: r.data.token }, EVO_ORIGIN);
+                    }
+                }).catch(() => { /* embed cai no erro normal + botão de tentar de novo */ });
                 return;
             }
             if (e.data?.type === 'dmed:anamnese') {

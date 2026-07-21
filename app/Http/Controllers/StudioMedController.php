@@ -101,11 +101,16 @@ class StudioMedController extends Controller
             ],
             'acompanhante' => $acompanhante, // null quando não há
             'iat' => time(),
-            'exp' => time() + 3600,
+            // 8h: o token é emitido quando o médico ABRE o estúdio, mas a
+            // transcrição só acontece no fim. Consulta longa + revisão + aba
+            // aberta desde cedo passava de 1h e o token morria com o áudio preso.
+            // O embed ainda renova por postMessage se estourar (dmed:token-expirado).
+            'exp' => time() + 8 * 3600,
         ], config('services.dmed.secret'), 'HS256');
 
         return response()->json([
             'studioUrl' => rtrim(config('services.dmed.studio_url'), '/') . '/embed?token=' . $jwt,
+            'token'     => $jwt, // cru, pro embed renovar sem recarregar o iframe
             'teste'     => $patient === null,
             'templateSnapshot' => $templateFields,
             'templateName' => $template?->name,
