@@ -35,8 +35,10 @@ A secretária abre ou fecha **uma data** direto no calendário (botão `⋯` no 
 mexer na regra semanal — que ela teria que lembrar de desfazer depois. Casos: abrir um sábado pra
 encaixar alguém, fechar a quarta por causa de um congresso, sair mais cedo numa sexta.
 
-- `open` **soma** ao que já existe ("nesta quarta ele também atende à tarde"); num dia fechado no
-  padrão, vira exatamente os períodos informados.
+- `open` **substitui** o horário do dia: "neste dia o atendimento é ESTE". Pra manter o padrão e só
+  acrescentar um período (um plantão à noite), é só adicionar na tela — ela já abre preenchida com o
+  horário da semana. ⚠️ Na 1ª versão o `open` **somava** ao padrão, e o efeito era o dia abrir
+  inteiro: numa segunda 08:00–12:00 + 13:30–18:00, pedir 09:00–12:00 virava a união e nada mudava.
 - `closed` sem períodos fecha o dia todo; com períodos, corta só aqueles trechos.
 - **Ordem cronológica**: vale a última coisa que a secretária fez (fechou o feriado e depois abriu
   09:00–12:00 → fica aberto das 9 às 12).

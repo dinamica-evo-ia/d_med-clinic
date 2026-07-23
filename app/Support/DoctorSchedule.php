@@ -238,9 +238,15 @@ class DoctorSchedule
                 if (! $ps) {
                     continue;
                 }
-                // Soma ao que já existe: "nesta quarta ele também atende à tarde".
-                $base = ! empty($day['active']) ? $day['periods'] : [];
-                $day = ['active' => true, 'periods' => self::mergePeriods(array_merge($base, $ps))];
+                /*
+                 * SUBSTITUI o horário do dia — "neste dia o atendimento é ESTE".
+                 * Somar ao padrão (como era até 2026-07-22) fazia o dia abrir inteiro:
+                 * numa segunda 08:00–12:00 + 13:30–18:00, pedir 09:00–12:00 virava a união
+                 * dos dois e nada mudava na prática. Quem quer manter o padrão e só
+                 * acrescentar um período faz isso na tela — ela já vem preenchida com o
+                 * horário da semana, é só adicionar mais um.
+                 */
+                $day = ['active' => true, 'periods' => $ps];
                 continue;
             }
 
