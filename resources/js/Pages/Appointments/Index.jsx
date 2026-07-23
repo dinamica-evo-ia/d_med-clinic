@@ -187,7 +187,7 @@ export default function Index() {
         {doctorId
           ? <> Mostrando agenda de <strong>{doctors.find((d) => d.id === doctorId)?.name}</strong>. Áreas em cinza estão fora do expediente.</>
           : <> Mostrando todos os médicos (range agregado). Selecione um médico para ver o expediente individual.</>}
-        {' '}Clique no <strong>⋯</strong> do dia para abrir ou fechar só aquela data, sem mexer na regra da semana.
+        {' '}Clique no <strong>horário embaixo da data</strong> para abrir ou fechar só aquele dia, sem mexer na regra da semana.
       </p>
 
       {diaEmEdicao && (
@@ -355,9 +355,9 @@ function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule,
                 <button onClick={() => onDay(d)} className={`flex items-center justify-center w-6 h-6 text-xs rounded-full ${isToday ? 'bg-blue-600 text-white font-semibold' : out ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100'}`}>{d.getDate()}</button>
                 {excepcional && (
                   <span title={dayCfg?.active
-                    ? `Aberto por exceção: ${dayCfg.periods.map((p) => `${p.start}–${p.end}`).join(', ')}`
-                    : 'Fechado por exceção neste dia'}
-                    className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    ? `Exceção: atende ${dayCfg.periods.map((p) => `${p.start}–${p.end}`).join(', ')}`
+                    : 'Exceção: fechado neste dia'}
+                    className="px-1 rounded bg-amber-100 text-amber-700 text-[9px] font-bold leading-4">⚡</span>
                 )}
               </div>
               <div className="mt-0.5 space-y-0.5">
@@ -376,6 +376,36 @@ function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule,
         })}
       </div>
     </div>
+  );
+}
+
+/*
+ * Chip de horário no cabeçalho de cada dia — é também o botão que abre a exceção.
+ * Precisa parecer clicável de longe: a secretária não vai caçar um ícone discreto.
+ */
+function ChipDoDia({ dia, cfg, excepcional, onClick }) {
+  const atende = !!cfg?.active;
+  const faixas = atende ? (cfg.periods || []).map((p) => `${p.start}–${p.end}`).join(' · ') : 'Fechado';
+
+  const cor = excepcional
+    ? 'bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200'
+    : atende
+      ? 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
+      : 'bg-slate-100 border-slate-200 text-slate-400 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700';
+
+  const titulo = excepcional
+    ? `Exceção neste dia: ${atende ? faixas : 'fechado'}. Clique para alterar ou voltar ao padrão.`
+    : atende
+      ? `Atende ${faixas}. Clique para mudar só este dia.`
+      : 'Não atende neste dia. Clique para abrir só esta data.';
+
+  return (
+    <button onClick={onClick} title={titulo}
+      className={`group max-w-full flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-medium leading-none transition ${cor}`}>
+      {excepcional && <span aria-hidden>⚡</span>}
+      <span className="truncate">{faixas}</span>
+      <span className="opacity-40 group-hover:opacity-100" aria-hidden>✎</span>
+    </button>
   );
 }
 
@@ -456,7 +486,8 @@ function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLO
     <div className="h-full overflow-auto">
       <div className="flex min-w-full">
         <div className="w-14 shrink-0">
-          <div className="h-10" />
+          {/* casa com a altura do cabeçalho do dia (h-16), senão as horas saem do lugar */}
+          <div className="h-16" />
           {hours.map((h) => <div key={h} style={{ height: ROW }} className="relative"><span className="absolute -top-2 right-2 text-[11px] text-slate-400">{String(h).padStart(2, '0')}:00</span></div>)}
         </div>
         <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${days.length},minmax(0,1fr))` }}>
@@ -468,19 +499,17 @@ function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLO
             const excepcional = !!excecoes[ymd(d)];
             return (
               <div key={di} className="border-l border-slate-100">
-                <div className="h-10 sticky top-0 z-10 bg-white border-b border-slate-200 flex items-center justify-center gap-1">
-                  <div className="flex flex-col items-center leading-tight">
+                <div className="h-16 sticky top-0 z-10 bg-white border-b border-slate-200 flex flex-col items-center justify-center gap-1 px-1">
+                  <div className="flex items-baseline gap-1.5 leading-none">
                     <span className="text-[11px] text-slate-400">{WD[d.getDay()]}</span>
                     <span className={`text-sm font-semibold ${isToday ? 'text-blue-600' : inactive ? 'text-slate-300' : 'text-slate-700'}`}>{d.getDate()}</span>
                   </div>
-                  {/* Exceção do dia: abrir/fechar só esta data, sem mexer na regra da semana */}
-                  <button onClick={() => onEditarDia?.(startOfDay(d))}
-                    title={excepcional
-                      ? (dayCfg?.active ? `Aberto por exceção: ${dayCfg.periods.map((p) => `${p.start}–${p.end}`).join(', ')}` : 'Fechado por exceção neste dia')
-                      : 'Abrir ou fechar só este dia'}
-                    className={`w-5 h-5 rounded text-xs leading-none ${excepcional ? 'bg-amber-100 text-amber-700 font-bold' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100'}`}>
-                    {excepcional ? '!' : '⋯'}
-                  </button>
+                  {/*
+                   * O horário do dia como CHIP clicável. Antes era um "⋯" cinza-claro do lado da
+                   * data — ninguém achava. Assim a secretária lê o horário sem abrir nada e vê
+                   * que dá pra clicar; amarelo = este dia foge da regra da semana.
+                   */}
+                  <ChipDoDia dia={d} cfg={dayCfg} excepcional={excepcional} onClick={() => onEditarDia?.(startOfDay(d))} />
                 </div>
                 <div className="relative" style={{ height: totalH }}
                   onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(d, e)}>
