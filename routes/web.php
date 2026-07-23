@@ -132,6 +132,10 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
     // API-like routes
     Route::prefix('api')->group(function () {
         Route::get('appointments/calendar', [AppointmentController::class, 'calendar'])->name('api.appointments.calendar');
+        // Exceções pontuais ("neste dia é diferente") — a secretária mexe direto no calendário
+        Route::get('appointments/exceptions', [AppointmentController::class, 'exceptions'])->name('api.appointments.exceptions');
+        Route::post('appointments/exceptions', [AppointmentController::class, 'storeException'])->name('api.appointments.exceptions.store');
+        Route::delete('appointments/exceptions', [AppointmentController::class, 'destroyExceptions'])->name('api.appointments.exceptions.destroy');
         Route::get('patients/search', [PatientController::class, 'search'])->name('api.patients.search');
         Route::get('stats/dashboard', [DashboardController::class, 'stats'])->name('api.stats.dashboard');
         Route::get('cid/search', [CidCodeController::class, 'search'])->name('api.cid.search');

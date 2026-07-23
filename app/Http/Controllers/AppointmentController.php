@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\ClinicProfile;
 use App\Models\Doctor;
 use App\Models\Patient;
+use App\Models\ScheduleException;
 use App\Support\AttendantNotifier;
 use App\Support\DoctorNotifier;
 use App\Support\DoctorSchedule;
@@ -53,6 +54,9 @@ class AppointmentController extends Controller
                 'id' => $d->id,
                 'name' => $d->name,
                 'schedule' => DoctorSchedule::normalize($d->schedule),
+                // Dias que fogem do padrão — sem isso o aviso do form diria "não atende"
+                // num sábado que a secretária acabou de abrir (o backend aceitaria).
+                'exceptions' => $this->excecoesDoDoutor($d),
             ])->values(),
             'preselectedDoctorId' => $request->get('doctor_id'),
             'convenios' => $this->conveniosConhecidos(),
@@ -60,6 +64,14 @@ class AppointmentController extends Controller
             // /atendente (é a mesma config que decide o que a IA pergunta no WhatsApp).
             'paymentTypes' => ClinicProfile::current()->aceita(),
         ]);
+    }
+
+    /** Exceções do médico dentro da janela em que dá pra agendar (só os dias que fogem do padrão). */
+    private function excecoesDoDoutor(Doctor $doctor): array
+    {
+        $dias = (int) (DoctorSchedule::normalize($doctor->schedule)['max_lead_days'] ?: 90);
+
+        return DoctorSchedule::resolvedRange($doctor, now(), now()->addDays(min($dias, 365)));
     }
 
     /**
@@ -245,6 +257,89 @@ class AppointmentController extends Controller
             });
 
         return response()->json($appointments);
+    }
+
+    /*
+     * ─────────────── EXCEÇÕES PONTUAIS DA AGENDA ───────────────
+     * "Neste dia é diferente." A secretária abre um sábado ou fecha uma quarta
+     * direto no calendário, sem mexer na regra semanal (que ela teria que lembrar
+     * de desfazer depois). Vale pra UMA data.
+     */
+
+    /** Dias com exceção no intervalo, já resolvidos (o calendário sobrescreve só esses). */
+    public function exceptions(Request $request)
+    {
+        $de  = \Carbon\Carbon::parse($request->get('start', now()->startOfMonth()));
+        $ate = \Carbon\Carbon::parse($request->get('end', now()->endOfMonth()));
+        $doctor = $request->get('doctor_id') ? Doctor::find($request->get('doctor_id')) : null;
+
+        $lista = ScheduleException::paraMedico($doctor?->id)
+            ->whereBetween('date', [$de->copy()->startOfDay(), $ate->copy()->endOfDay()])
+            ->orderBy('date')->get();
+
+        return response()->json([
+            'days' => DoctorSchedule::resolvedRange($doctor, $de, $ate),
+            'list' => $lista->map(fn ($e) => [
+                'id'      => $e->id,
+                'date'    => $e->date->format('Y-m-d'),
+                'kind'    => $e->kind,
+                'periods' => $e->periods,
+                'reason'  => $e->reason,
+                'clinica' => $e->doctor_id === null,
+                'resumo'  => $e->resumo(),
+            ])->values(),
+        ]);
+    }
+
+    public function storeException(Request $request)
+    {
+        $data = $request->validate([
+            'doctor_id'         => ['nullable', 'exists:doctors,id'],
+            'date'              => ['required', 'date_format:Y-m-d'],
+            'kind'              => ['required', 'in:open,closed'],
+            'periods'           => ['nullable', 'array', 'max:6'],
+            'periods.*.start'   => ['required', 'date_format:H:i'],
+            'periods.*.end'     => ['required', 'date_format:H:i'],
+            'reason'            => ['nullable', 'string', 'max:120'],
+        ]);
+
+        foreach ($data['periods'] ?? [] as $p) {
+            if ($p['end'] <= $p['start']) {
+                return response()->json(['ok' => false, 'message' => "O período {$p['start']}–{$p['end']} termina antes de começar."], 422);
+            }
+        }
+        if ($data['kind'] === 'open' && empty($data['periods'])) {
+            return response()->json(['ok' => false, 'message' => 'Informe o horário que será aberto neste dia.'], 422);
+        }
+
+        $excecao = ScheduleException::create([
+            // sem doctor_id no payload = exceção da clínica inteira (feriado)
+            'doctor_id'  => ($data['doctor_id'] ?? null) ?: null,
+            'date'       => $data['date'],
+            'kind'       => $data['kind'],
+            'periods'    => $data['periods'] ?? null,
+            'reason'     => $data['reason'] ?? null,
+            'created_by' => $request->user()?->id,
+        ]);
+        DoctorSchedule::esqueceExcecoes(); // o cache do request já leu a versão antiga
+
+        return response()->json(['ok' => true, 'resumo' => $excecao->resumo()]);
+    }
+
+    /** Volta o dia pro padrão: apaga as exceções daquela data (do médico ou da clínica). */
+    public function destroyExceptions(Request $request)
+    {
+        $data = $request->validate([
+            'date'      => ['required', 'date_format:Y-m-d'],
+            'doctor_id' => ['nullable', 'exists:doctors,id'],
+        ]);
+
+        $n = ScheduleException::paraMedico($data['doctor_id'] ?? null)
+            ->whereDate('date', $data['date'])
+            ->delete();
+        DoctorSchedule::esqueceExcecoes();
+
+        return response()->json(['ok' => true, 'removidas' => $n]);
     }
 
     public function reschedule(Request $request, Appointment $appointment)

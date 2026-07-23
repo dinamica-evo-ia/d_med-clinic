@@ -49,10 +49,15 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const patientOf = (ev) => (ev.title || '').split(' - ')[0] || 'Consulta';
 const hhmmToMin = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
 
+// Config que vale num DIA concreto: a exceção da data manda; sem exceção, a regra da semana.
+const cfgDoDia = (schedule, excecoes, d) => excecoes?.[ymd(d)] ?? schedule?.days?.[DAY_KEY[d.getDay()]];
+
 // Deriva range [H0, H1] em horas inteiras a partir do schedule (cobrindo os dias ativos).
 // Lê os períodos: o começo é o início do 1º e o fim é o término do último de cada dia.
-function rangeFromSchedule(sch) {
-  const days = Object.values(sch?.days || {}).filter((d) => d?.active && d.periods?.length);
+// As exceções entram na conta também — senão abrir um plantão às 20h não apareceria na grade.
+function rangeFromSchedule(sch, excecoes = {}) {
+  const days = [...Object.values(sch?.days || {}), ...Object.values(excecoes)]
+    .filter((d) => d?.active && d.periods?.length);
   if (!days.length) return [8, 18]; // sem dia ativo → range neutro
   const opens = days.map((d) => Math.min(...d.periods.map((p) => hhmmToMin(p.start))));
   const closes = days.map((d) => Math.max(...d.periods.map((p) => hhmmToMin(p.end))));
@@ -66,13 +71,16 @@ export default function Index() {
   const [view, setView] = useState('week');
   const [cursor, setCursor] = useState(startOfDay(toSP(new Date())));
   const [events, setEvents] = useState([]);
+  // Dias que fogem da regra semanal: { '2026-07-25': {active, periods} }
+  const [excecoes, setExcecoes] = useState({});
+  const [diaEmEdicao, setDiaEmEdicao] = useState(null);
   const [loading, setLoading] = useState(false);
   const dragRef = useRef(null);
   const today = startOfDay(toSP(new Date()));
   const nowTick = toSP(new Date());
 
   const doctorId = filters.doctor_id || '';
-  const [H0, H1] = useMemo(() => rangeFromSchedule(schedule), [schedule]);
+  const [H0, H1] = useMemo(() => rangeFromSchedule(schedule, excecoes), [schedule, excecoes]);
   const SLOT = schedule?.slot_minutes || 30;
 
   const range = useMemo(() => {
@@ -83,19 +91,25 @@ export default function Index() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    const params = {
+      start: ymd(range[0]) + ' 00:00:00',
+      end: ymd(range[1]) + ' 23:59:59',
+      ...(doctorId ? { doctor_id: doctorId } : {}),
+    };
     try {
-      const { data } = await window.axios.get('/api/appointments/calendar', {
-        params: {
-          start: ymd(range[0]) + ' 00:00:00',
-          end: ymd(range[1]) + ' 23:59:59',
-          ...(doctorId ? { doctor_id: doctorId } : {}),
-        },
-      });
-      setEvents((data || []).map((e) => {
+      // Consultas e exceções juntas: as exceções dizem quais dias fogem da regra semanal.
+      const [ev, ex] = await Promise.all([
+        window.axios.get('/api/appointments/calendar', { params }),
+        window.axios.get('/api/appointments/exceptions', {
+          params: { start: ymd(range[0]), end: ymd(range[1]), ...(doctorId ? { doctor_id: doctorId } : {}) },
+        }),
+      ]);
+      setEvents((ev.data || []).map((e) => {
         const us = parse(e.start), ue = parse(e.end || e.start);
         return { ...e, _utcS: us, _utcE: ue, _s: toSP(us), _e: toSP(ue) };
       }));
-    } catch { setEvents([]); }
+      setExcecoes(ex.data?.days || {});
+    } catch { setEvents([]); setExcecoes({}); }
     setLoading(false);
   }, [range, doctorId]);
   useEffect(() => { load(); }, [load]);
@@ -164,21 +178,154 @@ export default function Index() {
       </div>
 
       <div className="flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        {view === 'month' && <MonthView cursor={cursor} range={range} events={events} today={today} dragRef={dragRef} onReschedule={reschedule} onDay={(d) => { setCursor(d); setView('day'); }} schedule={schedule} />}
-        {view === 'week' && <TimeGrid days={Array.from({ length: 5 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
-        {view === 'day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} single H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} />}
+        {view === 'month' && <MonthView cursor={cursor} range={range} events={events} today={today} dragRef={dragRef} onReschedule={reschedule} onDay={(d) => { setCursor(d); setView('day'); }} schedule={schedule} excecoes={excecoes} />}
+        {view === 'week' && <TimeGrid days={Array.from({ length: 5 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} excecoes={excecoes} onEditarDia={setDiaEmEdicao} />}
+        {view === 'day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} single H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} excecoes={excecoes} onEditarDia={setDiaEmEdicao} />}
       </div>
       <p className="mt-2 text-xs text-slate-400">
         Dica: arraste um compromisso para outro horário ou dia para reagendar. Horários no fuso de Brasília.
         {doctorId
           ? <> Mostrando agenda de <strong>{doctors.find((d) => d.id === doctorId)?.name}</strong>. Áreas em cinza estão fora do expediente.</>
           : <> Mostrando todos os médicos (range agregado). Selecione um médico para ver o expediente individual.</>}
+        {' '}Clique no <strong>⋯</strong> do dia para abrir ou fechar só aquela data, sem mexer na regra da semana.
       </p>
+
+      {diaEmEdicao && (
+        <ExcecaoDoDia
+          dia={diaEmEdicao}
+          doctorId={doctorId}
+          doctorNome={doctors.find((d) => d.id === doctorId)?.name}
+          padrao={schedule?.days?.[DAY_KEY[diaEmEdicao.getDay()]]}
+          excecao={excecoes[ymd(diaEmEdicao)]}
+          onClose={() => setDiaEmEdicao(null)}
+          onSalvo={() => { setDiaEmEdicao(null); load(); }}
+        />
+      )}
     </div>
   );
 }
 
-function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule, schedule }) {
+/*
+ * "Neste dia é diferente." Abre ou fecha UMA data sem tocar na configuração da agenda —
+ * a secretária não precisa mudar a regra padrão e depois lembrar de desfazer.
+ */
+function ExcecaoDoDia({ dia, doctorId, doctorNome, padrao, excecao, onClose, onSalvo }) {
+  const temExcecao = !!excecao;
+  const inicial = excecao?.active ? excecao.periods : (padrao?.active ? padrao.periods : null);
+  const [atende, setAtende] = useState(excecao ? !!excecao.active : !padrao?.active);
+  const [periods, setPeriods] = useState(
+    (inicial?.length ? inicial : [{ start: '08:00', end: '12:00' }]).map((p) => ({ ...p })),
+  );
+  const [motivo, setMotivo] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  const titulo = dia.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
+  const setP = (i, patch) => setPeriods((ps) => ps.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+
+  const salvar = async () => {
+    setSalvando(true); setErro(null);
+    try {
+      // Um dia só pode ter uma decisão: limpa o que havia antes e grava a atual.
+      if (temExcecao) {
+        await window.axios.delete('/api/appointments/exceptions', {
+          data: { date: ymd(dia), ...(doctorId ? { doctor_id: doctorId } : {}) },
+        });
+      }
+      await window.axios.post('/api/appointments/exceptions', {
+        date: ymd(dia),
+        kind: atende ? 'open' : 'closed',
+        periods: atende ? periods : null,
+        reason: motivo || null,
+        ...(doctorId ? { doctor_id: doctorId } : {}),
+      });
+      onSalvo();
+    } catch (e) {
+      setErro(e?.response?.data?.message || 'Não foi possível salvar.');
+      setSalvando(false);
+    }
+  };
+
+  const voltarAoPadrao = async () => {
+    setSalvando(true); setErro(null);
+    try {
+      await window.axios.delete('/api/appointments/exceptions', {
+        data: { date: ymd(dia), ...(doctorId ? { doctor_id: doctorId } : {}) },
+      });
+      onSalvo();
+    } catch {
+      setErro('Não foi possível voltar ao padrão.');
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">{cap(titulo)}</h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {doctorId ? <>Vale só para <strong>{doctorNome}</strong>.</> : 'Vale para a clínica inteira (todos os médicos).'}
+              {' '}Padrão da semana: {padrao?.active
+                ? padrao.periods.map((p) => `${p.start}–${p.end}`).join(', ')
+                : 'não atende'}.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+        </div>
+
+        <div className="mt-4 flex rounded-lg bg-slate-100 p-0.5">
+          {[[true, 'Atender neste dia'], [false, 'Não atender']].map(([v, l]) => (
+            <button key={String(v)} onClick={() => setAtende(v)}
+              className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition ${atende === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{l}</button>
+          ))}
+        </div>
+
+        {atende && (
+          <div className="mt-3 space-y-2">
+            {periods.map((p, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input type="time" value={p.start} onChange={(e) => setP(i, { start: e.target.value })}
+                  className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+                <span className="text-xs text-slate-400">até</span>
+                <input type="time" value={p.end} onChange={(e) => setP(i, { end: e.target.value })}
+                  className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+                {periods.length > 1 && (
+                  <button onClick={() => setPeriods((ps) => ps.filter((_, idx) => idx !== i))}
+                    className="text-xs text-rose-600 hover:underline">remover</button>
+                )}
+              </div>
+            ))}
+            <button onClick={() => setPeriods((ps) => [...ps, { start: '14:00', end: '18:00' }])}
+              className="text-xs text-blue-600 hover:underline">+ adicionar período</button>
+          </div>
+        )}
+
+        <input value={motivo} onChange={(e) => setMotivo(e.target.value)} maxLength={120}
+          placeholder="Motivo (opcional) — congresso, feriado, encaixe…"
+          className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" />
+
+        {erro && <p className="mt-2 text-sm text-rose-600">{erro}</p>}
+
+        <div className="mt-4 flex items-center gap-2">
+          <button onClick={salvar} disabled={salvando}
+            className="flex-1 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-60">
+            {salvando ? 'Salvando…' : 'Salvar exceção'}
+          </button>
+          {temExcecao && (
+            <button onClick={voltarAoPadrao} disabled={salvando}
+              className="px-3 py-2 text-sm font-medium text-slate-600 rounded-lg border border-slate-200 hover:bg-slate-50">
+              Voltar ao padrão
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule, schedule, excecoes = {} }) {
   const days = Array.from({ length: 42 }, (_, i) => addDays(range[0], i));
   const open = (ev) => router.visit(`/appointments/${ev.id}`);
   const drop = (day) => {
@@ -197,13 +344,22 @@ function MonthView({ cursor, range, events, today, onDay, dragRef, onReschedule,
           const evs = events.filter((e) => sameDay(e._s, d)).sort((a, b) => a._s - b._s);
           const out = d.getMonth() !== cursor.getMonth();
           const isToday = sameDay(d, today);
-          const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
+          const dayCfg = cfgDoDia(schedule, excecoes, d);
           const inactive = dayCfg && !dayCfg.active;
+          const excepcional = !!excecoes[ymd(d)];
           return (
             <div key={i}
               onDragOver={(e) => e.preventDefault()} onDrop={() => drop(d)}
               className={`border-b border-r border-slate-100 p-1 overflow-hidden ${out ? 'bg-slate-50/60' : inactive ? 'bg-slate-100/60' : ''}`}>
-              <button onClick={() => onDay(d)} className={`flex items-center justify-center w-6 h-6 text-xs rounded-full ${isToday ? 'bg-blue-600 text-white font-semibold' : out ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100'}`}>{d.getDate()}</button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => onDay(d)} className={`flex items-center justify-center w-6 h-6 text-xs rounded-full ${isToday ? 'bg-blue-600 text-white font-semibold' : out ? 'text-slate-300' : 'text-slate-600 hover:bg-slate-100'}`}>{d.getDate()}</button>
+                {excepcional && (
+                  <span title={dayCfg?.active
+                    ? `Aberto por exceção: ${dayCfg.periods.map((p) => `${p.start}–${p.end}`).join(', ')}`
+                    : 'Fechado por exceção neste dia'}
+                    className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                )}
+              </div>
               <div className="mt-0.5 space-y-0.5">
                 {evs.slice(0, 3).map((ev) => (
                   <button key={ev.id} draggable onDragStart={() => { dragRef.current = ev; }}
@@ -237,7 +393,7 @@ function layout(evs) {
   return sorted;
 }
 
-function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLOT, schedule }) {
+function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLOT, schedule, excecoes = {}, onEditarDia }) {
   const hours = []; for (let h = H0; h <= H1; h++) hours.push(h);
   // A hora "estica" conforme a duração da consulta — ver rowDe() lá em cima.
   const ROW = rowDe(schedule?.slot_minutes ?? SLOT);
@@ -265,7 +421,7 @@ function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLO
    * o intervalo de almoço vira só mais um buraco, sem regra própria.
    */
   const renderBlocks = (d) => {
-    const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
+    const dayCfg = cfgDoDia(schedule, excecoes, d);
     if (!dayCfg) return null;
     if (!dayCfg.active) {
       return <div className="absolute inset-0 bg-slate-100/70" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 6px, rgba(148,163,184,0.08) 6px 12px)' }} />;
@@ -307,13 +463,24 @@ function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLO
           {days.map((d, di) => {
             const evs = layout(events.filter((e) => sameDay(e._s, d)));
             const isToday = sameDay(d, today);
-            const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
+            const dayCfg = cfgDoDia(schedule, excecoes, d);
             const inactive = dayCfg && !dayCfg.active;
+            const excepcional = !!excecoes[ymd(d)];
             return (
               <div key={di} className="border-l border-slate-100">
-                <div className="h-10 sticky top-0 z-10 bg-white border-b border-slate-200 flex flex-col items-center justify-center">
-                  <span className="text-[11px] text-slate-400">{WD[d.getDay()]}</span>
-                  <span className={`text-sm font-semibold ${isToday ? 'text-blue-600' : inactive ? 'text-slate-300' : 'text-slate-700'}`}>{d.getDate()}</span>
+                <div className="h-10 sticky top-0 z-10 bg-white border-b border-slate-200 flex items-center justify-center gap-1">
+                  <div className="flex flex-col items-center leading-tight">
+                    <span className="text-[11px] text-slate-400">{WD[d.getDay()]}</span>
+                    <span className={`text-sm font-semibold ${isToday ? 'text-blue-600' : inactive ? 'text-slate-300' : 'text-slate-700'}`}>{d.getDate()}</span>
+                  </div>
+                  {/* Exceção do dia: abrir/fechar só esta data, sem mexer na regra da semana */}
+                  <button onClick={() => onEditarDia?.(startOfDay(d))}
+                    title={excepcional
+                      ? (dayCfg?.active ? `Aberto por exceção: ${dayCfg.periods.map((p) => `${p.start}–${p.end}`).join(', ')}` : 'Fechado por exceção neste dia')
+                      : 'Abrir ou fechar só este dia'}
+                    className={`w-5 h-5 rounded text-xs leading-none ${excepcional ? 'bg-amber-100 text-amber-700 font-bold' : 'text-slate-300 hover:text-slate-600 hover:bg-slate-100'}`}>
+                    {excepcional ? '!' : '⋯'}
+                  </button>
                 </div>
                 <div className="relative" style={{ height: totalH }}
                   onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(d, e)}>

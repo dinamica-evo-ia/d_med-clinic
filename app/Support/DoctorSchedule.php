@@ -3,8 +3,10 @@
 namespace App\Support;
 
 use App\Models\Doctor;
+use App\Models\ScheduleException;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
+use Illuminate\Database\QueryException;
 
 /**
  * Helper de horário de atendimento por médico.
@@ -178,6 +180,162 @@ class DoctorSchedule
         return implode(', ', array_map(fn ($p) => "{$p['start']}–{$p['end']}", $day['periods']));
     }
 
+    /* ────────────────────────── EXCEÇÕES PONTUAIS ──────────────────────────
+     * "Neste dia é diferente do padrão." A regra semanal continua sendo o padrão;
+     * a exceção vale só pra UMA data. A resolução mora aqui de propósito: assim
+     * abrir um sábado vale de uma vez no calendário, na validação do agendamento
+     * e nos horários que a IA oferece — sem cada caminho ter que lembrar da tabela.
+     */
+
+    /** Cache por request. Zerado por esqueceExcecoes() quando alguém cria/apaga uma. */
+    private static array $cacheExcecoes = [];
+
+    public static function esqueceExcecoes(): void
+    {
+        self::$cacheExcecoes = [];
+    }
+
+    /** Exceções do intervalo agrupadas por data (Y-m-d), na ordem em que foram criadas. */
+    private static function excecoes(?string $doctorId, string $de, string $ate): array
+    {
+        $chave = ($doctorId ?: 'clinica')."|{$de}|{$ate}";
+        if (isset(self::$cacheExcecoes[$chave])) {
+            return self::$cacheExcecoes[$chave];
+        }
+
+        try {
+            // ⚠️ Os limites precisam ser dia inteiro: a coluna guarda "2026-08-03 00:00:00",
+            // então comparar com a string "2026-08-03" no topo do intervalo deixava o próprio
+            // dia de fora (a exceção do último dia do range simplesmente sumia).
+            $linhas = ScheduleException::paraMedico($doctorId)
+                ->whereBetween('date', [Carbon::parse($de)->startOfDay(), Carbon::parse($ate)->endOfDay()])
+                ->orderBy('created_at')
+                ->get(['date', 'kind', 'periods']);
+        } catch (QueryException $e) {
+            // Tenant ainda sem a migration (janela de deploy): sem exceção, só o padrão.
+            return self::$cacheExcecoes[$chave] = [];
+        }
+
+        $out = [];
+        foreach ($linhas as $l) {
+            $out[$l->date->format('Y-m-d')][] = ['kind' => $l->kind, 'periods' => $l->periods];
+        }
+
+        return self::$cacheExcecoes[$chave] = $out;
+    }
+
+    /**
+     * Aplica as exceções de UM dia sobre a config semanal.
+     * Ordem cronológica de propósito: a última coisa que a secretária fez é a que vale
+     * (fechou o feriado e depois abriu 09:00–12:00 → fica aberto das 9 às 12).
+     */
+    private static function aplicaExcecoes(array $day, array $excecoes): array
+    {
+        foreach ($excecoes as $e) {
+            $ps = self::sanitizePeriods($e['periods'] ?? []);
+
+            if ($e['kind'] === 'open') {
+                if (! $ps) {
+                    continue;
+                }
+                // Soma ao que já existe: "nesta quarta ele também atende à tarde".
+                $base = ! empty($day['active']) ? $day['periods'] : [];
+                $day = ['active' => true, 'periods' => self::mergePeriods(array_merge($base, $ps))];
+                continue;
+            }
+
+            // closed sem períodos = dia todo; com períodos = corta só aqueles trechos
+            if (! $ps) {
+                $day['active'] = false;
+                continue;
+            }
+            $day['periods'] = self::subtraiPeriodos($day['periods'], $ps);
+            if (empty($day['periods'])) {
+                $day['active'] = false;
+                $day['periods'] = [['start' => '08:00', 'end' => '12:00']]; // placeholder: dia inativo
+            }
+        }
+
+        return $day;
+    }
+
+    /** Remove os trechos $cortes de $periods (um período pode virar dois). */
+    private static function subtraiPeriodos(array $periods, array $cortes): array
+    {
+        foreach ($cortes as $c) {
+            $novo = [];
+            foreach ($periods as $p) {
+                if ($c['end'] <= $p['start'] || $c['start'] >= $p['end']) {
+                    $novo[] = $p;                                   // não encosta
+                    continue;
+                }
+                if ($c['start'] > $p['start']) {
+                    $novo[] = ['start' => $p['start'], 'end' => $c['start']];
+                }
+                if ($c['end'] < $p['end']) {
+                    $novo[] = ['start' => $c['end'], 'end' => $p['end']];
+                }
+            }
+            $periods = $novo;
+        }
+
+        return array_values($periods);
+    }
+
+    /** Filtra períodos vindos do banco/request: só HH:MM válidos e fim > início. */
+    private static function sanitizePeriods($raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $p) {
+            $s = self::hhmm($p['start'] ?? null);
+            $e = self::hhmm($p['end'] ?? null);
+            if ($s && $e && $e > $s) {
+                $out[] = ['start' => $s, 'end' => $e];
+            }
+        }
+
+        return self::mergePeriods($out);
+    }
+
+    /** Config do dia para uma DATA específica, já com as exceções aplicadas. */
+    public static function dayFor(?Doctor $doctor, CarbonInterface $date, ?array $cfg = null): array
+    {
+        $cfg = $cfg ?: self::normalize($doctor?->schedule);
+        $day = $cfg['days'][self::DAYS[$date->dayOfWeekIso - 1]] ?? ['active' => false, 'periods' => []];
+
+        $ymd = $date->format('Y-m-d');
+        $excecoes = self::excecoes($doctor?->id, $ymd, $ymd)[$ymd] ?? [];
+
+        return $excecoes ? self::aplicaExcecoes($day, $excecoes) : $day;
+    }
+
+    /**
+     * Dias do intervalo que TÊM exceção, já resolvidos — o calendário só precisa
+     * sobrescrever esses; o resto segue a regra semanal.
+     * Devolve ['2026-07-25' => ['active'=>bool, 'periods'=>[...]], ...]
+     */
+    public static function resolvedRange(?Doctor $doctor, CarbonInterface $de, CarbonInterface $ate): array
+    {
+        $cfg = self::normalize($doctor?->schedule);
+        $todas = self::excecoes($doctor?->id, $de->format('Y-m-d'), $ate->format('Y-m-d'));
+
+        $out = [];
+        foreach ($todas as $ymd => $excecoes) {
+            $dia = Carbon::parse($ymd);
+            $base = $cfg['days'][self::DAYS[$dia->dayOfWeekIso - 1]] ?? ['active' => false, 'periods' => []];
+            $resolvido = self::aplicaExcecoes($base, $excecoes);
+            $out[$ymd] = [
+                'active'  => (bool) $resolvido['active'],
+                'periods' => $resolvido['active'] ? $resolvido['periods'] : [],
+            ];
+        }
+
+        return $out;
+    }
+
     /**
      * Valida se o intervalo [start, end] cabe no expediente do médico.
      * Retorna null se OK, ou string com motivo da rejeição.
@@ -202,10 +360,14 @@ class DoctorSchedule
         }
 
         $dayKey = self::DAYS[$start->dayOfWeekIso - 1]; // 1=mon..7=sun
-        $day = $cfg['days'][$dayKey] ?? null;
+        $padrao = $cfg['days'][$dayKey] ?? ['active' => false, 'periods' => []];
+        $day = self::dayFor($doctor, $start, $cfg); // padrão + exceção da data
 
-        if (! $day || empty($day['active'])) {
-            return 'O médico não atende neste dia da semana.';
+        if (empty($day['active'])) {
+            // Distingue os dois "não atende": a regra da semana ou um bloqueio pontual.
+            return ! empty($padrao['active'])
+                ? 'Este dia está bloqueado na agenda.'
+                : 'O médico não atende neste dia da semana.';
         }
 
         // Tem que caber INTEIRO dentro de UM período. Cair no buraco entre eles (o antigo
@@ -245,10 +407,23 @@ class DoctorSchedule
         $slots = [];
         $startDay = $from->copy()->startOfDay();
 
+        // Exceções do intervalo inteiro numa consulta só (em vez de uma por dia).
+        $excecoes = self::excecoes(
+            $doctor->id,
+            $startDay->format('Y-m-d'),
+            $startDay->copy()->addDays(max(0, $days - 1))->format('Y-m-d'),
+        );
+
         for ($i = 0; $i < $days; $i++) {
             $day  = $startDay->copy()->addDays($i);
             $conf = $cfg['days'][self::DAYS[$day->dayOfWeekIso - 1]] ?? null;
-            if (! $conf || empty($conf['active'])) {
+            if (! $conf) {
+                continue;
+            }
+            if ($doDia = $excecoes[$day->format('Y-m-d')] ?? null) {
+                $conf = self::aplicaExcecoes($conf, $doDia);
+            }
+            if (empty($conf['active'])) {
                 continue;
             }
 

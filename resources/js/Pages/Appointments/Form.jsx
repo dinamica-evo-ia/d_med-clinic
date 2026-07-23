@@ -9,7 +9,7 @@ const toLocalInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 
 // Mirror de App\Support\DoctorSchedule::violation em JS — feedback imediato no form.
 // O backend continua sendo a autoridade final (bloqueio rígido); isto é só UX.
-function violation(schedule, startsAt, endsAt) {
+function violation(schedule, startsAt, endsAt, exceptions = {}) {
     if (!schedule || !startsAt || !endsAt) return null;
     const start = new Date(startsAt);
     const end = new Date(endsAt);
@@ -17,8 +17,15 @@ function violation(schedule, startsAt, endsAt) {
     if (end <= start) return 'O horário final deve ser depois do inicial.';
     if (start.toDateString() !== end.toDateString()) return 'A consulta deve começar e terminar no mesmo dia.';
 
-    const dayCfg = schedule.days?.[DAY_KEY[start.getDay()]];
-    if (!dayCfg || !dayCfg.active) return 'O médico não atende neste dia da semana.';
+    // Exceção da data ("abri este sábado") manda; sem exceção, vale a regra da semana.
+    const ymd = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+    const padrao = schedule.days?.[DAY_KEY[start.getDay()]];
+    const dayCfg = exceptions?.[ymd] || padrao;
+    if (!dayCfg || !dayCfg.active) {
+        return exceptions?.[ymd]
+            ? 'Este dia está bloqueado na agenda.'
+            : 'O médico não atende neste dia da semana.';
+    }
 
     const startMin = start.getHours() * 60 + start.getMinutes();
     const endMin = end.getHours() * 60 + end.getMinutes();
@@ -83,7 +90,11 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
 
     const selectedDoctor = useMemo(() => doctors.find((d) => d.id === data.doctor_id), [doctors, data.doctor_id]);
     const schedule = selectedDoctor?.schedule;
-    const warning = useMemo(() => violation(schedule, data.starts_at, data.ends_at), [schedule, data.starts_at, data.ends_at]);
+    const excecoes = selectedDoctor?.exceptions || {};
+    const warning = useMemo(
+        () => violation(schedule, data.starts_at, data.ends_at, excecoes),
+        [schedule, data.starts_at, data.ends_at, excecoes],
+    );
 
     /*
      * Duração em vez de "hora do fim". A recepção pensa em "consulta de 15 min", não em
