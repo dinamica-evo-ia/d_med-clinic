@@ -49,12 +49,13 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const patientOf = (ev) => (ev.title || '').split(' - ')[0] || 'Consulta';
 const hhmmToMin = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
 
-// Deriva range [H0, H1] em horas inteiras a partir do schedule (cobrindo os dias ativos)
+// Deriva range [H0, H1] em horas inteiras a partir do schedule (cobrindo os dias ativos).
+// Lê os períodos: o começo é o início do 1º e o fim é o término do último de cada dia.
 function rangeFromSchedule(sch) {
-  const days = Object.values(sch?.days || {}).filter((d) => d?.active);
+  const days = Object.values(sch?.days || {}).filter((d) => d?.active && d.periods?.length);
   if (!days.length) return [8, 18]; // sem dia ativo → range neutro
-  const opens = days.map((d) => hhmmToMin(d.open));
-  const closes = days.map((d) => hhmmToMin(d.close));
+  const opens = days.map((d) => Math.min(...d.periods.map((p) => hhmmToMin(p.start))));
+  const closes = days.map((d) => Math.max(...d.periods.map((p) => hhmmToMin(p.end))));
   const H0 = Math.max(0, Math.floor(Math.min(...opens) / 60));
   const H1 = Math.min(24, Math.ceil(Math.max(...closes) / 60));
   return [H0, Math.max(H0 + 1, H1)];
@@ -258,38 +259,41 @@ function TimeGrid({ days, events, today, now, dragRef, onReschedule, H0, H1, SLO
     onReschedule(ev, delta);
   };
 
-  // Renderiza um overlay cinza pras zonas bloqueadas (fora expediente + almoço + dia inativo)
+  /*
+   * Overlay cinza nas zonas bloqueadas. Com PERÍODOS a conta inverte: em vez de desenhar
+   * "antes/depois do expediente + almoço", desenhamos os BURACOS entre os períodos —
+   * o intervalo de almoço vira só mais um buraco, sem regra própria.
+   */
   const renderBlocks = (d) => {
     const dayCfg = schedule?.days?.[DAY_KEY[d.getDay()]];
     if (!dayCfg) return null;
     if (!dayCfg.active) {
       return <div className="absolute inset-0 bg-slate-100/70" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 6px, rgba(148,163,184,0.08) 6px 12px)' }} />;
     }
-    const openM = hhmmToMin(dayCfg.open);
-    const closeM = hhmmToMin(dayCfg.close);
-    const lunch = dayCfg.lunch;
+    const periods = (dayCfg.periods || []).map((p) => [hhmmToMin(p.start), hhmmToMin(p.end)])
+      .sort((a, b) => a[0] - b[0]);
+    if (!periods.length) return null;
+
     const blocks = [];
-    // antes do expediente
-    if (openM > H0 * 60) blocks.push({ top: 0, height: minToTop(openM) });
-    // depois do expediente
-    if (closeM < H1 * 60) blocks.push({ top: minToTop(closeM), height: totalH - minToTop(closeM) });
-    // almoço
-    if (lunch?.start && lunch?.end) {
-      const ls = hhmmToMin(lunch.start), le = hhmmToMin(lunch.end);
-      if (le > openM && ls < closeM) {
-        blocks.push({ top: minToTop(Math.max(ls, openM)), height: minToTop(Math.min(le, closeM)) - minToTop(Math.max(ls, openM)), lunch: true });
-      }
-    }
-    return blocks.map((b, i) => (
-      <div key={i}
-        className={`absolute left-0 right-0 pointer-events-none ${b.lunch ? 'bg-amber-50/60' : 'bg-slate-100/60'}`}
-        style={{
-          top: b.top, height: b.height,
-          backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 6px, rgba(148,163,184,0.10) 6px 12px)',
-        }}
-        title={b.lunch ? 'Pausa de almoço' : 'Fora do expediente'}
-      />
-    ));
+    let cursor = H0 * 60;
+    periods.forEach(([ini, fim]) => {
+      if (ini > cursor) blocks.push([cursor, Math.min(ini, H1 * 60)]);
+      cursor = Math.max(cursor, fim);
+    });
+    if (cursor < H1 * 60) blocks.push([cursor, H1 * 60]);
+
+    return blocks
+      .filter(([a, b]) => b > a)
+      .map(([a, b], i) => (
+        <div key={i}
+          className="absolute left-0 right-0 pointer-events-none bg-slate-100/60"
+          style={{
+            top: minToTop(a), height: minToTop(b) - minToTop(a),
+            backgroundImage: 'repeating-linear-gradient(45deg, transparent 0 6px, rgba(148,163,184,0.10) 6px 12px)',
+          }}
+          title="Fora do horário de atendimento"
+        />
+      ));
   };
 
   return (

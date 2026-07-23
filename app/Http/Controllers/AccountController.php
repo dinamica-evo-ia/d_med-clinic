@@ -294,25 +294,43 @@ class AccountController extends Controller
 
     public function scheduleUpdate(Request $request)
     {
+        // Modelo de PERÍODOS (manhã/tarde/...). O almoço deixou de existir: é o buraco entre eles.
         $data = $request->validate([
-            'doctor_id'                       => ['required', 'exists:doctors,id'],
-            'schedule'                        => ['required', 'array'],
-            'schedule.days'                   => ['required', 'array'],
-            'schedule.days.*.active'          => ['required', 'boolean'],
-            'schedule.days.*.open'            => ['required', 'date_format:H:i'],
-            'schedule.days.*.close'           => ['required', 'date_format:H:i', 'after:schedule.days.*.open'],
-            'schedule.days.*.lunch'           => ['nullable', 'array'],
-            'schedule.days.*.lunch.start'     => ['nullable', 'date_format:H:i', 'required_with:schedule.days.*.lunch.end'],
-            'schedule.days.*.lunch.end'       => ['nullable', 'date_format:H:i', 'required_with:schedule.days.*.lunch.start', 'after:schedule.days.*.lunch.start'],
-            'schedule.slot_minutes'           => ['required', 'integer', 'in:10,15,20,30,45,60,90'],
-            'schedule.min_lead_minutes'       => ['required', 'integer', 'min:0', 'max:10080'],
-            'schedule.max_lead_days'          => ['required', 'integer', 'min:1', 'max:365'],
+            'doctor_id'                        => ['required', 'exists:doctors,id'],
+            'schedule'                         => ['required', 'array'],
+            'schedule.days'                    => ['required', 'array'],
+            'schedule.days.*.active'           => ['required', 'boolean'],
+            'schedule.days.*.periods'          => ['required', 'array', 'min:1', 'max:6'],
+            'schedule.days.*.periods.*.start'  => ['required', 'date_format:H:i'],
+            'schedule.days.*.periods.*.end'    => ['required', 'date_format:H:i'],
+            'schedule.slot_minutes'            => ['required', 'integer', 'in:10,15,20,30,45,60,90'],
+            'schedule.min_lead_minutes'        => ['required', 'integer', 'min:0', 'max:10080'],
+            'schedule.max_lead_days'           => ['required', 'integer', 'min:1', 'max:365'],
+        ], [
+            'schedule.days.*.periods.required' => 'Cada dia precisa de ao menos um período de atendimento.',
         ]);
 
         // garante exatamente as 7 chaves de dias
         foreach (DoctorSchedule::DAYS as $d) {
             if (! isset($data['schedule']['days'][$d])) {
                 return back()->withErrors(['schedule' => "Dia '{$d}' ausente na configuração."]);
+            }
+        }
+
+        /*
+         * Fim > início em cada período. O `after:` do Laravel não serve aqui porque o caminho
+         * tem dois curingas (days.*.periods.*) e ele não sabe comparar dentro do mesmo item.
+         * Sobreposição não é erro: o normalize funde períodos que se encostam.
+         */
+        $rotulo = ['mon' => 'segunda', 'tue' => 'terça', 'wed' => 'quarta', 'thu' => 'quinta',
+                   'fri' => 'sexta', 'sat' => 'sábado', 'sun' => 'domingo'];
+        foreach ($data['schedule']['days'] as $d => $cfg) {
+            foreach ($cfg['periods'] as $i => $p) {
+                if ($p['end'] <= $p['start']) {
+                    return back()->withErrors([
+                        'schedule' => "Na {$rotulo[$d]}, o {$i}º período termina antes de começar ({$p['start']}–{$p['end']}).",
+                    ]);
+                }
             }
         }
 

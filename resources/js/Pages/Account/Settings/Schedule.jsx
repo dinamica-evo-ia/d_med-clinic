@@ -1,5 +1,4 @@
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { useMemo } from 'react';
 
 const DAY_LABELS = {
   mon: 'Segunda',
@@ -12,6 +11,8 @@ const DAY_LABELS = {
 };
 const DAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const SLOTS = [10, 15, 20, 30, 45, 60, 90];
+// Rótulo só visual — o backend não guarda "manhã/tarde", guarda a lista de períodos na ordem.
+const PERIOD_LABELS = ['Manhã', 'Tarde', 'Noite'];
 
 export default function Schedule() {
   const { doctors, doctor, schedule, flash } = usePage().props;
@@ -35,13 +36,44 @@ export default function Schedule() {
     });
   };
 
-  const updateLunch = (day, patch) => {
-    const current = form.data.schedule.days[day].lunch || { start: '', end: '' };
-    updateDay(day, { lunch: { ...current, ...patch } });
+  // Períodos: manhã, tarde, o que for. O intervalo de almoço é o BURACO entre dois
+  // períodos — não existe mais campo próprio pra ele.
+  const periodsOf = (day) => form.data.schedule.days[day].periods || [];
+
+  const setPeriods = (day, periods) => updateDay(day, { periods });
+
+  const updatePeriod = (day, i, patch) =>
+    setPeriods(day, periodsOf(day).map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+
+  const removePeriod = (day, i) => setPeriods(day, periodsOf(day).filter((_, idx) => idx !== i));
+
+  const addPeriod = (day) => {
+    const atuais = periodsOf(day);
+    // sugere um começo depois do último período, pra não nascer sobreposto
+    const ultimo = atuais[atuais.length - 1];
+    const sugestao = !ultimo ? { start: '08:00', end: '12:00' }
+      : ultimo.end <= '12:30' ? { start: '14:00', end: '18:00' }
+      : { start: ultimo.end, end: somaHora(ultimo.end, 2) };
+    setPeriods(day, [...atuais, sugestao]);
   };
 
-  const removeLunch = (day) => updateDay(day, { lunch: null });
-  const addLunch    = (day) => updateDay(day, { lunch: { start: '12:00', end: '13:30' } });
+  // "18:00" + 2h → "20:00" (trava em 23:59 pra não virar o dia)
+  function somaHora(hhmm, horas) {
+    const [h, m] = hhmm.split(':').map(Number);
+    const total = Math.min(h * 60 + m + horas * 60, 23 * 60 + 59);
+    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+  }
+
+  // Copia os períodos de um dia pros outros dias ativos — o caso comum é
+  // "seg a sex igual" e ninguém quer digitar 5 vezes.
+  const copiarParaOsOutros = (day) => {
+    const base = periodsOf(day).map((p) => ({ ...p }));
+    const days = { ...form.data.schedule.days };
+    DAY_ORDER.forEach((d) => {
+      if (d !== day && days[d].active) days[d] = { ...days[d], periods: base.map((p) => ({ ...p })) };
+    });
+    form.setData('schedule', { ...form.data.schedule, days });
+  };
 
   const submit = (e) => {
     e.preventDefault();
@@ -89,14 +121,18 @@ export default function Schedule() {
       ) : (
         <form onSubmit={submit} className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-200 text-sm font-semibold text-slate-800">Expediente semanal</div>
+            <div className="px-5 py-3 border-b border-slate-200 flex items-baseline justify-between gap-4">
+              <span className="text-sm font-semibold text-slate-800">Expediente semanal</span>
+              <span className="text-[11px] text-slate-400">O intervalo entre um período e outro (almoço, por exemplo) já fica fechado automaticamente.</span>
+            </div>
             <div className="divide-y divide-slate-100">
               {DAY_ORDER.map((day) => {
                 const d = form.data.schedule.days[day];
                 const active = !!d.active;
+                const periods = d.periods || [];
                 return (
-                  <div key={day} className="grid grid-cols-12 gap-3 items-center px-5 py-3">
-                    <label className="col-span-3 flex items-center gap-2 cursor-pointer select-none">
+                  <div key={day} className="flex flex-col sm:flex-row sm:items-start gap-3 px-5 py-3.5">
+                    <label className="w-full sm:w-40 shrink-0 flex items-center gap-2 cursor-pointer select-none sm:pt-1.5">
                       <input
                         type="checkbox"
                         checked={active}
@@ -106,61 +142,50 @@ export default function Schedule() {
                       <span className={`text-sm font-medium ${active ? 'text-slate-900' : 'text-slate-400'}`}>{DAY_LABELS[day]}</span>
                     </label>
 
-                    <div className="col-span-3 flex items-center gap-2">
-                      <input
-                        type="time"
-                        value={d.open}
-                        onChange={(e) => updateDay(day, { open: e.target.value })}
-                        disabled={!active}
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400"
-                      />
-                      <span className="text-slate-400 text-xs">até</span>
-                      <input
-                        type="time"
-                        value={d.close}
-                        onChange={(e) => updateDay(day, { close: e.target.value })}
-                        disabled={!active}
-                        className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-50 disabled:text-slate-400"
-                      />
-                    </div>
-
-                    <div className="col-span-6 flex items-center gap-2">
-                      {d.lunch ? (
-                        <>
-                          <span className="text-xs text-slate-500 whitespace-nowrap">Almoço</span>
-                          <input
-                            type="time"
-                            value={d.lunch.start || ''}
-                            onChange={(e) => updateLunch(day, { start: e.target.value })}
-                            disabled={!active}
-                            className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-50"
-                          />
-                          <span className="text-slate-400 text-xs">até</span>
-                          <input
-                            type="time"
-                            value={d.lunch.end || ''}
-                            onChange={(e) => updateLunch(day, { end: e.target.value })}
-                            disabled={!active}
-                            className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-50"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeLunch(day)}
-                            disabled={!active}
-                            className="text-xs text-rose-600 hover:underline disabled:text-slate-300"
-                          >
-                            remover
-                          </button>
-                        </>
+                    <div className="flex-1 min-w-0">
+                      {!active ? (
+                        <p className="text-sm text-slate-400 sm:pt-1.5">Não atende</p>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => addLunch(day)}
-                          disabled={!active}
-                          className="text-xs text-blue-600 hover:underline disabled:text-slate-300"
-                        >
-                          + adicionar pausa de almoço
-                        </button>
+                        <div className="space-y-2">
+                          {periods.map((p, i) => (
+                            <div key={i} className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs text-slate-500 w-16 shrink-0">{PERIOD_LABELS[i] || `${i + 1}º período`}</span>
+                              <input
+                                type="time"
+                                value={p.start || ''}
+                                onChange={(e) => updatePeriod(day, i, { start: e.target.value })}
+                                className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                              />
+                              <span className="text-slate-400 text-xs">até</span>
+                              <input
+                                type="time"
+                                value={p.end || ''}
+                                onChange={(e) => updatePeriod(day, i, { end: e.target.value })}
+                                className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                              />
+                              {periods.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removePeriod(day, i)}
+                                  className="text-xs text-rose-600 hover:underline"
+                                >
+                                  remover
+                                </button>
+                              )}
+                            </div>
+                          ))}
+
+                          <div className="flex items-center gap-4 pt-0.5">
+                            <button type="button" onClick={() => addPeriod(day)} className="text-xs text-blue-600 hover:underline">
+                              + adicionar período
+                            </button>
+                            {periods.length > 0 && (
+                              <button type="button" onClick={() => copiarParaOsOutros(day)} className="text-xs text-slate-500 hover:underline">
+                                copiar para os outros dias
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>

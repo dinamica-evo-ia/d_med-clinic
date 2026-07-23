@@ -22,17 +22,14 @@ function violation(schedule, startsAt, endsAt) {
 
     const startMin = start.getHours() * 60 + start.getMinutes();
     const endMin = end.getHours() * 60 + end.getMinutes();
-    const openMin = hhmmToMin(dayCfg.open);
-    const closeMin = hhmmToMin(dayCfg.close);
-    if (startMin < openMin || endMin > closeMin) {
-        return `Fora do expediente (${dayCfg.open}–${dayCfg.close}).`;
-    }
-    const lunch = dayCfg.lunch;
-    if (lunch?.start && lunch?.end) {
-        const ls = hhmmToMin(lunch.start), le = hhmmToMin(lunch.end);
-        if (startMin < le && endMin > ls) {
-            return `Conflita com a pausa de almoço (${lunch.start}–${lunch.end}).`;
-        }
+
+    // A consulta tem que caber INTEIRA dentro de UM período. Assim o intervalo entre
+    // períodos (almoço) fica bloqueado sozinho, sem precisar de regra própria.
+    const periods = dayCfg.periods || [];
+    const cabe = periods.some((p) => startMin >= hhmmToMin(p.start) && endMin <= hhmmToMin(p.end));
+    if (!cabe) {
+        const faixas = periods.map((p) => `${p.start}–${p.end}`).join(', ');
+        return `Fora do horário de atendimento (${faixas}).`;
     }
     return null;
 }

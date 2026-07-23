@@ -3,8 +3,8 @@
 namespace App\Support;
 
 use App\Models\Doctor;
-use Carbon\CarbonInterface;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 
 /**
  * Helper de horário de atendimento por médico.
@@ -12,15 +12,27 @@ use Carbon\Carbon;
  * Estrutura do JSON salvo em doctors.schedule:
  * {
  *   "days": {
- *     "mon": {"active": true,  "open": "08:00", "close": "18:00", "lunch": {"start": "12:00", "end": "13:30"}},
- *     "tue": {...}, "wed": {...}, "thu": {...}, "fri": {...},
- *     "sat": {"active": false, "open": "08:00", "close": "12:00", "lunch": null},
- *     "sun": {"active": false, ...}
+ *     "mon": {"active": true, "periods": [
+ *        {"start": "08:00", "end": "12:00"},     ← manhã
+ *        {"start": "14:00", "end": "18:00"}      ← tarde
+ *     ]},
+ *     "sat": {"active": false, "periods": [{"start": "08:00", "end": "12:00"}]},
+ *     ...
  *   },
  *   "slot_minutes": 30,
  *   "min_lead_minutes": 0,
  *   "max_lead_days": 90
  * }
+ *
+ * ⚠️ O ALMOÇO NÃO EXISTE MAIS como conceito próprio — ele é simplesmente o BURACO entre um
+ * período e o próximo (12:00→14:00 acima). Isso cobre de graça a clínica com 3 períodos, ou a
+ * que fecha 11h e volta 15h, que o modelo antigo (abre/fecha + 1 almoço) não conseguia expressar.
+ *
+ * 🔁 RETROCOMPATIBILIDADE: `normalize()` converte o formato antigo
+ * ({open, close, lunch}) em períodos NA LEITURA — nenhum tenant precisou de migração, e quem
+ * ainda não salvou pela tela nova continua funcionando. A conversão é idempotente.
+ * O normalize também devolve `open`/`close` DERIVADOS (menor início / maior fim do dia) só pra
+ * não quebrar consumidor que ainda lê esses campos. Eles são leitura — a verdade é `periods`.
  */
 class DoctorSchedule
 {
@@ -30,15 +42,14 @@ class DoctorSchedule
     {
         $weekday = [
             'active' => true,
-            'open'   => '08:00',
-            'close'  => '18:00',
-            'lunch'  => ['start' => '12:00', 'end' => '13:30'],
+            'periods' => [
+                ['start' => '08:00', 'end' => '12:00'],
+                ['start' => '14:00', 'end' => '18:00'],
+            ],
         ];
         $weekend = [
             'active' => false,
-            'open'   => '08:00',
-            'close'  => '12:00',
-            'lunch'  => null,
+            'periods' => [['start' => '08:00', 'end' => '12:00']],
         ];
 
         return [
@@ -57,23 +68,114 @@ class DoctorSchedule
         ];
     }
 
-    /** Mescla o schedule salvo com os defaults (compatibilidade futura). */
+    /** Mescla o schedule salvo com os defaults e converte o formato antigo. */
     public static function normalize(?array $schedule): array
     {
         $defaults = self::defaults();
-        if (! $schedule) return $defaults;
+        if (! $schedule) {
+            return self::withDerived($defaults);
+        }
 
         $days = [];
         foreach (self::DAYS as $d) {
-            $days[$d] = array_merge($defaults['days'][$d], $schedule['days'][$d] ?? []);
+            $days[$d] = self::normalizeDay($schedule['days'][$d] ?? [], $defaults['days'][$d]);
         }
 
-        return [
+        return self::withDerived([
             'days' => $days,
-            'slot_minutes'     => (int)($schedule['slot_minutes']     ?? $defaults['slot_minutes']),
-            'min_lead_minutes' => (int)($schedule['min_lead_minutes'] ?? $defaults['min_lead_minutes']),
-            'max_lead_days'    => (int)($schedule['max_lead_days']    ?? $defaults['max_lead_days']),
-        ];
+            'slot_minutes'     => (int) ($schedule['slot_minutes']     ?? $defaults['slot_minutes']),
+            'min_lead_minutes' => (int) ($schedule['min_lead_minutes'] ?? $defaults['min_lead_minutes']),
+            'max_lead_days'    => (int) ($schedule['max_lead_days']    ?? $defaults['max_lead_days']),
+        ]);
+    }
+
+    /** Um dia: aceita o formato novo (periods) e converte o antigo (open/close/lunch). */
+    private static function normalizeDay(array $raw, array $default): array
+    {
+        $active = array_key_exists('active', $raw) ? (bool) $raw['active'] : (bool) $default['active'];
+        $periods = [];
+
+        if (! empty($raw['periods']) && is_array($raw['periods'])) {
+            foreach ($raw['periods'] as $p) {
+                $s = self::hhmm($p['start'] ?? null);
+                $e = self::hhmm($p['end'] ?? null);
+                if ($s && $e && $e > $s) {
+                    $periods[] = ['start' => $s, 'end' => $e];
+                }
+            }
+        } elseif (isset($raw['open']) || isset($raw['close'])) {
+            // ---- FORMATO ANTIGO: abre/fecha (+ almoço) vira 1 ou 2 períodos ----
+            $open  = self::hhmm($raw['open'] ?? null)  ?: $default['periods'][0]['start'];
+            $close = self::hhmm($raw['close'] ?? null) ?: end($default['periods'])['end'];
+            $ls = self::hhmm($raw['lunch']['start'] ?? null);
+            $le = self::hhmm($raw['lunch']['end'] ?? null);
+
+            if ($ls && $le && $ls > $open && $le < $close && $le > $ls) {
+                $periods[] = ['start' => $open, 'end' => $ls];   // manhã
+                $periods[] = ['start' => $le,   'end' => $close]; // tarde
+            } elseif ($close > $open) {
+                $periods[] = ['start' => $open, 'end' => $close];
+            }
+        }
+
+        if (empty($periods)) {
+            $periods = $default['periods'];
+        }
+
+        return ['active' => $active, 'periods' => self::mergePeriods($periods)];
+    }
+
+    /** Ordena e funde períodos que se sobrepõem ou se encostam (evita buraco fantasma). */
+    private static function mergePeriods(array $periods): array
+    {
+        usort($periods, fn ($a, $b) => strcmp($a['start'], $b['start']));
+
+        $out = [];
+        foreach ($periods as $p) {
+            $ultimo = count($out) - 1;
+            if ($ultimo >= 0 && $p['start'] <= $out[$ultimo]['end']) {
+                $out[$ultimo]['end'] = max($out[$ultimo]['end'], $p['end']);
+            } else {
+                $out[] = $p;
+            }
+        }
+
+        return array_values($out);
+    }
+
+    /** Acrescenta open/close derivados por dia (compat de leitura — ver nota no topo). */
+    private static function withDerived(array $cfg): array
+    {
+        foreach (self::DAYS as $d) {
+            $p = $cfg['days'][$d]['periods'];
+            $cfg['days'][$d]['open']  = $p[0]['start'];
+            $cfg['days'][$d]['close'] = end($p)['end'];
+        }
+
+        return $cfg;
+    }
+
+    private static function hhmm(?string $v): ?string
+    {
+        if (! $v || ! preg_match('/^(\d{1,2}):(\d{2})$/', trim($v), $m)) {
+            return null;
+        }
+        $h = (int) $m[1];
+        if ($h > 23 || (int) $m[2] > 59) {
+            return null;
+        }
+
+        return sprintf('%02d:%s', $h, $m[2]);
+    }
+
+    /** "08:00–12:00, 14:00–18:00" — usado na UI e no prompt da IA. */
+    public static function describeDay(array $day): string
+    {
+        if (empty($day['active'])) {
+            return 'não atende';
+        }
+
+        return implode(', ', array_map(fn ($p) => "{$p['start']}–{$p['end']}", $day['periods']));
     }
 
     /**
@@ -106,39 +208,32 @@ class DoctorSchedule
             return 'O médico não atende neste dia da semana.';
         }
 
-        $open  = self::timeOn($start, $day['open']);
-        $close = self::timeOn($start, $day['close']);
-
-        if ($start->lessThan($open) || $end->greaterThan($close)) {
-            return "Fora do expediente ({$day['open']}–{$day['close']}).";
-        }
-
-        $lunch = $day['lunch'] ?? null;
-        if ($lunch && ! empty($lunch['start']) && ! empty($lunch['end'])) {
-            $ls = self::timeOn($start, $lunch['start']);
-            $le = self::timeOn($start, $lunch['end']);
-            // Overlap se start < le && end > ls
-            if ($start->lessThan($le) && $end->greaterThan($ls)) {
-                return "Conflita com a pausa de almoço ({$lunch['start']}–{$lunch['end']}).";
+        // Tem que caber INTEIRO dentro de UM período. Cair no buraco entre eles (o antigo
+        // "almoço") é o mesmo que estar fora do expediente.
+        foreach ($day['periods'] as $p) {
+            $ini = self::timeOn($start, $p['start']);
+            $fim = self::timeOn($start, $p['end']);
+            if ($start->greaterThanOrEqualTo($ini) && $end->lessThanOrEqualTo($fim)) {
+                return null;
             }
         }
 
-        return null;
+        return 'Fora dos horários de atendimento ('.self::describeDay($day).').';
     }
 
     /**
      * Enumera os horários LIVRES de um médico a partir de $from, por $days dias.
-     * Respeita expediente, almoço, antecedência mínima/máxima e subtrai as consultas
+     * Respeita os períodos do dia, antecedência mínima/máxima e subtrai as consultas
      * já ocupadas ($busy = lista de ['start'=>..., 'end'=>...], Carbon ou string ISO).
      * Devolve [ ['start'=>ISO8601, 'end'=>ISO8601], ... ] no fuso de $from.
      * Não toca no banco (puro) — quem consulta as consultas ocupadas é o controller.
      */
     public static function freeSlots(Doctor $doctor, CarbonInterface $from, int $days, array $busy = []): array
     {
-        $cfg     = self::normalize($doctor->schedule);
-        $slotMin = max(5, (int) $cfg['slot_minutes']);
-        $tz      = $from->getTimezone();
-        $now     = Carbon::now($tz);
+        $cfg      = self::normalize($doctor->schedule);
+        $slotMin  = max(5, (int) $cfg['slot_minutes']);
+        $tz       = $from->getTimezone();
+        $now      = Carbon::now($tz);
         $earliest = $now->copy()->addMinutes($cfg['min_lead_minutes']);
         $latest   = $cfg['max_lead_days'] > 0 ? $now->copy()->addDays($cfg['max_lead_days']) : null;
 
@@ -153,36 +248,38 @@ class DoctorSchedule
         for ($i = 0; $i < $days; $i++) {
             $day  = $startDay->copy()->addDays($i);
             $conf = $cfg['days'][self::DAYS[$day->dayOfWeekIso - 1]] ?? null;
-            if (! $conf || empty($conf['active'])) continue;
+            if (! $conf || empty($conf['active'])) {
+                continue;
+            }
 
-            $open  = self::timeOn($day, $conf['open']);
-            $close = self::timeOn($day, $conf['close']);
-            $lunch = (! empty($conf['lunch']['start']) && ! empty($conf['lunch']['end']))
-                ? ['start' => self::timeOn($day, $conf['lunch']['start']), 'end' => self::timeOn($day, $conf['lunch']['end'])]
-                : null;
+            // Um cursor POR PERÍODO: assim a tarde recomeça no horário cheio dela em vez de
+            // herdar o resto de slot da manhã.
+            foreach ($conf['periods'] as $p) {
+                $ini = self::timeOn($day, $p['start']);
+                $fim = self::timeOn($day, $p['end']);
 
-            $cursor = $open->copy();
-            while ($cursor->copy()->addMinutes($slotMin)->lessThanOrEqualTo($close)) {
-                $slotStart = $cursor->copy();
-                $slotEnd   = $cursor->copy()->addMinutes($slotMin);
+                $cursor = $ini->copy();
+                while ($cursor->copy()->addMinutes($slotMin)->lessThanOrEqualTo($fim)) {
+                    $slotStart = $cursor->copy();
+                    $slotEnd   = $cursor->copy()->addMinutes($slotMin);
 
-                $free = $slotStart->greaterThanOrEqualTo($earliest)
-                    && (! $latest || $slotStart->lessThanOrEqualTo($latest))
-                    && ! ($lunch && $slotStart->lessThan($lunch['end']) && $slotEnd->greaterThan($lunch['start']));
+                    $free = $slotStart->greaterThanOrEqualTo($earliest)
+                        && (! $latest || $slotStart->lessThanOrEqualTo($latest));
 
-                if ($free) {
-                    foreach ($busyIntervals as $b) {
-                        if ($slotStart->lessThan($b['end']) && $slotEnd->greaterThan($b['start'])) {
-                            $free = false;
-                            break;
+                    if ($free) {
+                        foreach ($busyIntervals as $b) {
+                            if ($slotStart->lessThan($b['end']) && $slotEnd->greaterThan($b['start'])) {
+                                $free = false;
+                                break;
+                            }
                         }
                     }
-                }
 
-                if ($free) {
-                    $slots[] = ['start' => $slotStart->toIso8601String(), 'end' => $slotEnd->toIso8601String()];
+                    if ($free) {
+                        $slots[] = ['start' => $slotStart->toIso8601String(), 'end' => $slotEnd->toIso8601String()];
+                    }
+                    $cursor->addMinutes($slotMin);
                 }
-                $cursor->addMinutes($slotMin);
             }
         }
 
@@ -192,51 +289,50 @@ class DoctorSchedule
     private static function timeOn(CarbonInterface $day, string $hhmm): CarbonInterface
     {
         [$h, $m] = array_map('intval', explode(':', $hhmm));
+
         return $day->copy()->setTime($h, $m, 0);
     }
 
     /**
      * Consolida vários schedules em um único (pra agenda mostrar "todos os médicos"):
      * - dia ativo se QUALQUER médico atende nele
-     * - open = menor open dos ativos
-     * - close = maior close dos ativos
-     * - lunch = só se TODOS os ativos têm exatamente o mesmo almoço (senão null)
+     * - períodos = UNIÃO dos períodos dos ativos (sobreposições fundidas). Assim, se um atende
+     *   de manhã e outro à tarde, a agenda mostra os dois blocos — e o buraco só aparece se
+     *   NINGUÉM atende naquele intervalo.
      * - slot_minutes = menor entre os schedules (mais granular)
      * - antecedências = mais permissivas (menor min, maior max)
      */
     public static function union(array $schedules): array
     {
-        if (empty($schedules)) return self::defaults();
+        if (empty($schedules)) {
+            return self::normalize(null);
+        }
 
         $schedules = array_map([self::class, 'normalize'], $schedules);
         $out = self::defaults();
-        $slots = array_map(fn ($s) => $s['slot_minutes'], $schedules);
-        $minL  = array_map(fn ($s) => $s['min_lead_minutes'], $schedules);
-        $maxL  = array_map(fn ($s) => $s['max_lead_days'], $schedules);
-        $out['slot_minutes']     = min($slots);
-        $out['min_lead_minutes'] = min($minL);
-        $out['max_lead_days']    = max($maxL);
+
+        $out['slot_minutes']     = min(array_map(fn ($s) => $s['slot_minutes'], $schedules));
+        $out['min_lead_minutes'] = min(array_map(fn ($s) => $s['min_lead_minutes'], $schedules));
+        $out['max_lead_days']    = max(array_map(fn ($s) => $s['max_lead_days'], $schedules));
 
         foreach (self::DAYS as $d) {
-            $actives = array_filter($schedules, fn ($s) => ! empty($s['days'][$d]['active']));
-            if (empty($actives)) {
-                $out['days'][$d] = array_merge($out['days'][$d], ['active' => false, 'lunch' => null]);
+            $ativos = array_filter($schedules, fn ($s) => ! empty($s['days'][$d]['active']));
+
+            if (empty($ativos)) {
+                $out['days'][$d]['active'] = false;
                 continue;
             }
-            $opens  = array_map(fn ($s) => $s['days'][$d]['open'],  $actives);
-            $closes = array_map(fn ($s) => $s['days'][$d]['close'], $actives);
-            sort($opens); rsort($closes);
-            $lunches = array_map(fn ($s) => $s['days'][$d]['lunch'] ?? null, $actives);
-            $allSame = count(array_unique(array_map('json_encode', $lunches))) === 1;
-            $lunch = $allSame ? reset($lunches) : null;
 
-            $out['days'][$d] = [
-                'active' => true,
-                'open'   => $opens[0],
-                'close'  => $closes[0],
-                'lunch'  => $lunch,
-            ];
+            $todos = [];
+            foreach ($ativos as $s) {
+                foreach ($s['days'][$d]['periods'] as $p) {
+                    $todos[] = $p;
+                }
+            }
+
+            $out['days'][$d] = ['active' => true, 'periods' => self::mergePeriods($todos)];
         }
-        return $out;
+
+        return self::withDerived($out);
     }
 }

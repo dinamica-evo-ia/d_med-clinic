@@ -199,7 +199,9 @@ class AttendantAI
                 $dias = [];
                 foreach ($cfg['days'] as $k => $c) {
                     if (! empty($c['active'])) {
-                        $dias[] = self::DIA_PT[$k]." {$c['open']}–{$c['close']}";
+                        // Períodos, não "abre–fecha": senão a IA oferece 12:30 pra quem
+                        // atende 08:00–12:00 e 14:00–18:00 (o almoço sumia da descrição).
+                        $dias[] = self::DIA_PT[$k].' '.DoctorSchedule::describeDay($c);
                     }
                 }
                 $agenda = $dias ? implode('; ', $dias) : 'sem dias configurados';
