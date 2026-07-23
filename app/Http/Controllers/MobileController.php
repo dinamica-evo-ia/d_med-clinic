@@ -56,7 +56,9 @@ class MobileController extends Controller
                 'paciente' => $a->patient?->name ?? 'Sem paciente',
                 'paciente_id' => $a->patient_id,
                 'medico' => $a->doctor?->name,
-                'status' => $a->status,
+                // situacao(), não status: o médico precisa ver no celular quem já confirmou
+                // presença e quem ainda não respondeu o lembrete.
+                'status' => $a->situacao(),
                 'tipo' => $a->type,
                 'is_proxima' => $proxima && $a->id === $proxima->id,
             ])->values(),

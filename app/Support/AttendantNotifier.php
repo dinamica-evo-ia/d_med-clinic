@@ -44,13 +44,34 @@ class AttendantNotifier
         });
     }
 
-    /** Lembrete de 24h. Confirma a presença e deixa a porta aberta pra remarcar. */
-    public static function reminder(Appointment $appt): void
+    /**
+     * Lembrete da consulta. PEDE CONFIRMAÇÃO de forma explícita ("responda SIM"): a resposta
+     * é o que pinta a consulta de verde na agenda, então a pergunta não pode ser vaga.
+     * A antecedência (1 ou 2 dias) é da clínica — por isso "amanhã" virou a data mesmo.
+     */
+    public static function reminder(Appointment $appt, int $diasAntes = 1): void
+    {
+        $quandoTexto = $diasAntes === 1 ? 'amanhã' : 'daqui a '.$diasAntes.' dias';
+
+        self::notify($appt, fn ($nome, $quando, $medico) =>
+            "Olá{$nome}! Passando pra lembrar da sua consulta *{$quandoTexto}*, {$quando}"
+            .($medico ? " com {$medico}" : '').".\n\n"
+            ."Pode *confirmar* que você vem? Responda *SIM* pra confirmar.\n"
+            .'Se precisar remarcar ou cancelar, é só me avisar por aqui. 🙂'
+        );
+    }
+
+    /**
+     * 2ª e ÚLTIMA tentativa, perto da consulta, pra quem não respondeu o lembrete.
+     * Uma só: cobrar confirmação a cada duas horas afasta paciente.
+     */
+    public static function insist(Appointment $appt): void
     {
         self::notify($appt, fn ($nome, $quando, $medico) =>
-            "Olá{$nome}! Passando pra lembrar da sua consulta *amanhã*, {$quando}"
-            .($medico ? " com {$medico}" : '').".\n\n"
-            .'Está tudo certo pra você vir? Se precisar remarcar ou cancelar, é só me avisar por aqui. 🙂'
+            "Oi{$nome}! Só confirmando sua consulta de *hoje*, {$quando}"
+            .($medico ? " com {$medico}" : '').". 🙂\n\n"
+            .'Responda *SIM* se estiver tudo certo, ou me avise se não puder vir — '
+            .'assim conseguimos liberar o horário pra outra pessoa.'
         );
     }
 

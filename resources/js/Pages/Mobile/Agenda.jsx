@@ -5,9 +5,11 @@ import BotaoInstalar from '@/Components/mobile/BotaoInstalar';
 // Rótulo/cor por status. Fallback discreto pro que não estiver mapeado.
 const STATUS = {
   scheduled: { label: 'Agendada', cls: 'bg-blue-50 text-blue-700 ring-blue-200' },
+  // avisada e sem resposta: o médico bate o olho e já sabe quem pode faltar
+  awaiting_confirmation: { label: 'Aguardando confirmação', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
   confirmed: { label: 'Confirmada', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   completed: { label: 'Atendida', cls: 'bg-slate-100 text-slate-500 ring-slate-200' },
-  no_show: { label: 'Faltou', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  no_show: { label: 'Faltou', cls: 'bg-rose-50 text-rose-700 ring-rose-200' },
 };
 const statusDe = (s) => STATUS[s] || { label: s || '—', cls: 'bg-slate-50 text-slate-500 ring-slate-200' };
 

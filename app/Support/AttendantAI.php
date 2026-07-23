@@ -188,6 +188,21 @@ class AttendantAI
             ? 'Você PODE marcar consultas. Confirme médico, dia e horário com o paciente ANTES de chamar agendar_consulta.'
             : 'Você NÃO deve marcar consultas sozinho. Pode informar horários livres, mas peça pro paciente aguardar a confirmação da secretária.';
 
+        /*
+         * A clínica manda um lembrete pedindo "responda SIM". Sem esta regra a IA respondia
+         * "que bom, até lá!" e o SIM morria na conversa — a agenda ficava amarela pra sempre
+         * e a secretária ligava pra quem já tinha confirmado.
+         */
+        $confirmRule = <<<'C'
+- 🔴 CONFIRMAÇÃO DE PRESENÇA: a clínica manda um lembrete pedindo que o paciente responda SIM.
+  Quando ele responder qualquer coisa que signifique "eu vou" — sim, confirmo, estarei lá, pode
+  manter, ok, beleza, isso — chame `minhas_consultas` e depois `confirmar_consulta` com o id da
+  consulta certa. NÃO basta responder "combinado": se você não chamar a ferramenta, a clínica
+  continua achando que ele não respondeu.
+  - Com mais de uma consulta próxima, confirme com ele qual é antes.
+  - "não posso", "vou precisar remarcar" NÃO é confirmação — trate como cancelamento/remarcação.
+C;
+
         // Médicos direto no prompt: o histórico é remontado do banco a cada mensagem e NÃO
         // guarda tool_use/tool_result — sem isso a IA perde o medico_id entre uma mensagem e
         // outra e não consegue chamar agendar_consulta quando o paciente confirma.
@@ -263,6 +278,7 @@ Objetivo: entender o que o paciente precisa e, quando for agendamento, oferecer 
 
 Regras:
 - Nunca invente horários, médicos nem informações; use as ferramentas.
+{$confirmRule}
 - 🔴 NUNCA diga que a consulta foi marcada/confirmada/agendada sem que a ferramenta
   agendar_consulta tenha respondido com sucesso NESTA MESMA resposta. Se você só escreveu
   texto, NADA foi marcado — o paciente vai aparecer na clínica e não vai ter consulta.
@@ -436,6 +452,32 @@ TXT;
             ];
         }
 
+        /*
+         * Confirmar fica FORA do bloco de autonomia de propósito: foi a clínica que mandou a
+         * mensagem perguntando "você vem?". Registrar a resposta não é a IA decidindo nada —
+         * é anotar o recado. Sem isso, a clínica que deixa a IA em "sugerir" pediria
+         * confirmação e não teria onde guardar o "sim", e a agenda ficaria amarela pra sempre.
+         */
+        $tools[] = [
+            'name' => 'confirmar_consulta',
+            'description' => 'Registra que o paciente CONFIRMOU presença. Use quando ele responder '
+                .'sim / confirmo / estarei lá / pode manter, depois do lembrete. '
+                .'Pegue o consulta_id em minhas_consultas. Não use pra cancelar nem remarcar.',
+            'input_schema' => [
+                'type' => 'object',
+                'properties' => ['consulta_id' => ['type' => 'string']],
+                'required' => ['consulta_id'],
+            ],
+        ];
+        // minhas_consultas é pré-requisito do confirmar — precisa existir mesmo sem autonomia.
+        if (! collect($tools)->firstWhere('name', 'minhas_consultas')) {
+            $tools[] = [
+                'name' => 'minhas_consultas',
+                'description' => 'Lista as próximas consultas do paciente da conversa (id, quando, médico).',
+                'input_schema' => ['type' => 'object', 'properties' => (object) []],
+            ];
+        }
+
         return $tools;
     }
 
@@ -449,6 +491,7 @@ TXT;
             'minhas_consultas' => $this->toolMinhasConsultas(),
             'cancelar_consulta' => $this->toolCancelarConsulta($input),
             'remarcar_consulta' => $this->toolRemarcarConsulta($input),
+            'confirmar_consulta' => $this->toolConfirmarConsulta($input),
             default => ['erro' => "Ferramenta desconhecida: {$name}"],
         };
     }
@@ -556,6 +599,38 @@ TXT;
 
         return ['ok' => true, 'cancelada' => [
             'quando' => Carbon::parse($appt->starts_at)->setTimezone(self::TZ)->isoFormat('dddd, D [de] MMMM [às] HH:mm'),
+        ]];
+    }
+
+    /**
+     * "Sim, estarei lá" → 🟢 na agenda. Não avisa o médico: confirmação é o esperado, e um
+     * push a cada "sim" viraria ruído (o que interessa a ele é marcação, remarcação e
+     * cancelamento — esses continuam avisando).
+     */
+    private function toolConfirmarConsulta(array $input): array
+    {
+        $patient = $this->resolvePatient();
+        $appt = $patient ? Appointment::where('id', $input['consulta_id'] ?? '')
+            ->where('patient_id', $patient->id)
+            ->whereIn('status', ['scheduled', 'confirmed'])
+            ->first() : null;
+
+        if (! $appt) {
+            return ['erro' => 'Consulta não encontrada (ou já cancelada). Use minhas_consultas pra pegar o id certo.'];
+        }
+        if ($appt->starts_at->isPast()) {
+            return ['erro' => 'Essa consulta já passou. Confirme uma das próximas.'];
+        }
+
+        $appt->update([
+            'status' => 'confirmed',
+            'confirmed_at' => $appt->confirmed_at ?: now(),
+            'confirmed_via' => 'whatsapp',
+        ]);
+
+        return ['ok' => true, 'confirmada' => [
+            'quando' => Carbon::parse($appt->starts_at)->setTimezone(self::TZ)->isoFormat('dddd, D [de] MMMM [às] HH:mm'),
+            'medico' => $appt->doctor?->name,
         ]];
     }
 

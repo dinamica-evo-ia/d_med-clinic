@@ -40,6 +40,11 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
     business_hours: { open: bh.open || '', close: bh.close || '', weekends: !!bh.weekends },
     autonomy: settings.autonomy || 'suggest',
     payment_types: settings.payment_types?.length ? settings.payment_types : ['particular', 'convenio'],
+    reminder_enabled: settings.reminder_enabled ?? true,
+    reminder_days_before: settings.reminder_days_before || 1,
+    reminder_hour: settings.reminder_hour || '09:00',
+    reminder_insist: settings.reminder_insist ?? true,
+    insist_hours_before: settings.insist_hours_before || 3,
   });
   const setBh = (k, v) => cfg.setData('business_hours', { ...cfg.data.business_hours, [k]: v });
 
@@ -128,6 +133,59 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
             <label className="text-xs text-slate-600">Fecha <input type="time" value={cfg.data.business_hours.close} onChange={(e) => setBh('close', e.target.value)} className="ml-1 rounded-lg border border-slate-300 px-2 py-1 text-sm" /></label>
             <label className="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" checked={cfg.data.business_hours.weekends} onChange={(e) => setBh('weekends', e.target.checked)} /> atende fim de semana</label>
           </div>
+        </div>
+
+        {/*
+          * Lembrete + confirmação. É este bloco que decide as cores da agenda: avisada sem
+          * resposta fica 🟡, o "SIM" do paciente vira 🟢.
+          */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={cfg.data.reminder_enabled}
+              onChange={(e) => cfg.setData('reminder_enabled', e.target.checked)}
+              className="rounded border-slate-300 text-blue-600" />
+            Lembrar o paciente da consulta e pedir confirmação
+          </label>
+          <p className="text-xs text-slate-500 mt-1 mb-2">
+            Na agenda: <span className="text-amber-600 font-medium">amarelo</span> = avisado e ainda não respondeu ·{' '}
+            <span className="text-emerald-600 font-medium">verde</span> = confirmou ·{' '}
+            <span className="text-rose-600 font-medium">vermelho</span> = cancelou.
+          </p>
+
+          {cfg.data.reminder_enabled && (
+            <div className="rounded-lg border border-slate-200 p-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-700">
+                <span>Avisar</span>
+                <select value={cfg.data.reminder_days_before}
+                  onChange={(e) => cfg.setData('reminder_days_before', Number(e.target.value))}
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                  <option value={1}>1 dia antes</option>
+                  <option value={2}>2 dias antes</option>
+                </select>
+                <span>às</span>
+                <input type="time" value={cfg.data.reminder_hour}
+                  onChange={(e) => cfg.setData('reminder_hour', e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-sm" />
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={cfg.data.reminder_insist}
+                  onChange={(e) => cfg.setData('reminder_insist', e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600" />
+                Se não responder, insistir mais uma vez
+              </label>
+              {cfg.data.reminder_insist && (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700 pl-6">
+                  <select value={cfg.data.insist_hours_before}
+                    onChange={(e) => cfg.setData('insist_hours_before', Number(e.target.value))}
+                    className="rounded-lg border border-slate-300 px-2 py-1 text-sm">
+                    {[1, 2, 3, 4, 6, 8, 12].map((h) => <option key={h} value={h}>{h}h</option>)}
+                  </select>
+                  <span className="text-slate-500 text-xs">antes da consulta — só uma vez, e só pra quem não confirmou.</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div>

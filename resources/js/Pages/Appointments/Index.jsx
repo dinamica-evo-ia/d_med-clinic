@@ -19,9 +19,17 @@ const rowDe = (slotMin) => {
 };
 const TZ = 'America/Sao_Paulo';
 const STATUS = {
-  scheduled: 'Agendado', confirmed: 'Confirmado', in_progress: 'Em andamento',
+  scheduled: 'Agendado', awaiting_confirmation: 'Aguardando confirmação',
+  confirmed: 'Confirmado', in_progress: 'Em andamento',
   completed: 'Concluído', cancelled: 'Cancelado', no_show: 'Faltou',
 };
+// Legenda do rodapé — as mesmas cores que o backend manda em backgroundColor.
+const LEGENDA = [
+  ['#3B82F6', 'Marcada'],
+  ['#F59E0B', 'Avisada, aguardando o paciente'],
+  ['#10B981', 'Confirmada pelo paciente'],
+  ['#EF4444', 'Cancelada'],
+];
 
 const _fmt = new Intl.DateTimeFormat('en-CA', {
   timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -182,7 +190,16 @@ export default function Index() {
         {view === 'week' && <TimeGrid days={Array.from({ length: 5 }, (_, i) => addDays(range[0], i))} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} excecoes={excecoes} onEditarDia={setDiaEmEdicao} />}
         {view === 'day' && <TimeGrid days={[startOfDay(cursor)]} events={events} today={today} now={nowTick} dragRef={dragRef} onReschedule={reschedule} single H0={H0} H1={H1} SLOT={SLOT} schedule={schedule} excecoes={excecoes} onEditarDia={setDiaEmEdicao} />}
       </div>
-      <p className="mt-2 text-xs text-slate-400">
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+        {LEGENDA.map(([cor, texto]) => (
+          <span key={cor} className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: cor }} />
+            {texto}
+          </span>
+        ))}
+      </div>
+
+      <p className="mt-1.5 text-xs text-slate-400">
         Dica: arraste um compromisso para outro horário ou dia para reagendar. Horários no fuso de Brasília.
         {doctorId
           ? <> Mostrando agenda de <strong>{doctors.find((d) => d.id === doctorId)?.name}</strong>. Áreas em cinza estão fora do expediente.</>

@@ -77,6 +77,39 @@ do último dia do range sumia).
   continua indo pro backend, só deixou de ser digitado. Regra do dono: se a duração já está
   configurada, o agendamento **não pergunta** de novo.
 
+## Lembrete + confirmação do paciente (as cores da agenda)
+
+Configurado por clínica em **/atendente** (`attendant_settings`): ligar/desligar, **1 ou 2 dias**
+de antecedência, **hora do disparo**, e se a IA **insiste** uma vez (quantas horas antes).
+
+| Cor | Situação | De onde vem |
+|---|---|---|
+| 🔵 Azul | Marcada, ainda não avisamos | `status=scheduled`, `reminded_at` nulo |
+| 🟡 Amarelo | Avisada, paciente não respondeu | `status=scheduled` + `reminded_at` preenchido |
+| 🟢 Verde | Paciente confirmou | `status=confirmed` (+ `confirmed_at`/`confirmed_via`) |
+| 🔴 Vermelho | Cancelada | `status=cancelled` |
+
+A regra mora em **`Appointment::situacao()`** — calendário, PWA do médico e relatórios leem a
+mesma coisa. Não há coluna de cor: amarelo é derivado. "Em andamento" saiu do âmbar pro índigo
+(`#6366F1`) pra não competir com o aguardando-confirmação.
+
+**Comando `appointments:send-reminders`** (scheduler, a cada 15 min) faz duas passadas:
+
+1. **Lembrete** — no dia (D − dias configurados), **a partir da hora escolhida**. Marca
+   `reminded_at`. A hora fixa substituiu a antiga janela de 23h–25h: com a janela, quem tinha
+   consulta às 7h recebia o lembrete às 7h do dia anterior.
+2. **Insistência** — N horas antes da consulta, **uma vez**, só pra quem foi avisado e não
+   respondeu. Marca `insisted_at`. Quem já confirmou e quem nunca recebeu o 1º aviso ficam de
+   fora (a primeira mensagem da clínica não pode ser uma cobrança).
+
+"A partir de" e não "exatamente às": se o servidor estiver fora do ar na hora certa, a rodada
+seguinte ainda pega o lembrete no mesmo dia em vez de perdê-lo em silêncio.
+
+**Quem confirma** é a IA, pela ferramenta `confirmar_consulta` (`AttendantAI`). Ela fica **fora
+do bloco de autonomia** de propósito: foi a clínica que perguntou "você vem?", então registrar a
+resposta não é a IA decidindo nada. Sem isso, clínica com a IA em "sugerir" pediria confirmação e
+não teria onde guardar o "sim" — e a agenda ficaria amarela pra sempre.
+
 ## Avisos ao médico
 
 Marcar/remarcar/cancelar dispara **push no PWA** pro médico (`App\Support\DoctorNotifier`) — nunca

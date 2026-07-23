@@ -47,6 +47,12 @@ class AttendantController extends Controller
                 // Da clínica, não do bot — mas é aqui que a secretária configura, porque é isto
                 // que decide se a IA pergunta "particular ou convênio?" ou nem toca no assunto.
                 'payment_types' => ClinicProfile::current()->aceita(),
+                // Lembrete + confirmação: é o que pinta a agenda de amarelo/verde.
+                'reminder_enabled' => (bool) $s->reminder_enabled,
+                'reminder_days_before' => $s->diasDeAntecedencia(),
+                'reminder_hour' => $s->horaDoLembrete(),
+                'reminder_insist' => (bool) $s->reminder_insist,
+                'insist_hours_before' => $s->horasParaInsistir(),
             ],
             'whatsapp' => [
                 'connected' => $s->isWhatsappConnected(),
@@ -84,6 +90,11 @@ class AttendantController extends Controller
             // min:1 de propósito: clínica sem nenhuma forma de pagamento não consegue marcar nada.
             'payment_types' => 'nullable|array|min:1',
             'payment_types.*' => 'in:'.implode(',', ClinicProfile::PAYMENT_TYPES),
+            'reminder_enabled' => 'boolean',
+            'reminder_days_before' => 'nullable|integer|in:1,2',
+            'reminder_hour' => 'nullable|date_format:H:i',
+            'reminder_insist' => 'boolean',
+            'insist_hours_before' => 'nullable|integer|min:1|max:12',
         ]);
 
         $bh = $data['business_hours'] ?? null;
@@ -101,6 +112,11 @@ class AttendantController extends Controller
             'offhours_message' => $data['offhours_message'] ?? null,
             'business_hours' => $bh,
             'autonomy' => $data['autonomy'] ?? $s->autonomy,
+            'reminder_enabled' => $data['reminder_enabled'] ?? $s->reminder_enabled,
+            'reminder_days_before' => $data['reminder_days_before'] ?? $s->reminder_days_before,
+            'reminder_hour' => $data['reminder_hour'] ?? $s->reminder_hour,
+            'reminder_insist' => $data['reminder_insist'] ?? $s->reminder_insist,
+            'insist_hours_before' => $data['insist_hours_before'] ?? $s->insist_hours_before,
         ]);
 
         if (! empty($data['payment_types'])) {

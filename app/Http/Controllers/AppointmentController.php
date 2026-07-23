@@ -277,18 +277,28 @@ class AppointmentController extends Controller
             ->when($doctorId, fn ($q) => $q->where('doctor_id', $doctorId))
             ->get()
             ->map(function ($appointment) {
+                /*
+                 * A cor sai da SITUAÇÃO, não só do status: "agendada e já avisada, sem resposta"
+                 * é amarelo, o que o status sozinho não sabia dizer. O âmbar era do "em
+                 * andamento", que virou índigo pra não competir com o aguardando-confirmação.
+                 */
+                $situacao = $appointment->situacao();
+
                 return [
                     'id' => $appointment->id,
                     'title' => "{$appointment->patient->name} - {$appointment->doctor->name}",
                     'start' => $appointment->starts_at,
                     'end' => $appointment->ends_at,
-                    'status' => $appointment->status,
-                    'backgroundColor' => match($appointment->status) {
-                        'scheduled' => '#3B82F6',
-                        'confirmed' => '#10B981',
-                        'in_progress' => '#F59E0B',
+                    'status' => $situacao,
+                    'confirmed_at' => $appointment->confirmed_at,
+                    'reminded_at' => $appointment->reminded_at,
+                    'backgroundColor' => match($situacao) {
+                        'scheduled' => '#3B82F6',              // 🔵 marcada, ainda não avisamos
+                        'awaiting_confirmation' => '#F59E0B',  // 🟡 avisada, sem resposta
+                        'confirmed' => '#10B981',              // 🟢 paciente confirmou
+                        'in_progress' => '#6366F1',
                         'completed' => '#6B7280',
-                        'cancelled' => '#EF4444',
+                        'cancelled' => '#EF4444',              // 🔴 cancelada
                         'no_show' => '#8B5CF6',
                         default => '#3B82F6',
                     },

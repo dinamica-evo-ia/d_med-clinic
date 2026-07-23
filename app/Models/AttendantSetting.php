@@ -13,6 +13,8 @@ class AttendantSetting extends Model
         'enabled', 'bot_name', 'persona', 'tone', 'welcome_message', 'offhours_message',
         'business_hours', 'autonomy', 'provider', 'waduck_instance', 'waduck_api_url',
         'waduck_api_key', 'instance_token', 'waduck_phone', 'webhook_token', 'connected_at',
+        'reminder_enabled', 'reminder_days_before', 'reminder_hour',
+        'reminder_insist', 'insist_hours_before',
     ];
 
     protected function casts(): array
@@ -21,7 +23,29 @@ class AttendantSetting extends Model
             'enabled' => 'boolean',
             'business_hours' => 'array',
             'connected_at' => 'datetime',
+            'reminder_enabled' => 'boolean',
+            'reminder_insist' => 'boolean',
+            'reminder_days_before' => 'integer',
+            'insist_hours_before' => 'integer',
         ];
+    }
+
+    /** 1 ou 2 dias — o que a clínica escolheu, com piso e teto pra não vir lixo do banco. */
+    public function diasDeAntecedencia(): int
+    {
+        return max(1, min(2, (int) ($this->reminder_days_before ?: 1)));
+    }
+
+    /** Hora do disparo do lembrete, no fuso da clínica. */
+    public function horaDoLembrete(): string
+    {
+        return preg_match('/^\d{2}:\d{2}$/', (string) $this->reminder_hour) ? $this->reminder_hour : '09:00';
+    }
+
+    /** Quantas horas antes da consulta a IA insiste com quem não respondeu. */
+    public function horasParaInsistir(): int
+    {
+        return max(1, min(12, (int) ($this->insist_hours_before ?: 3)));
     }
 
     /**

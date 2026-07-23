@@ -20,8 +20,24 @@ class Appointment extends Model
         'status', 'type', 'notes',
         'payment_type', 'insurance_name',
         'source', 'external_ref', 'reminded_at',
+        'insisted_at', 'confirmed_at', 'confirmed_via',
         'cancelled_at', 'cancellation_reason',
     ];
+
+    /**
+     * Semáforo da consulta — é o que pinta a agenda:
+     *   🔵 agendada (ainda não avisamos) · 🟡 avisada, sem resposta
+     *   🟢 confirmada · 🔴 cancelada · e os estados de execução (em andamento etc.)
+     * Fica no model pra calendário, PWA e relatórios lerem a MESMA regra.
+     */
+    public function situacao(): string
+    {
+        if ($this->status !== 'scheduled') {
+            return $this->status;
+        }
+
+        return $this->reminded_at ? 'awaiting_confirmation' : 'scheduled';
+    }
 
     protected function casts(): array
     {
@@ -30,6 +46,8 @@ class Appointment extends Model
             'ends_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'reminded_at' => 'datetime',
+            'insisted_at' => 'datetime',
+            'confirmed_at' => 'datetime',
             'id' => 'string',
         ];
     }
