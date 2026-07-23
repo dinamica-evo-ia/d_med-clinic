@@ -70,6 +70,9 @@ export default function UserMenu({ user, role, tenant, isMaster, dark = false })
               <MItem href="/account/settings/doctor" onClick={() => setOpen(false)} label="Médico" icon="stethoscope" />
             )}
             <MItem href="/account/settings/schedule" onClick={() => setOpen(false)} label="Agenda (dias/horários)" icon="clock" />
+            {/* Convênios: a recepção também mexe — é ela que descobre no balcão que a clínica
+                passou a atender um convênio novo. */}
+            <MItem href="/account/settings/insurance" onClick={() => setOpen(false)} label="Convênios aceitos" icon="card" />
             {podeConfigurar && (
               <>
                 <MItem href="/account/settings/print" onClick={() => setOpen(false)} label="Impressão da receita" icon="printer" />

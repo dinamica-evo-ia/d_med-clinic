@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ClinicProfile;
 use App\Models\Doctor;
+use App\Models\InsurancePlan;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\DoctorSchedule;
@@ -265,6 +266,92 @@ class AccountController extends Controller
         }
 
         return back()->with('success', 'Logo removida.');
+    }
+
+    /*
+     * ─────────────── CONVÊNIOS ACEITOS ───────────────
+     * Antes o convênio da consulta era texto livre com um datalist do que já tinha sido
+     * digitado — "Unimed", "unimed " e "UNINED" viravam convênios diferentes, e a IA no
+     * WhatsApp aceitava qualquer nome. Agora sai tudo desta lista.
+     */
+    public function settingsInsurance()
+    {
+        return Inertia::render('Account/Settings/Insurance', [
+            'plans' => InsurancePlan::with('doctors:id,name')->orderBy('name')->get()
+                ->map(fn ($p) => [
+                    'id'          => $p->id,
+                    'name'        => $p->name,
+                    'notes'       => $p->notes,
+                    'all_doctors' => $p->all_doctors,
+                    'is_active'   => $p->is_active,
+                    'doctor_ids'  => $p->doctors->pluck('id')->all(),
+                ])->values(),
+            'doctors' => Doctor::where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                ->map(fn ($d) => ['id' => $d->id, 'name' => $d->name])->values(),
+        ]);
+    }
+
+    public function insuranceStore(Request $request)
+    {
+        $data = $this->validaConvenio($request);
+        $plan = InsurancePlan::create($data['campos']);
+        $plan->doctors()->sync($data['campos']['all_doctors'] ? [] : $data['medicos']);
+
+        return back()->with('success', "Convênio {$plan->name} cadastrado.");
+    }
+
+    public function insuranceUpdate(Request $request, InsurancePlan $insurancePlan)
+    {
+        $data = $this->validaConvenio($request, $insurancePlan->id);
+        $insurancePlan->update($data['campos']);
+        // all_doctors = true limpa o pivot: senão sobrariam vínculos escondidos que voltam
+        // a valer se alguém desmarcar depois, sem entender por quê.
+        $insurancePlan->doctors()->sync($data['campos']['all_doctors'] ? [] : $data['medicos']);
+
+        return back()->with('success', 'Convênio atualizado.');
+    }
+
+    public function insuranceDestroy(InsurancePlan $insurancePlan)
+    {
+        $nome = $insurancePlan->name;
+        $insurancePlan->doctors()->detach();
+        $insurancePlan->delete();
+
+        // As consultas antigas guardam o NOME em appointments.insurance_name, então apagar o
+        // cadastro não mexe no histórico — só some da lista de novas marcações.
+        return back()->with('success', "Convênio {$nome} removido da lista.");
+    }
+
+    private function validaConvenio(Request $request, ?string $ignorarId = null): array
+    {
+        $data = $request->validate([
+            'name'          => ['required', 'string', 'max:120'],
+            'notes'         => ['nullable', 'string', 'max:160'],
+            'all_doctors'   => ['required', 'boolean'],
+            'is_active'     => ['required', 'boolean'],
+            'doctor_ids'    => ['array'],
+            'doctor_ids.*'  => ['exists:doctors,id'],
+        ]);
+
+        // Nome repetido só confunde na hora de escolher (dois "Unimed" no select).
+        $existe = InsurancePlan::whereRaw('lower(name) = ?', [mb_strtolower(trim($data['name']))])
+            ->when($ignorarId, fn ($q) => $q->where('id', '!=', $ignorarId))
+            ->exists();
+        if ($existe) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'name' => 'Já existe um convênio com esse nome.',
+            ]);
+        }
+
+        return [
+            'campos' => [
+                'name'        => trim($data['name']),
+                'notes'       => $data['notes'] ?? null,
+                'all_doctors' => (bool) $data['all_doctors'],
+                'is_active'   => (bool) $data['is_active'],
+            ],
+            'medicos' => $data['doctor_ids'] ?? [],
+        ];
     }
 
     public function settingsSchedule(Request $request)

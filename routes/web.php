@@ -164,6 +164,13 @@ Route::middleware(['auth', 'web', 'tenancy.by_user'])->group(function () {
         Route::delete('/settings/print/logo', [\App\Http\Controllers\AccountController::class, 'printLogoDestroy'])->name('settings.print.logo.destroy');
         Route::get('/settings/certificate', [\App\Http\Controllers\AccountController::class, 'settingsCertificate'])->name('settings.certificate');
 
+        // Convênios aceitos — a recepção também mexe (é ela que descobre no balcão que a
+        // clínica passou a atender um convênio novo), então não é role:admin,doctor.
+        Route::get('/settings/insurance', [\App\Http\Controllers\AccountController::class, 'settingsInsurance'])->name('settings.insurance');
+        Route::post('/settings/insurance', [\App\Http\Controllers\AccountController::class, 'insuranceStore'])->name('settings.insurance.store');
+        Route::put('/settings/insurance/{insurancePlan}', [\App\Http\Controllers\AccountController::class, 'insuranceUpdate'])->name('settings.insurance.update');
+        Route::delete('/settings/insurance/{insurancePlan}', [\App\Http\Controllers\AccountController::class, 'insuranceDestroy'])->name('settings.insurance.destroy');
+
         // Importar & Exportar (substitui "Logins ativos")
         Route::get('/settings/import-export', [\App\Http\Controllers\ImportExportController::class, 'index'])->name('settings.import-export');
         Route::get('/settings/import-export/medical-records', [\App\Http\Controllers\ImportExportController::class, 'medicalRecordsForm'])->name('settings.import-export.medical-records');

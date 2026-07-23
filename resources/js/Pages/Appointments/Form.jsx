@@ -89,6 +89,17 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
     };
 
     const selectedDoctor = useMemo(() => doctors.find((d) => d.id === data.doctor_id), [doctors, data.doctor_id]);
+    // Convênios que ESTE médico atende. A clínica sem cadastro nenhum cai no texto livre.
+    const conveniosDoMedico = selectedDoctor?.insurances || [];
+    const temConvenioNaClinica = doctors.some((d) => (d.insurances || []).length > 0);
+
+    // Trocou de médico e o convênio escolhido não é atendido por ele? Limpa em vez de mandar
+    // pro backend e voltar com erro — o campo já mostra só o que dá pra escolher.
+    useEffect(() => {
+        if (!temConvenioNaClinica || !data.doctor_id || !data.insurance_name) return;
+        if (!conveniosDoMedico.includes(data.insurance_name)) setData('insurance_name', '');
+    }, [data.doctor_id]);
+
     const schedule = selectedDoctor?.schedule;
     const excecoes = selectedDoctor?.exceptions || {};
     const warning = useMemo(
@@ -187,17 +198,40 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
                     {data.payment_type === 'convenio' && (
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium text-gray-700 mb-1">Qual convênio? *</label>
-                            <input list="convenios-conhecidos"
-                                value={data.insurance_name}
-                                onChange={e => setData('insurance_name', e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                placeholder="Ex.: Unimed, Bradesco Saúde…" />
-                            {/* datalist com os que a clínica já usou — evita 'Unimed'/'unimed'/'UNIMED' */}
-                            <datalist id="convenios-conhecidos">
-                                {(convenios || []).map((c) => <option key={c} value={c} />)}
-                            </datalist>
+                            {/*
+                              * Lista dos convênios que ESTE médico atende (Configurações → Convênios).
+                              * Enquanto a clínica não cadastrar nenhum, o campo segue texto livre —
+                              * senão o dia do deploy travaria a recepção com a lista vazia.
+                              */}
+                            {temConvenioNaClinica ? (
+                                <select value={data.insurance_name}
+                                    onChange={e => setData('insurance_name', e.target.value)}
+                                    disabled={!data.doctor_id}
+                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-400">
+                                    <option value="">Selecione o convênio…</option>
+                                    {conveniosDoMedico.map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            ) : (
+                                <>
+                                    <input list="convenios-conhecidos"
+                                        value={data.insurance_name}
+                                        onChange={e => setData('insurance_name', e.target.value)}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="Ex.: Unimed, Bradesco Saúde…" />
+                                    {/* datalist com os que a clínica já usou — evita 'Unimed'/'unimed'/'UNIMED' */}
+                                    <datalist id="convenios-conhecidos">
+                                        {(convenios || []).map((c) => <option key={c} value={c} />)}
+                                    </datalist>
+                                </>
+                            )}
                             {errors.insurance_name && <p className="text-red-500 text-xs mt-1">{errors.insurance_name}</p>}
                             {avisoConvenio && <p className="mt-1 text-xs text-blue-600">{avisoConvenio}</p>}
+                            {conveniosDoMedico.length > 0 && !data.doctor_id && (
+                                <p className="mt-1 text-xs text-gray-400">Escolha o médico primeiro — cada um atende convênios diferentes.</p>
+                            )}
+                            {selectedDoctor && conveniosDoMedico.length === 0 && temConvenioNaClinica && (
+                                <p className="mt-1 text-xs text-amber-600">{selectedDoctor.name} não atende nenhum convênio cadastrado.</p>
+                            )}
                         </div>
                     )}
 

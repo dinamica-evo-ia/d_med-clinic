@@ -9,6 +9,7 @@ use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
 use App\Models\ClinicProfile;
 use App\Models\Doctor;
+use App\Models\InsurancePlan;
 use App\Models\Patient;
 use App\Support\Whatsapp\Whatsapp;
 use Carbon\Carbon;
@@ -206,9 +207,14 @@ class AttendantAI
                 }
                 $agenda = $dias ? implode('; ', $dias) : 'sem dias configurados';
 
+                // Convênios deste médico: nem todo médico da clínica atende os mesmos.
+                $conv = InsurancePlan::aceitosPor($d->id);
+                $linhaConv = $conv ? "\n  convênios: ".implode(', ', $conv) : '';
+
                 return "- {$d->name}".($d->specialty ? " ({$d->specialty})" : '')."\n"
                     ."  medico_id: {$d->id}\n"
-                    ."  atende: {$agenda}";
+                    ."  atende: {$agenda}"
+                    .$linhaConv;
             })->implode("\n");
         $medicosBlock = $medicos ? "\n\nMédicos ativos:\n{$medicos}" : '';
 
@@ -374,6 +380,19 @@ TXT;
                 $props['convenio'] = ['type' => 'string', 'description' => count($aceitos) > 1
                     ? 'Nome do convênio. Obrigatório quando pagamento=convenio.'
                     : 'Nome do convênio do paciente. Obrigatório — a clínica só atende por convênio.'];
+
+                /*
+                 * Enum com os convênios cadastrados (Configurações → Convênios): sem isso a IA
+                 * aceitava qualquer nome que o paciente falasse e marcava a consulta por um
+                 * convênio que a clínica não atende. Lista vazia = clínica que ainda não
+                 * cadastrou; aí segue texto livre, como era antes.
+                 */
+                if ($convenios = InsurancePlan::aceitosPor(null)) {
+                    $props['convenio']['enum'] = $convenios;
+                    $props['convenio']['description'] .= ' SÓ estes: '.implode(', ', $convenios)
+                        .'. Se o paciente citar outro, diga que a clínica não atende por ele e ofereça particular.';
+                }
+
                 if (count($aceitos) === 1) {
                     $required[] = 'convenio';
                 }
@@ -741,6 +760,21 @@ TXT;
         $convenio = trim((string) ($input['convenio'] ?? ''));
         if ($pagamento === 'convenio' && $convenio === '') {
             return ['erro' => 'Pergunte QUAL é o convênio do paciente antes de marcar.'];
+        }
+
+        /*
+         * O convênio precisa estar cadastrado E ser atendido por ESTE médico. O enum do schema
+         * já orienta, mas orientação não é trava: sem isto a IA marcaria por um convênio que a
+         * clínica não atende, e quem descobre é o paciente no balcão.
+         * Clínica que ainda não cadastrou nada segue aceitando texto livre.
+         */
+        if ($pagamento === 'convenio' && ($aceitosConv = InsurancePlan::aceitosPor($doctor->id))) {
+            $casado = InsurancePlan::casar($convenio, $doctor->id);
+            if (! $casado) {
+                return ['erro' => "{$doctor->name} não atende por \"{$convenio}\". Convênios aceitos: "
+                    .implode(', ', $aceitosConv).'. Ofereça um destes ou particular.'];
+            }
+            $convenio = $casado; // grava com a grafia do cadastro
         }
 
         $appt = Appointment::create([

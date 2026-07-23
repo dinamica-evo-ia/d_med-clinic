@@ -31,6 +31,7 @@ conexão/FK — ver as armadilhas no `CLAUDE.md`.
 | Módulo | Doc | O que é |
 |---|---|---|
 | **Agenda** | [MODULO_AGENDA.md](MODULO_AGENDA.md) | Calendário por médico, horário por períodos, exceções por dia, arrastar-reagendar |
+| **Convênios** | [MODULO_CONVENIOS.md](MODULO_CONVENIOS.md) | Cadastro dos convênios aceitos (por clínica e por médico); alimenta agendamento e IA |
 | **Prontuário** | [MODULO_PRONTUARIO.md](MODULO_PRONTUARIO.md) | Consulta/SOAP, anamnese × evolução, CID-10, receitas, atestados |
 | **Fórmulas** | [MODULO_FORMULAS.md](MODULO_FORMULAS.md) | Biblioteca de Manipulados e Industrializados; arrastar pra receita; limpeza por IA |
 | **Minha Conta** | [MODULO_CONTA.md](MODULO_CONTA.md) | Menu do avatar: ficha do médico, dados da clínica e **usuários** (cadastro da secretária) |

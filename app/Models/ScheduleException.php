@@ -20,6 +20,12 @@ use Illuminate\Support\Str;
  */
 class ScheduleException extends Model
 {
+    // Mesmo motivo do InsurancePlan: sem isto o Eloquent troca o UUID pelo rowid do SQLite
+    // depois do INSERT e o model em memória volta com um id que não existe na tabela.
+    public $incrementing = false;
+
+    protected $keyType = 'string';
+
     protected $fillable = ['doctor_id', 'date', 'kind', 'periods', 'reason', 'created_by'];
 
     protected function casts(): array

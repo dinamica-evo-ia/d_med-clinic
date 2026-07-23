@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Appointment;
 use App\Models\ClinicProfile;
 use App\Models\Doctor;
+use App\Models\InsurancePlan;
 use App\Models\Patient;
 use App\Models\ScheduleException;
 use App\Support\AttendantNotifier;
@@ -57,6 +58,9 @@ class AppointmentController extends Controller
                 // Dias que fogem do padrão — sem isso o aviso do form diria "não atende"
                 // num sábado que a secretária acabou de abrir (o backend aceitaria).
                 'exceptions' => $this->excecoesDoDoutor($d),
+                // Convênios que ESTE médico atende (Configurações → Convênios). Lista vazia =
+                // clínica que ainda não cadastrou nada → o campo continua texto livre.
+                'insurances' => InsurancePlan::aceitosPor($d->id),
             ])->values(),
             'preselectedDoctorId' => $request->get('doctor_id'),
             'convenios' => $this->conveniosConhecidos(),
@@ -64,6 +68,33 @@ class AppointmentController extends Controller
             // /atendente (é a mesma config que decide o que a IA pergunta no WhatsApp).
             'paymentTypes' => ClinicProfile::current()->aceita(),
         ]);
+    }
+
+    /**
+     * O convênio escolhido tem que estar na lista de aceitos DAQUELE médico.
+     * Só vale quando a clínica já cadastrou algum (Configurações → Convênios) — quem ainda não
+     * cadastrou segue digitando na mão, como era antes, senão o deploy travaria a recepção.
+     * Devolve a mensagem de erro, ou null se estiver tudo certo. Corrige a grafia de passagem.
+     */
+    private function validaConvenio(array &$dados): ?string
+    {
+        if (($dados['payment_type'] ?? null) !== 'convenio') {
+            return null;
+        }
+
+        $aceitos = InsurancePlan::aceitosPor($dados['doctor_id'] ?? null);
+        if (! $aceitos) {
+            return null; // clínica sem cadastro: texto livre
+        }
+
+        $casado = InsurancePlan::casar($dados['insurance_name'] ?? null, $dados['doctor_id'] ?? null);
+        if (! $casado) {
+            return 'Este médico não atende por esse convênio. Aceitos: '.implode(', ', $aceitos).'.';
+        }
+
+        $dados['insurance_name'] = $casado; // grava com a grafia do cadastro, não a digitada
+
+        return null;
     }
 
     /** Exceções do médico dentro da janela em que dá pra agendar (só os dias que fogem do padrão). */
@@ -122,6 +153,10 @@ class AppointmentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        if ($erro = $this->validaConvenio($validated)) {
+            return back()->withErrors(['insurance_name' => $erro])->withInput();
+        }
+
         if ($violation = $this->scheduleViolation($validated['doctor_id'], $validated['starts_at'], $validated['ends_at'])) {
             return back()->withErrors(['starts_at' => $violation])->withInput();
         }
@@ -172,6 +207,10 @@ class AppointmentController extends Controller
             'type' => 'nullable|string|in:consultation,followup,exam,other',
             'notes' => 'nullable|string',
         ]);
+
+        if ($erro = $this->validaConvenio($validated)) {
+            return back()->withErrors(['insurance_name' => $erro])->withInput();
+        }
 
         if ($violation = $this->scheduleViolation($validated['doctor_id'], $validated['starts_at'], $validated['ends_at'])) {
             return back()->withErrors(['starts_at' => $violation])->withInput();
