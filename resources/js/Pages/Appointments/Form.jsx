@@ -68,7 +68,12 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
      * É sugestão, não decisão: o mesmo paciente pode vir particular hoje mesmo tendo convênio
      * registrado, e a recepção troca com um clique.
      */
+    const [pacienteNome, setPacienteNome] = useState(
+        patients.find((p) => p.id === (appointment?.patient_id || preselectedPatient))?.name || '',
+    );
+
     const onPatient = (id, patient) => {
+        setPacienteNome(patient?.name || '');
         setData((cur) => {
             const next = { ...cur, patient_id: id };
             if (pagamentoUnico) {
@@ -92,6 +97,16 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
     // Convênios que ESTE médico atende. A clínica sem cadastro nenhum cai no texto livre.
     const conveniosDoMedico = selectedDoctor?.insurances || [];
     const temConvenioNaClinica = doctors.some((d) => (d.insurances || []).length > 0);
+
+    /*
+     * Consultório de um médico só não tem escolha a fazer: o seletor vira uma pergunta com
+     * uma resposta possível. Some da tela e já vai preenchido — a clínica com vários médicos
+     * continua escolhendo normalmente.
+     */
+    const medicoUnico = doctors.length === 1 ? doctors[0] : null;
+    useEffect(() => {
+        if (medicoUnico && !data.doctor_id) setData('doctor_id', medicoUnico.id);
+    }, [medicoUnico?.id]);
 
     // Trocou de médico e o convênio escolhido não é atendido por ele? Limpa em vez de mandar
     // pro backend e voltar com erro — o campo já mostra só o que dá pra escolher.
@@ -152,195 +167,265 @@ export default function Form({ appointment, patients, doctors, preselectedDoctor
     };
 
     const blocked = !!warning;
+    const INPUT = 'w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition';
 
     return (
-        <div>
-            <div className="mb-6">
-                <Link href="/appointments" className="text-sm text-blue-600 hover:text-blue-800 mb-2 inline-block">← Voltar</Link>
-                <h1 className="text-2xl font-bold text-gray-900">{isEditing ? 'Editar Consulta' : 'Nova Consulta'}</h1>
+        <div className="max-w-5xl mx-auto">
+            <div className="mb-5">
+                <Link href="/appointments" className="text-sm text-slate-500 hover:text-slate-800">← Voltar para a agenda</Link>
+                <h1 className="mt-1 text-2xl font-bold text-slate-900">{isEditing ? 'Editar consulta' : 'Nova consulta'}</h1>
+                <p className="text-sm text-slate-500 mt-0.5">
+                    {medicoUnico
+                        ? <>Agenda de <strong>{medicoUnico.name}</strong>.</>
+                        : 'Escolha o profissional primeiro — a agenda e os convênios mudam conforme o médico.'}
+                </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 max-w-2xl">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Paciente *</label>
-                        <PatientPicker
-                            value={data.patient_id}
-                            initial={patients.find((p) => p.id === data.patient_id) || null}
-                            onChange={onPatient}
-                        />
-                        {errors.patient_id && <p className="text-red-500 text-xs mt-1">{errors.patient_id}</p>}
-                    </div>
+            {/*
+             * Duas colunas no desktop (formulário + resumo grudado), uma no celular. Antes a tela
+             * inteira era um max-w-2xl fixo — num monitor grande sobrava metade da tela vazia e no
+             * celular os campos apertavam em duas colunas.
+             */}
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-5 items-start">
+                <div className="space-y-4 min-w-0">
+                    <Secao titulo="Atendimento">
+                        {/*
+                         * MÉDICO PRIMEIRO: é ele que define a agenda e a lista de convênios. Numa
+                         * clínica de um médico só o campo nem aparece — pergunta com uma resposta
+                         * possível não é pergunta.
+                         */}
+                        {!medicoUnico && (
+                            <Campo label="Profissional" obrigatorio erro={errors.doctor_id}>
+                                <select value={data.doctor_id} onChange={e => setData('doctor_id', e.target.value)} className={INPUT}>
+                                    <option value="">Selecione o médico…</option>
+                                    {doctors.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                                </select>
+                            </Campo>
+                        )}
+
+                        <Campo label="Paciente" obrigatorio erro={errors.patient_id}>
+                            <PatientPicker
+                                value={data.patient_id}
+                                initial={patients.find((p) => p.id === data.patient_id) || null}
+                                onChange={onPatient}
+                            />
+                        </Campo>
+                    </Secao>
+
+                    <Secao titulo="Quando"
+                        aside={schedule ? `Consulta padrão de ${schedule.slot_minutes} min` : null}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Campo label="Início" obrigatorio erro={errors.starts_at}>
+                                <input type="datetime-local" value={data.starts_at}
+                                    onChange={e => onStartChange(e.target.value)} className={INPUT} />
+                            </Campo>
+
+                            {/* A duração JÁ foi respondida nas configurações da agenda — aqui ela só é
+                                APLICADA, não perguntada de novo. O ajuste fica atrás de um link, pro
+                                caso excepcional (1ª consulta, procedimento). */}
+                            <Campo label="Término" erro={errors.ends_at}>
+                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
+                                    {data.starts_at && data.ends_at ? (
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-sm text-slate-700">
+                                                <strong>{data.ends_at.slice(11, 16)}</strong>
+                                                <span className="text-slate-400"> · {duracaoAtual} min</span>
+                                            </span>
+                                            {!ajustando && (
+                                                <button type="button" onClick={() => setAjustando(true)}
+                                                    className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                                                    ajustar
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-sm text-slate-400">Escolha o início — calculamos o fim ({duracaoPadrao} min).</span>
+                                    )}
+
+                                    {ajustando && (
+                                        <div className="mt-2 flex flex-wrap gap-1.5 border-t border-slate-200 pt-2">
+                                            {[15, 20, 30, 45, 60].map((min) => (
+                                                <button key={min} type="button" onClick={() => { setDuracao(min); setAjustando(false); }}
+                                                    className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+                                                        duracaoAtual === min
+                                                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                                                            : 'border-slate-200 text-slate-600 hover:bg-white'
+                                                    }`}>
+                                                    {min}min
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </Campo>
+                        </div>
+                    </Secao>
 
                     {/* Particular ou convênio — perguntado SEMPRE que a clínica aceita as duas,
                         paciente novo ou antigo. Quando o cadastro tem convênio, já vem marcado;
                         a recepção só confirma. */}
                     {!pagamentoUnico && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Pagamento *</label>
-                            <div className="flex gap-2">
+                        <Secao titulo="Pagamento">
+                            <div className="grid grid-cols-2 gap-2 max-w-sm">
                                 {[['particular', 'Particular'], ['convenio', 'Convênio']].map(([v, label]) => (
                                     <button key={v} type="button"
                                         onClick={() => setData('payment_type', v)}
-                                        className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                                        className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition ${
                                             data.payment_type === v
                                                 ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                                : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                                                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
                                         }`}>
                                         {label}
                                     </button>
                                 ))}
                             </div>
-                            {errors.payment_type && <p className="text-red-500 text-xs mt-1">{errors.payment_type}</p>}
-                        </div>
-                    )}
+                            {errors.payment_type && <p className="text-rose-600 text-xs mt-1">{errors.payment_type}</p>}
 
-                    {data.payment_type === 'convenio' && (
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Qual convênio? *</label>
-                            {/*
-                              * Lista dos convênios que ESTE médico atende (Configurações → Convênios).
-                              * Enquanto a clínica não cadastrar nenhum, o campo segue texto livre —
-                              * senão o dia do deploy travaria a recepção com a lista vazia.
-                              */}
-                            {temConvenioNaClinica ? (
-                                <select value={data.insurance_name}
-                                    onChange={e => setData('insurance_name', e.target.value)}
-                                    disabled={!data.doctor_id}
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-gray-50 disabled:text-gray-400">
-                                    <option value="">Selecione o convênio…</option>
-                                    {conveniosDoMedico.map((c) => <option key={c} value={c}>{c}</option>)}
-                                </select>
-                            ) : (
-                                <>
-                                    <input list="convenios-conhecidos"
-                                        value={data.insurance_name}
-                                        onChange={e => setData('insurance_name', e.target.value)}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                        placeholder="Ex.: Unimed, Bradesco Saúde…" />
-                                    {/* datalist com os que a clínica já usou — evita 'Unimed'/'unimed'/'UNIMED' */}
-                                    <datalist id="convenios-conhecidos">
-                                        {(convenios || []).map((c) => <option key={c} value={c} />)}
-                                    </datalist>
-                                </>
-                            )}
-                            {errors.insurance_name && <p className="text-red-500 text-xs mt-1">{errors.insurance_name}</p>}
-                            {avisoConvenio && <p className="mt-1 text-xs text-blue-600">{avisoConvenio}</p>}
-                            {conveniosDoMedico.length > 0 && !data.doctor_id && (
-                                <p className="mt-1 text-xs text-gray-400">Escolha o médico primeiro — cada um atende convênios diferentes.</p>
-                            )}
-                            {selectedDoctor && conveniosDoMedico.length === 0 && temConvenioNaClinica && (
-                                <p className="mt-1 text-xs text-amber-600">{selectedDoctor.name} não atende nenhum convênio cadastrado.</p>
-                            )}
-                        </div>
-                    )}
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Médico *</label>
-                        <select value={data.doctor_id} onChange={e => setData('doctor_id', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="">Selecione...</option>
-                            {doctors.map((d) => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                        </select>
-                        {errors.doctor_id && <p className="text-red-500 text-xs mt-1">{errors.doctor_id}</p>}
-                        {schedule && (
-                            <p className="text-xs text-gray-400 mt-1">
-                                Consulta padrão: {schedule.slot_minutes} min. Horários fora do expediente do médico serão bloqueados.
-                            </p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Data e Hora Início *</label>
-                        <input type="datetime-local" value={data.starts_at} onChange={e => onStartChange(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                        {errors.starts_at && <p className="text-red-500 text-xs mt-1">{errors.starts_at}</p>}
-                    </div>
-
-                    {/* A duração JÁ foi respondida nas configurações da agenda — aqui ela só é
-                        APLICADA, não perguntada de novo. Vira texto informativo; o ajuste fica
-                        escondido atrás de um link, pro caso excepcional (1ª consulta, procedimento). */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Término</label>
-                        <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                            {data.starts_at && data.ends_at ? (
-                                <div className="flex items-center justify-between gap-2">
-                                    <span className="text-sm text-gray-700">
-                                        <strong>{data.ends_at.slice(11, 16)}</strong>
-                                        <span className="text-gray-400"> · {duracaoAtual} min</span>
-                                    </span>
-                                    {!ajustando && (
-                                        <button type="button" onClick={() => setAjustando(true)}
-                                            className="text-xs text-blue-600 hover:text-blue-800 underline underline-offset-2">
-                                            ajustar
-                                        </button>
+                            {/* As opções do convênio abrem LOGO ABAIXO do botão que as pediu, e já
+                                depois do médico — que é quem define quais existem. */}
+                            {data.payment_type === 'convenio' && (
+                                <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3">
+                                    <Campo label="Qual convênio?" obrigatorio erro={errors.insurance_name}>
+                                        {temConvenioNaClinica ? (
+                                            <select value={data.insurance_name}
+                                                onChange={e => setData('insurance_name', e.target.value)}
+                                                disabled={!data.doctor_id}
+                                                className={`${INPUT} bg-white disabled:bg-slate-100 disabled:text-slate-400`}>
+                                                <option value="">Selecione o convênio…</option>
+                                                {conveniosDoMedico.map((c) => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        ) : (
+                                            <>
+                                                {/* Clínica que ainda não cadastrou convênio segue no texto livre,
+                                                    com datalist do que já usou (evita Unimed/unimed/UNIMED). */}
+                                                <input list="convenios-conhecidos" value={data.insurance_name}
+                                                    onChange={e => setData('insurance_name', e.target.value)}
+                                                    className={`${INPUT} bg-white`}
+                                                    placeholder="Ex.: Unimed, Bradesco Saúde…" />
+                                                <datalist id="convenios-conhecidos">
+                                                    {(convenios || []).map((c) => <option key={c} value={c} />)}
+                                                </datalist>
+                                            </>
+                                        )}
+                                    </Campo>
+                                    {avisoConvenio && <p className="mt-1 text-xs text-blue-700">{avisoConvenio}</p>}
+                                    {temConvenioNaClinica && !data.doctor_id && (
+                                        <p className="mt-1 text-xs text-slate-500">Escolha o profissional primeiro — cada um atende convênios diferentes.</p>
+                                    )}
+                                    {selectedDoctor && temConvenioNaClinica && conveniosDoMedico.length === 0 && (
+                                        <p className="mt-1 text-xs text-amber-700">{selectedDoctor.name} não atende nenhum convênio cadastrado.</p>
                                     )}
                                 </div>
-                            ) : (
-                                <span className="text-sm text-gray-400">Escolha o início — calculamos o fim ({duracaoPadrao} min).</span>
                             )}
+                        </Secao>
+                    )}
 
-                            {ajustando && (
-                                <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-200 pt-2">
-                                    {[15, 20, 30, 45, 60].map((min) => (
-                                        <button key={min} type="button" onClick={() => { setDuracao(min); setAjustando(false); }}
-                                            className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
-                                                duracaoAtual === min
-                                                    ? 'border-blue-600 bg-blue-50 text-blue-700'
-                                                    : 'border-gray-300 text-gray-600 hover:bg-white'
-                                            }`}>
-                                            {min}min
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+                    <Secao titulo="Detalhes">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <Campo label="Tipo">
+                                <select value={data.type} onChange={e => setData('type', e.target.value)} className={INPUT}>
+                                    <option value="consultation">Consulta</option>
+                                    <option value="followup">Retorno</option>
+                                    <option value="exam">Exame</option>
+                                    <option value="other">Outro</option>
+                                </select>
+                            </Campo>
                         </div>
-                        {errors.ends_at && <p className="text-red-500 text-xs mt-1">{errors.ends_at}</p>}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                        <select value={data.type} onChange={e => setData('type', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                            <option value="consultation">Consulta</option>
-                            <option value="followup">Retorno</option>
-                            <option value="exam">Exame</option>
-                            <option value="other">Outro</option>
-                        </select>
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
-                        <textarea value={data.notes} onChange={e => setData('notes', e.target.value)} rows={3}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                    </div>
+                        <Campo label="Observações">
+                            <textarea value={data.notes} onChange={e => setData('notes', e.target.value)} rows={3}
+                                placeholder="Algo que a recepção ou o médico precise saber antes da consulta…"
+                                className={`${INPUT} resize-y`} />
+                        </Campo>
+                    </Secao>
                 </div>
 
-                {warning && (
-                    <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
-                        ⚠ {warning}
+                {/* Resumo + ações. Gruda no topo no desktop; no celular cai no fim do formulário,
+                    que é exatamente onde a pessoa termina de preencher. */}
+                <aside className="lg:sticky lg:top-4 space-y-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">Resumo</h2>
+                        <dl className="mt-3 space-y-2.5 text-sm">
+                            <Linha rotulo="Profissional" valor={selectedDoctor?.name} />
+                            <Linha rotulo="Paciente" valor={pacienteNome} />
+                            <Linha rotulo="Quando" valor={resumoQuando(data.starts_at, data.ends_at)} />
+                            <Linha rotulo="Pagamento" valor={
+                                data.payment_type === 'convenio'
+                                    ? (data.insurance_name ? `Convênio · ${data.insurance_name}` : 'Convênio')
+                                    : 'Particular'
+                            } />
+                        </dl>
                     </div>
-                )}
 
-                {errors.starts_at && !warning && (
-                    <div className="mt-4 rounded-lg bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
-                        {errors.starts_at}
+                    {warning && (
+                        <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+                            ⚠ {warning}
+                        </div>
+                    )}
+                    {errors.starts_at && !warning && (
+                        <div className="rounded-xl bg-rose-50 border border-rose-200 px-4 py-3 text-sm text-rose-700">
+                            {errors.starts_at}
+                        </div>
+                    )}
+
+                    <div className="flex flex-col-reverse sm:flex-row lg:flex-col gap-2">
+                        <Link href="/appointments"
+                            className="flex-1 text-center px-6 py-2.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200">
+                            Cancelar
+                        </Link>
+                        <button type="submit" disabled={processing || blocked}
+                            title={blocked ? warning : undefined}
+                            className="flex-1 px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {processing ? 'Salvando…' : isEditing ? 'Salvar alterações' : 'Marcar consulta'}
+                        </button>
                     </div>
-                )}
-
-                <div className="mt-6 flex gap-3">
-                    <button type="submit" disabled={processing || blocked}
-                        title={blocked ? warning : undefined}
-                        className="px-6 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                        {processing ? 'Salvando...' : 'Salvar'}
-                    </button>
-                    <Link href="/appointments" className="px-6 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200">
-                        Cancelar
-                    </Link>
-                </div>
+                </aside>
             </form>
         </div>
     );
+}
+
+/* ─────────── pedacinhos de layout (só apresentação) ─────────── */
+
+function Secao({ titulo, aside, children }) {
+    return (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5">
+            <div className="flex items-baseline justify-between gap-3 mb-3">
+                <h2 className="text-sm font-semibold text-slate-800">{titulo}</h2>
+                {aside && <span className="text-xs text-slate-400">{aside}</span>}
+            </div>
+            <div className="space-y-4">{children}</div>
+        </section>
+    );
+}
+
+function Campo({ label, obrigatorio, erro, children }) {
+    return (
+        <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+                {label}{obrigatorio && <span className="text-rose-500"> *</span>}
+            </label>
+            {children}
+            {erro && <p className="text-rose-600 text-xs mt-1">{erro}</p>}
+        </div>
+    );
+}
+
+function Linha({ rotulo, valor }) {
+    return (
+        <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-xs text-slate-400 shrink-0">{rotulo}</dt>
+            <dd className={`text-right ${valor ? 'text-slate-800 font-medium' : 'text-slate-300'}`}>
+                {valor || '—'}
+            </dd>
+        </div>
+    );
+}
+
+/** "qua, 05/08 · 09:00 → 09:30" — o suficiente pra conferir antes de salvar. */
+function resumoQuando(inicio, fim) {
+    if (!inicio) return null;
+    const d = new Date(inicio);
+    if (isNaN(d)) return null;
+    const dia = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    return `${dia} · ${inicio.slice(11, 16)}${fim ? ` → ${fim.slice(11, 16)}` : ''}`;
 }
