@@ -45,6 +45,9 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
     reminder_hour: settings.reminder_hour || '09:00',
     reminder_insist: settings.reminder_insist ?? true,
     insist_hours_before: settings.insist_hours_before || 3,
+    birthday_enabled: settings.birthday_enabled ?? false,
+    birthday_hour: settings.birthday_hour || '07:00',
+    birthday_message: settings.birthday_message || '',
   });
   const setBh = (k, v) => cfg.setData('business_hours', { ...cfg.data.business_hours, [k]: v });
 
@@ -184,6 +187,48 @@ export default function Index({ settings, whatsapp, stats, knowledge = [] }) {
                   <span className="text-slate-500 text-xs">antes da consulta — só uma vez, e só pra quem não confirmou.</span>
                 </div>
               )}
+            </div>
+          )}
+        </div>
+
+        {/*
+          * Parabéns de aniversário. Nasce DESLIGADO: é mensagem que sai sozinha pra base
+          * inteira de pacientes, então ligar é decisão do dono da clínica.
+          */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input type="checkbox" checked={cfg.data.birthday_enabled}
+              onChange={(e) => cfg.setData('birthday_enabled', e.target.checked)}
+              className="rounded border-slate-300 text-blue-600" />
+            Mandar parabéns no aniversário do paciente 🎂
+          </label>
+          <p className="text-xs text-slate-500 mt-1 mb-2">
+            Uma mensagem por ano, em nome da clínica, para todo paciente ativo com WhatsApp e data
+            de nascimento no cadastro.
+          </p>
+
+          {cfg.data.birthday_enabled && (
+            <div className="rounded-lg border border-slate-200 p-3 space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-slate-700">
+                <span>Enviar às</span>
+                <input type="time" value={cfg.data.birthday_hour}
+                  onChange={(e) => cfg.setData('birthday_hour', e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-sm" />
+                <span className="text-xs text-slate-500">de todo dia.</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Mensagem — use <code className="bg-slate-100 px-1 rounded">{'{nome}'}</code> pro primeiro nome do paciente
+                </label>
+                <textarea rows={4} maxLength={600}
+                  value={cfg.data.birthday_message}
+                  onChange={(e) => cfg.setData('birthday_message', e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                <p className="text-xs text-slate-400 mt-1">
+                  Prévia: {(cfg.data.birthday_message || '').replace(/\{nome\}/gi, 'Maria') || '—'}
+                </p>
+              </div>
             </div>
           )}
         </div>

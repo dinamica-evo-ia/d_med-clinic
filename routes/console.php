@@ -21,3 +21,12 @@ Artisan::command('inspire', function () {
 Schedule::command('appointments:send-reminders')
     ->everyFifteenMinutes()
     ->withoutOverlapping();
+
+/*
+ * Parabéns de aniversário (07:00 por padrão, configurável por clínica). Mesma cadência de 15
+ * min pelo mesmo motivo: o comando compara com a hora escolhida e marca quem já recebeu, então
+ * rodar de novo não duplica — e uma rodada que falhe não faz ninguém perder o parabéns.
+ */
+Schedule::command('patients:send-birthday-greetings')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();

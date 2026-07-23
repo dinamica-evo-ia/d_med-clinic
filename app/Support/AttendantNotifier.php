@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\AttendantConversation;
 use App\Models\AttendantMessage;
 use App\Models\AttendantSetting;
+use App\Models\Patient;
 use App\Support\Whatsapp\Whatsapp;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
@@ -73,6 +74,54 @@ class AttendantNotifier
             .'Responda *SIM* se estiver tudo certo, ou me avise se não puder vir — '
             .'assim conseguimos liberar o horário pra outra pessoa.'
         );
+    }
+
+    /**
+     * Parabéns de aniversário. Não é sobre uma consulta, então não passa pelo notify() —
+     * o texto vem pronto da configuração da clínica (com o {nome} já trocado).
+     */
+    public static function birthday(Patient $patient, string $texto): void
+    {
+        self::enviarSolto($patient, $texto);
+    }
+
+    /** Manda uma mensagem avulsa pro paciente e registra no inbox. Nunca lança. */
+    private static function enviarSolto(Patient $patient, string $texto): void
+    {
+        try {
+            $s = AttendantSetting::current();
+            if (! $s->enabled || ! $s->isWhatsappConnected()) {
+                return;
+            }
+
+            $phone = $patient->whatsapp ?: $patient->phone;
+            $phone = $phone ? preg_replace('/\D/', '', $phone) : null;
+            if (! $phone) {
+                return;
+            }
+
+            $conv = AttendantConversation::where('contact_phone', $phone)->latest('id')->first()
+                ?: AttendantConversation::create([
+                    'patient_id' => $patient->id,
+                    'contact_phone' => $phone,
+                    'contact_name' => $patient->name,
+                    'status' => 'open',
+                ]);
+
+            Whatsapp::sendText($s, $phone, $texto);
+
+            // Vai pro inbox: a secretária vê o que saiu em nome da clínica, e se o paciente
+            // responder "obrigado, aproveitando: preciso marcar" a IA tem o contexto.
+            AttendantMessage::create([
+                'conversation_id' => $conv->id,
+                'direction' => 'out',
+                'author_type' => 'system',
+                'body' => $texto,
+            ]);
+            $conv->update(['last_message_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::warning('AttendantNotifier (avulsa) falhou: '.$e->getMessage());
+        }
     }
 
     private static function notify(Appointment $appt, \Closure $build): void

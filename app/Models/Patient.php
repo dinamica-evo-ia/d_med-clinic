@@ -19,7 +19,7 @@ class Patient extends Model
         'name', 'social_name', 'email', 'phone', 'whatsapp', 'document', 'is_foreign',
         'rg', 'rg_issuer', 'rg_state', 'rg_issued_at', 'birth_date', 'gender', 'marital_status',
         'mother_name', 'father_name', 'spouse_name', 'address', 'insurance', 'emergency_contact',
-        'notes', 'photo_path', 'status',
+        'notes', 'photo_path', 'status', 'birthday_greeted_at',
     ];
 
     protected $appends = ['photo_url'];
@@ -28,6 +28,7 @@ class Patient extends Model
     {
         return [
             'birth_date' => 'date',
+            'birthday_greeted_at' => 'date',
             'rg_issued_at' => 'date',
             'is_foreign' => 'boolean',
             'address' => 'array',

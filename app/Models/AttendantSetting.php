@@ -15,7 +15,13 @@ class AttendantSetting extends Model
         'waduck_api_key', 'instance_token', 'waduck_phone', 'webhook_token', 'connected_at',
         'reminder_enabled', 'reminder_days_before', 'reminder_hour',
         'reminder_insist', 'insist_hours_before',
+        'birthday_enabled', 'birthday_hour', 'birthday_message',
     ];
+
+    /** Texto padrão do parabéns. {nome} é trocado pelo primeiro nome do paciente. */
+    public const BIRTHDAY_PADRAO = "Feliz aniversário, {nome}! 🎉\n\n"
+        .'Toda a equipe deseja um dia especial e muita saúde pra você. '
+        .'Conte com a gente sempre que precisar. 💙';
 
     protected function casts(): array
     {
@@ -27,7 +33,25 @@ class AttendantSetting extends Model
             'reminder_insist' => 'boolean',
             'reminder_days_before' => 'integer',
             'insist_hours_before' => 'integer',
+            'birthday_enabled' => 'boolean',
         ];
+    }
+
+    /** Hora do parabéns (padrão 07:00 — antes de a clínica abrir). */
+    public function horaDoParabens(): string
+    {
+        return preg_match('/^\d{2}:\d{2}$/', (string) $this->birthday_hour) ? $this->birthday_hour : '07:00';
+    }
+
+    /** Texto do parabéns pra ESTE paciente, com o {nome} já trocado. */
+    public function textoDoParabens(string $nomeCompleto): string
+    {
+        $texto = trim((string) $this->birthday_message) ?: self::BIRTHDAY_PADRAO;
+        // Primeiro nome: "Maria da Silva" → "Maria". Mensagem de parabéns com nome completo
+        // soa a cobrança de banco.
+        $primeiro = trim(explode(' ', trim($nomeCompleto))[0] ?? '');
+
+        return str_replace(['{nome}', '{NOME}'], $primeiro, $texto);
     }
 
     /** 1 ou 2 dias — o que a clínica escolheu, com piso e teto pra não vir lixo do banco. */

@@ -395,6 +395,36 @@ da imagem):
 - ⚠️ Ficou um container órfão **`evolution_api_orfao`** (parado) do primeiro `docker run`
   antes de virar compose — pode remover.
 
+## Mensagens automáticas (scheduler)
+
+Duas rotinas rodam pelo `schedule:run` (cron do HOST, a cada minuto — o container não tem cron):
+
+| Comando | O que faz | Config em /atendente |
+|---|---|---|
+| `appointments:send-reminders` | Lembrete da consulta + insistência | 1 ou 2 dias antes, hora, insistir sim/não |
+| `patients:send-birthday-greetings` | Parabéns de aniversário | Ligar/desligar, hora (padrão 07:00), texto |
+
+Ambos rodam **a cada 15 min** e comparam com a hora escolhida pela clínica. Rodar de novo não
+duplica (`reminded_at`, `insisted_at`, `birthday_greeted_at`), e uma rodada que falhe não faz
+ninguém perder a mensagem — é "a partir da hora", não "exatamente na hora".
+
+Lembrete e confirmação estão detalhados em [MODULO_AGENDA.md](MODULO_AGENDA.md) — são eles que
+pintam a agenda de amarelo/verde.
+
+### Aniversário
+
+**Nasce desligado** de propósito: é mensagem que sai sozinha pra base inteira de pacientes, então
+ligar é decisão do dono da clínica, não default de sistema.
+
+- Só paciente **ativo**, com **data de nascimento** e **WhatsApp ou telefone**.
+- `{nome}` no texto vira o **primeiro nome** ("Maria da Silva" → "Maria") — parabéns com nome
+  completo soa a cobrança de banco.
+- Texto igual ao padrão é gravado como `null`: assim, se um dia melhorarmos o texto de fábrica,
+  quem nunca personalizou pega o novo em vez de ficar preso numa cópia antiga.
+- A mensagem entra no **inbox** como qualquer outra — a secretária vê o que saiu, e se o paciente
+  responder "obrigado, aproveitando: preciso marcar", a IA já tem o contexto.
+- 29/02: em ano sem 29 ninguém recebe. Preferi isso a mandar no dia errado sem a pessoa esperar.
+
 ## Pendências
 - **Ativar:** conectar uma **instância WADuck** e fazer o **teste do transporte WhatsApp ao vivo** (receber msg real → bot responde/marca → e cancelar/remarcar avisando o paciente). Créditos Anthropic ✅ e cérebro ✅ já validados.
 - Reconhecimento de paciente hoje casa por telefone em dígitos (igual `AgentController`); pacientes cadastrados com telefone formatado no CRM podem não casar — normalizar se virar problema.

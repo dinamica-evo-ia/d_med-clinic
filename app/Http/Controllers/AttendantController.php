@@ -53,6 +53,9 @@ class AttendantController extends Controller
                 'reminder_hour' => $s->horaDoLembrete(),
                 'reminder_insist' => (bool) $s->reminder_insist,
                 'insist_hours_before' => $s->horasParaInsistir(),
+                'birthday_enabled' => (bool) $s->birthday_enabled,
+                'birthday_hour' => $s->horaDoParabens(),
+                'birthday_message' => $s->birthday_message ?: AttendantSetting::BIRTHDAY_PADRAO,
             ],
             'whatsapp' => [
                 'connected' => $s->isWhatsappConnected(),
@@ -95,6 +98,9 @@ class AttendantController extends Controller
             'reminder_hour' => 'nullable|date_format:H:i',
             'reminder_insist' => 'boolean',
             'insist_hours_before' => 'nullable|integer|min:1|max:12',
+            'birthday_enabled' => 'boolean',
+            'birthday_hour' => 'nullable|date_format:H:i',
+            'birthday_message' => 'nullable|string|max:600',
         ]);
 
         $bh = $data['business_hours'] ?? null;
@@ -117,6 +123,13 @@ class AttendantController extends Controller
             'reminder_hour' => $data['reminder_hour'] ?? $s->reminder_hour,
             'reminder_insist' => $data['reminder_insist'] ?? $s->reminder_insist,
             'insist_hours_before' => $data['insist_hours_before'] ?? $s->insist_hours_before,
+            'birthday_enabled' => $data['birthday_enabled'] ?? $s->birthday_enabled,
+            'birthday_hour' => $data['birthday_hour'] ?? $s->birthday_hour,
+            // Texto igual ao padrão vira null: assim, se um dia melhorarmos o texto de fábrica,
+            // quem nunca personalizou pega o novo em vez de ficar preso numa cópia antiga.
+            'birthday_message' => trim((string) ($data['birthday_message'] ?? '')) === AttendantSetting::BIRTHDAY_PADRAO
+                ? null
+                : ($data['birthday_message'] ?? $s->birthday_message),
         ]);
 
         if (! empty($data['payment_types'])) {
