@@ -32,3 +32,10 @@ Thumbs.db
 .env.runtime
 *.bak
 CLAUDE.md
+
+# Cópias de conflito do iCloud Drive ("web 2.php", "Show 2.jsx", ".Show.jsx.icloud").
+# Em 21/07/2026 uma dessas duplicatas foi commitada junto com um `git add -A` e o
+# routes/web.php original voltou pra uma versão velha — /formulas, /atendente e o PWA
+# ficaram 404 por dois dias sem ninguém perceber.
+* [0-9].*
+*.icloud
